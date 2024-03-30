@@ -1,0 +1,19 @@
+syntax = "proto3";
+
+package platform_health.detail.v1;
+
+import "google/protobuf/timestamp.proto";
+
+option go_package = "github.com/isometry/platform-health/pkg/platform_health/details";
+
+message Detail_TLS {
+    string commonName = 1;
+    repeated string subjectAltNames = 2;
+    repeated string chain = 3;
+    google.protobuf.Timestamp validUntil = 4;
+    string signatureAlgorithm = 5;
+    string publicKeyAlgorithm = 6;
+    string version = 7;
+    string cipherSuite = 8;
+    string protocol = 9;
+  }

@@ -1,0 +1,31 @@
+# satellite:
+#   - name: remote
+#     address: satellite.example.com
+#     port: 8080
+tcp:
+  - name: self
+    host: localhost
+    port: 8080
+tls:
+  - name: gmail
+    host: smtp.gmail.com
+    port: 465
+    detail: true
+http:
+  - name: google
+    url: https://google.com
+    detail: true
+# grpc:
+#   - name: example
+#     host: grpc.example.com
+#     port: 443
+# kubernetes:
+#   - kind: deployment
+#     name: podinfo
+#     namespace: default
+#     condition:
+#       type: Available
+#       status: "True"
+# helm:
+#   - name: cilium
+#     namespace: kube-system

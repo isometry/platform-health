@@ -1,0 +1,35 @@
+name: Publish Image
+
+on:
+  push:
+    tags: ["*"]
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  publish-image:
+    name: Publish Image
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: stable
+          check-latest: true
+
+      - name: Setup Ko
+        uses: ko-build/setup-ko@v0.6
+
+      - name: Run Ko
+        run: |
+          go generate ./...
+          ko build --bare --tags "latest,${GITHUB_REF#refs/*/}" ./cmd/server
+        env:
+          GITHUB_REF: ${{ github.ref }}
