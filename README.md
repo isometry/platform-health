@@ -31,7 +31,7 @@ brew install isometry/tap/platform-health
 ```
 
 ```console
-$ phs & sleep 1 && phc && kill %1
+$ phs -l & sleep 1 && phc && kill %1
 {"status":"HEALTHY", "duration":"0.000004833s"}
 ```
 
