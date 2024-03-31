@@ -68,6 +68,10 @@ func (i *Satellite) GetHealth(ctx context.Context) *ph.HealthCheckResponse {
 	ctx, cancel := context.WithTimeout(ctx, i.Timeout)
 	defer cancel()
 
+	if i.Port == 443 || i.Port == 8443 {
+		i.TLS = true
+	}
+
 	dialOptions := []grpc.DialOption{}
 	if i.TLS {
 		tlsConf := &tls.Config{
