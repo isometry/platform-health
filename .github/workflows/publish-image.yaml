@@ -2,8 +2,7 @@ name: Publish Image
 
 on:
   push:
-    tags: ["*"]
-  workflow_dispatch: {}
+    tags: ["v*.*.*"]
 
 permissions:
   contents: read
@@ -30,6 +29,6 @@ jobs:
       - name: Run Ko
         run: |
           go generate ./...
-          ko build --bare --tags "latest,${GITHUB_REF#refs/*/}" ./cmd/server
+          ko build --bare --tags "latest,${GITHUB_REF#refs/tags/v}" ./cmd/server
         env:
           GITHUB_REF: ${{ github.ref }}
