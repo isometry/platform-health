@@ -13,26 +13,24 @@ service Health {
 
 message HealthCheckRequest {
   // allow specification of restricted subset of components to validate
-  repeated Component components = 1;
-}
-
-message Component {
-  string type = 1; // e.g. "tcp", "rest", "grpc", "kafka", "s3"
-  string name = 2; // instance name
+  string component = 1; // TODO: define syntax for specifying component
+  repeated string hops = 2; // list of server IDs for loop detection
 }
 
 message HealthCheckResponse {
   string type = 1; // e.g. "tcp", "rest", "grpc", "kafka", "s3"
   string name = 2; // instance name
-  Status status = 3;
-  string message = 4;
-  repeated google.protobuf.Any details = 5;
-  repeated HealthCheckResponse components = 6;
-  google.protobuf.Duration duration = 7;
+  optional string serverId = 3; // unique identifier for server/satellite instance
+  Status status = 4;
+  string message = 5;
+  repeated google.protobuf.Any details = 6;
+  repeated HealthCheckResponse components = 7;
+  google.protobuf.Duration duration = 8;
 }
 
 enum Status {
   UNKNOWN = 0;
-  UNHEALTHY = 1;
-  HEALTHY = 2;
+  HEALTHY = 1;
+  UNHEALTHY = 2;
+  LOOP_DETECTED = 3;
 }
