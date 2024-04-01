@@ -42,7 +42,7 @@ var ClientCmd = &cobra.Command{
 }
 
 func setup(c *cobra.Command, args []string) (err error) {
-	handler := slog.NewJSONHandler(os.Stdout, nil)
+	handler := slog.NewTextHandler(os.Stdout, nil)
 	slog.SetDefault(slog.New(handler))
 
 	if len(args) == 1 {

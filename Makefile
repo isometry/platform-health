@@ -7,7 +7,7 @@ build: protoc
 
 .PHONY: ko-build
 ko-build: protoc generate
-	ko build --bare ./cmd/server
+	ko build --bare ./cmd/phs
 
 .PHONY: generate
 generate:

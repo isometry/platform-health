@@ -5,7 +5,7 @@ before:
 builds:
   - &standardBuild
     id: client
-    main: ./cmd/client
+    main: ./cmd/phc
     binary: phc
     env:
       - CGO_ENABLED=0
@@ -24,7 +24,7 @@ builds:
       - arm64
   - <<: *standardBuild
     id: server
-    main: ./cmd/server
+    main: ./cmd/phs
     binary: phs
 archives:
   - format: zip

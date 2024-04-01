@@ -29,6 +29,6 @@ jobs:
       - name: Run Ko
         run: |
           go generate ./...
-          ko build --bare --tags "latest,${GITHUB_REF#refs/tags/v}" ./cmd/server
+          ko build --bare --tags "latest,${GITHUB_REF#refs/tags/v}" ./cmd/phs
         env:
           GITHUB_REF: ${{ github.ref }}

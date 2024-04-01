@@ -3,8 +3,8 @@ defaultPlatforms:
   - linux/amd64
 
 builds:
-  - id: platform-health-server
-    main: ./cmd/server
+  - id: server
+    main: ./cmd/phs
     env:
       - CGO_ENABLED=0
     flags:

@@ -39,8 +39,8 @@ jobs:
 
       - name: Build
         run: |
-          go build ./cmd/client
-          go build ./cmd/server
+          go build ./cmd/phc
+          go build ./cmd/phs
 
       - name: Perform CodeQL Analysis
         uses: github/codeql-action/analyze@v3

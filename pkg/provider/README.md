@@ -10,6 +10,6 @@ To create a new provider, there are a few requirements:
 
 * **Register with the internal registry**: Providers must register themselves with the platform-health server's internal registry. This is done with a call to [`provider.Register`](registry.go) in an `init()` function. The `init()` function is automatically called when the program starts, registering the provider before the server begins handling requests.
 
-* **Include via blank import**: To include the provider in the server, it must be imported using a blank import statement (i.e., `_ path/to/module`) in the [server command](../../cmd/server).
+* **Include via blank import**: To include the provider in the server, it must be imported using a blank import statement (i.e., `_ path/to/module`) in the [server command](../../cmd/phs).
 
 By following these guidelines, you can extend the platform-health server to interact with any external system, making it a powerful tool for platform health monitoring.
