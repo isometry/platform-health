@@ -48,8 +48,9 @@ func Check(ctx context.Context, instances []Instance) (response []*ph.HealthChec
 	status = ph.Status_HEALTHY
 	for instance := range instanceChan {
 		response = append(response, instance)
-		if instance.Status != ph.Status_HEALTHY {
-			status = ph.Status_UNHEALTHY
+
+		if instance.Status.Number() > status.Number() {
+			status = instance.Status
 		}
 	}
 

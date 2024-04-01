@@ -19,31 +19,46 @@ func TestCheckAll(t *testing.T) {
 		expected  ph.Status
 	}{
 		{
-			name: "All healthy",
+			name: "AllHealthy",
 			instances: []provider.Instance{
-				&mock.Mock{Health: ph.Status_HEALTHY},
 				&mock.Mock{Health: ph.Status_HEALTHY},
 				&mock.Mock{Health: ph.Status_HEALTHY},
 			},
 			expected: ph.Status_HEALTHY,
 		},
 		{
-			name: "One unhealthy",
+			name: "OneUnhealthy",
 			instances: []provider.Instance{
-				&mock.Mock{Health: ph.Status_HEALTHY},
 				&mock.Mock{Health: ph.Status_UNHEALTHY},
 				&mock.Mock{Health: ph.Status_HEALTHY},
 			},
 			expected: ph.Status_UNHEALTHY,
 		},
 		{
-			name: "All unhealthy",
+			name: "AllUnhealthy",
 			instances: []provider.Instance{
-				&mock.Mock{Health: ph.Status_UNHEALTHY},
 				&mock.Mock{Health: ph.Status_UNHEALTHY},
 				&mock.Mock{Health: ph.Status_UNHEALTHY},
 			},
 			expected: ph.Status_UNHEALTHY,
+		},
+		{
+			name: "LoopFirstPriority",
+			instances: []provider.Instance{
+				&mock.Mock{Health: ph.Status_LOOP_DETECTED},
+				&mock.Mock{Health: ph.Status_UNHEALTHY},
+				&mock.Mock{Health: ph.Status_HEALTHY},
+			},
+			expected: ph.Status_LOOP_DETECTED,
+		},
+		{
+			name: "LoopLastPriority",
+			instances: []provider.Instance{
+				&mock.Mock{Health: ph.Status_HEALTHY},
+				&mock.Mock{Health: ph.Status_UNHEALTHY},
+				&mock.Mock{Health: ph.Status_LOOP_DETECTED},
+			},
+			expected: ph.Status_LOOP_DETECTED,
 		},
 	}
 

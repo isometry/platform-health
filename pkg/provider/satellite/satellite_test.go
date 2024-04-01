@@ -20,15 +20,13 @@ func init() {
 	slog.SetLogLoggerLevel(slog.LevelError)
 }
 
-type testConfig struct {
-	Services []provider.Instance
-}
+type testConfig []provider.Instance
 
 func (c *testConfig) GetInstances() []provider.Instance {
-	return c.Services
+	return *c
 }
 
-func TestSatellite(t *testing.T) {
+func TestSatelliteGetHealth(t *testing.T) {
 	// Start listener for the main server
 	listener, err := net.Listen("tcp", "localhost:0")
 	if err != nil {
@@ -37,8 +35,9 @@ func TestSatellite(t *testing.T) {
 
 	port := listener.Addr().(*net.TCPAddr).Port
 
+	serverId := "root"
 	config := &testConfig{}
-	testServer, err := server.NewPlatformHealthServer(config)
+	testServer, err := server.NewPlatformHealthServer(&serverId, config)
 	if err != nil {
 		t.Fatalf("Failed to set up test server: %v", err)
 	}
@@ -49,31 +48,49 @@ func TestSatellite(t *testing.T) {
 	tests := []struct {
 		name     string
 		port     int
+		hops     []string
 		config   testConfig
 		expected ph.Status
 	}{
 		{
-			name:     "healthy satellite",
+			name:     "EmptyConfig",
 			port:     port,
+			config:   []provider.Instance{},
 			expected: ph.Status_HEALTHY,
 		},
 		{
-			name: "unhealthy satellite",
+			name: "HealthyComponent",
 			port: port,
-			config: testConfig{
-				Services: []provider.Instance{
-					&mock.Mock{
-						Name:   "Test",
-						Health: ph.Status_UNHEALTHY,
-					},
+			config: []provider.Instance{
+				&mock.Mock{
+					Name:   "Test",
+					Health: ph.Status_HEALTHY,
+				},
+			},
+			expected: ph.Status_HEALTHY,
+		},
+		{
+			name: "UnhealthyComponent",
+			port: port,
+			config: []provider.Instance{
+				&mock.Mock{
+					Name:   "Test",
+					Health: ph.Status_UNHEALTHY,
 				},
 			},
 			expected: ph.Status_UNHEALTHY,
 		},
 		{
-			name:     "invalid satellite",
+			name:     "SatelliteDown",
 			port:     1,
 			expected: ph.Status_UNHEALTHY,
+		},
+		{
+			name:     "SatelliteLoop",
+			port:     port,
+			hops:     []string{serverId},
+			config:   []provider.Instance{},
+			expected: ph.Status_LOOP_DETECTED,
 		},
 	}
 
@@ -89,7 +106,9 @@ func TestSatellite(t *testing.T) {
 
 			*config = tt.config
 
-			result := component.GetHealth(context.Background())
+			ctx := server.ContextWithHops(context.Background(), tt.hops)
+
+			result := component.GetHealth(ctx)
 
 			assert.NotNil(t, result)
 			assert.Equal(t, satellite.TypeSatellite, result.GetType())

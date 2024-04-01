@@ -15,6 +15,7 @@ import (
 
 	ph "github.com/isometry/platform-health/pkg/platform_health"
 	"github.com/isometry/platform-health/pkg/provider"
+	"github.com/isometry/platform-health/pkg/server"
 	"github.com/isometry/platform-health/pkg/utils"
 )
 
@@ -91,13 +92,24 @@ func (i *Satellite) GetHealth(ctx context.Context) *ph.HealthCheckResponse {
 		return component.Unhealthy(err.Error())
 	}
 
-	status, err := ph.NewHealthClient(conn).Check(ctx, nil)
+	// Propagate already visited serverIds from context to enable loop detection
+	request := &ph.HealthCheckRequest{
+		Hops: server.HopsFromContext(ctx),
+	}
+
+	status, err := ph.NewHealthClient(conn).Check(ctx, request)
 
 	if err != nil {
 		return component.Unhealthy(err.Error())
 	}
 
+	// If a loop was detected, expose serverId to assist debugging
+	if status.Status == ph.Status_LOOP_DETECTED {
+		component.ServerId = status.ServerId
+	}
+
 	component.Status = status.Status
+	component.Details = status.Details
 	component.Components = status.Components
 
 	return component

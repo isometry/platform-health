@@ -1,0 +1,9 @@
+syntax = "proto3";
+
+package platform_health.detail.v1;
+
+option go_package = "github.com/isometry/platform-health/pkg/platform_health/details";
+
+message Detail_Loop {
+  repeated string serverIds = 1;
+}

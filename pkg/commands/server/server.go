@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"strconv"
 
+	"github.com/google/uuid"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 
@@ -95,6 +96,8 @@ func serve(c *cobra.Command, args []string) error {
 
 	slog.Info("listening", "address", address)
 
+	serverId := uuid.New().String()
+
 	opts := []server.Option{}
 	if !noGrpcHealthV1 {
 		opts = append(opts, server.WithHealthService())
@@ -103,7 +106,7 @@ func serve(c *cobra.Command, args []string) error {
 		opts = append(opts, server.WithReflection())
 	}
 
-	srv, err := server.NewPlatformHealthServer(conf, opts...)
+	srv, err := server.NewPlatformHealthServer(&serverId, conf, opts...)
 	if err != nil {
 		slog.Error("failed to create server", "error", err)
 		return err
@@ -115,10 +118,10 @@ func serve(c *cobra.Command, args []string) error {
 func init() {
 	ServerCmd.Flags().StringVarP(&listenHost, "bind", "l", "", "listen on host (default all interfaces)")
 	ServerCmd.Flags().Lookup("bind").NoOptDefVal = "localhost"
-	viper.BindPFlag(config.ServerFlagPrefix+".listener.host", ServerCmd.Flags().Lookup("bind"))
+	viper.BindPFlag(config.ServerFlagPrefix+".listen.host", ServerCmd.Flags().Lookup("bind"))
 
 	ServerCmd.Flags().IntVarP(&listenPort, "port", "p", 8080, "listen on port")
-	viper.BindPFlag(config.ServerFlagPrefix+".listener.port", ServerCmd.Flags().Lookup("port"))
+	viper.BindPFlag(config.ServerFlagPrefix+".listen.port", ServerCmd.Flags().Lookup("port"))
 
 	ServerCmd.Flags().StringSliceVarP(&configPaths, "config-path", "C", []string{"/config", "."}, "configuration paths")
 	viper.BindPFlag(config.ServerFlagPrefix+".config.path", ServerCmd.Flags().Lookup("config-path"))
