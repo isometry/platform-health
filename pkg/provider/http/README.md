@@ -4,7 +4,7 @@ The HTTP Provider extends the platform-health server to enable monitoring the he
 
 ## Usage
 
-Once the HTTP Provider is configured, any query to the platform-health server will trigger validation of the configured HTTP service(s). The server will attempt to send an HTTP request to each service, and it will report each service as "healthy" if the request is successful and the status code matches one of the expected status codes, or "unhealthy" otherwise.
+Once the HTTP Provider is configured, any query to the platform-health server will trigger validation of the configured HTTP(S) service(s). The server will attempt to send an HTTP request to each service, and it will report each service as "healthy" if the request is successful and the status code matches one of the expected status codes, or "unhealthy" otherwise.
 
 ## Configuration
 
@@ -14,7 +14,7 @@ The HTTP Provider is configured through the platform-health server's configurati
 * `url` (required): The URL of the HTTP service to monitor.
 * `method` (default: `HEAD`): The HTTP method to use for the request.
 * `timeout` (default: `10s`): The maximum time to wait for a response before timing out.
-* `insecure` (default: `false`): If set to true, allows the HTTP provider to establish connections even if the HTTP certificate of the service is invalid or untrusted. This is useful for testing or in environments where services use self-signed certificates. Note that using this option in a production environment is not recommended, as it disables important security checks.
+* `insecure` (default: `false`): If set to true, allows the HTTP provider to establish connections even if the TLS certificate of the service is invalid or untrusted. This is useful for testing or in environments where services use self-signed certificates. Note that using this option in a production environment is not recommended, as it disables important security checks.
 * `status` (default: `[200]`): The list of HTTP status codes that are expected in the response.
 * `detail` (default: `false`): If set to true, the provider will return detailed information about the HTTP connection.
 

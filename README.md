@@ -19,6 +19,7 @@ Probes use a compile-time [provider plugin system](pkg/provider) that supports e
 * [`grpc`](pkg/provider/grpc): gRPC Health v1 service status checks
 * [`kubernetes`](pkg/provider/kubernetes): Kubernetes resource existence and readiness
 * [`helm`](pkg/provider/helm): Helm release existence and deployment status
+* [`vault`](pkg/provider/vault): [Vault](https://www.vaultproject.io/) cluster initialization and seal status
 
 Each provider implements the `Instance` interface, with the health of each instance obtained asynchronously, and contributing to the overall response.
 

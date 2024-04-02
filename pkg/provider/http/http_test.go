@@ -11,7 +11,7 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	ph "github.com/isometry/platform-health/pkg/platform_health"
-	httpService "github.com/isometry/platform-health/pkg/provider/http"
+	httpProvider "github.com/isometry/platform-health/pkg/provider/http"
 )
 
 func init() {
@@ -85,7 +85,7 @@ func TestLocalHTTP(t *testing.T) {
 			defer server.CloseClientConnections()
 			defer server.Close()
 
-			instance := &httpService.HTTP{
+			instance := &httpProvider.HTTP{
 				Name:    "TestService",
 				URL:     server.URL,
 				Method:  tt.method,
@@ -150,7 +150,7 @@ func TestRemoteHTTP(t *testing.T) {
 			ctx, cancel := context.WithTimeout(context.Background(), tt.timeout)
 			defer cancel()
 
-			instance := &httpService.HTTP{
+			instance := &httpProvider.HTTP{
 				Name:    "TestHTTP",
 				URL:     tt.url,
 				Method:  tt.method,
