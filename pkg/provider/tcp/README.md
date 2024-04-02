@@ -18,12 +18,11 @@ The TCP Provider is configured through the platform-health server's configuratio
 ### Example
 
 ```yaml
-services:
-  tcp:
-    - name: example
-      host: example.com
-      port: 80
-      timeout: 1s
+tcp:
+  - name: example
+    host: example.com
+    port: 80
+    timeout: 1s
 ```
 
 In this example, the TCP Provider will establish a TCP connection to example.com on port 80 and it will wait for 1s before timing out.
