@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/spf13/cobra"
@@ -25,6 +26,8 @@ import (
 var (
 	targetHost         string
 	targetPort         int
+	componentName      string
+	componentPath      []string
 	tlsClient          bool
 	insecureSkipVerify bool
 	clientTimeout      time.Duration
@@ -44,6 +47,8 @@ func init() {
 	flagSet := ClientCmd.Flags()
 	flagSet.StringVarP(&targetHost, "server", "s", "localhost", "server host")
 	flagSet.IntVarP(&targetPort, "port", "p", 8080, "server port")
+	flagSet.StringVarP(&componentName, "component-name", "c", "", `component name ("<provider>/<name>")`)
+	flagSet.StringSliceVarP(&componentPath, "component-path", "P", nil, "component path (satellite1,satellite2,...)")
 	flagSet.BoolVar(&tlsClient, "tls", false, "enable tls")
 	flagSet.BoolVarP(&insecureSkipVerify, "insecure", "k", false, "disable certificate verification")
 	flagSet.DurationVarP(&clientTimeout, "timeout", "t", 10*time.Second, "timeout")
@@ -105,7 +110,11 @@ func query(c *cobra.Command, _ []string) (err error) {
 
 	health := ph.NewHealthClient(conn)
 
-	status, err := health.Check(ctx, &ph.HealthCheckRequest{})
+	request := &ph.HealthCheckRequest{
+		Component: strings.Join(append(componentPath, componentName), "/"),
+	}
+
+	status, err := health.Check(ctx, request)
 	if err != nil {
 		slog.Info("failed to check", slog.Any("error", err))
 		return err

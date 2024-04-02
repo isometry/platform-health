@@ -18,9 +18,30 @@ type Instance interface {
 	GetName() string
 	// GetHealth checks and returns the instance
 	GetHealth(context.Context) *ph.HealthCheckResponse
+	// SetComponent sets the component of the instance, only relevant for satellites
+	SetComponent(string)
 	// SetDefaults sets the default values for the instance
 	SetDefaults()
 }
+
+type UnimplementedProvider struct {
+}
+
+func (i *UnimplementedProvider) GetType() string {
+	panic("not implement")
+}
+
+func (i *UnimplementedProvider) GetName() string {
+	panic("not implement")
+}
+
+func (i *UnimplementedProvider) GetHealth(ctx context.Context) *ph.HealthCheckResponse {
+	panic("not implement")
+}
+
+func (i *UnimplementedProvider) SetComponent(string) {}
+
+func (i *UnimplementedProvider) SetDefaults() {}
 
 // Config is the interface through which the provider configuration is retrieved.
 type Config interface {

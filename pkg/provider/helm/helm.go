@@ -18,6 +18,7 @@ import (
 const TypeHelm = "helm"
 
 type Helm struct {
+	provider.UnimplementedProvider
 	Name      string        `mapstructure:"name"`
 	Chart     string        `mapstructure:"chart"`
 	Namespace string        `mapstructure:"namespace"`

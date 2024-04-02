@@ -17,6 +17,7 @@ import (
 const TypeTCP = "tcp"
 
 type TCP struct {
+	provider.UnimplementedProvider
 	Name    string        `mapstructure:"name"`
 	Host    string        `mapstructure:"host"`
 	Port    int           `mapstructure:"port" default:"80"`
