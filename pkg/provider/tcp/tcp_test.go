@@ -25,30 +25,54 @@ func TestTCP(t *testing.T) {
 	}
 	defer listener.Close()
 
+	port := listener.Addr().(*net.TCPAddr).Port
+
 	tests := []struct {
-		name   string
-		port   int
-		status ph.Status
+		name     string
+		port     int
+		invert   bool
+		timeout  time.Duration
+		expected ph.Status
 	}{
 		{
-			name:   "Port open",
-			port:   listener.Addr().(*net.TCPAddr).Port,
-			status: ph.Status_HEALTHY,
+			name:     "Port open",
+			port:     port,
+			expected: ph.Status_HEALTHY,
 		},
 		{
-			name:   "Port closed",
-			port:   1,
-			status: ph.Status_UNHEALTHY,
+			name:     "Port closed",
+			port:     1,
+			expected: ph.Status_UNHEALTHY,
+		},
+		{
+			name:     "Port closed, expect failure",
+			port:     1,
+			invert:   true,
+			expected: ph.Status_HEALTHY,
+		},
+		{
+			name:     "Unexpected timeout",
+			port:     port,
+			timeout:  time.Nanosecond,
+			expected: ph.Status_UNHEALTHY,
+		},
+		{
+			name:     "Expected timeout",
+			port:     port,
+			invert:   true,
+			timeout:  time.Nanosecond,
+			expected: ph.Status_HEALTHY,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			instance := &tcp.TCP{
-				Name:    "TestTCP",
+				Name:    tt.name,
 				Host:    "localhost",
 				Port:    tt.port,
-				Timeout: time.Second,
+				Invert:  tt.invert,
+				Timeout: tt.timeout,
 			}
 			instance.SetDefaults()
 
@@ -56,8 +80,8 @@ func TestTCP(t *testing.T) {
 
 			assert.NotNil(t, result)
 			assert.Equal(t, tcp.TypeTCP, result.GetType())
-			assert.Equal(t, instance.Name, result.GetName())
-			assert.Equal(t, tt.status, result.GetStatus())
+			assert.Equal(t, tt.name, result.GetName())
+			assert.Equal(t, tt.expected, result.GetStatus())
 		})
 	}
 }

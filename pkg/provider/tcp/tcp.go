@@ -20,6 +20,7 @@ type TCP struct {
 	Name    string        `mapstructure:"name"`
 	Host    string        `mapstructure:"host"`
 	Port    int           `mapstructure:"port" default:"80"`
+	Invert  bool          `mapstructure:"invert" default:"false"`
 	Timeout time.Duration `mapstructure:"timeout" default:"1s"`
 }
 
@@ -33,6 +34,7 @@ func (i *TCP) LogValue() slog.Value {
 		slog.String("host", i.Host),
 		slog.Int("port", i.Port),
 		slog.Any("timeout", i.Timeout),
+		slog.Bool("invert", i.Invert),
 	}
 	return slog.GroupValue(logAttr...)
 }
@@ -66,9 +68,17 @@ func (i *TCP) GetHealth(ctx context.Context) *ph.HealthCheckResponse {
 	dialer := &net.Dialer{}
 	conn, err := dialer.DialContext(ctx, "tcp", address)
 	if err != nil {
-		return component.Unhealthy(err.Error())
+		if i.Invert {
+			return component.Healthy()
+		} else {
+			return component.Unhealthy(err.Error())
+		}
+	} else {
+		_ = conn.Close()
+		if i.Invert {
+			return component.Unhealthy("port open")
+		} else {
+			return component.Healthy()
+		}
 	}
-	_ = conn.Close()
-
-	return component.Healthy()
 }
