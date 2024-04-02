@@ -13,6 +13,7 @@ The TCP Provider is configured through the platform-health server's configuratio
 * `name` (required): The name of the TCP service instance, used to identify the service in the health reports.
 * `host` (required): The hostname or IP address of the TCP service to monitor.
 * `port` (default: `80`): The port number of the TCP service to monitor.
+* `invert` (default: `false`): Reverse logic to report "unhealthy" if port is open and "healthy" if it is closed.
 * `timeout` (default: `1s`): The maximum time to wait for a connection to be established before timing out.
 
 ### Example
