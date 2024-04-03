@@ -67,7 +67,7 @@ func setup(cmd *cobra.Command, _ []string) {
 func serve(c *cobra.Command, args []string) error {
 	slog.Info("providers registered", slog.Any("providers", provider.ProviderList()))
 
-	conf, err := config.New(c.Context(), configPaths, configName)
+	conf, err := config.Load(c.Context(), configPaths, configName)
 	if err != nil {
 		return err
 	}

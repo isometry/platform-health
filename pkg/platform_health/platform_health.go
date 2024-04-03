@@ -28,17 +28,24 @@ func (s *HealthCheckResponse) Unhealthy(msg string) *HealthCheckResponse {
 func (s *HealthCheckResponse) Flatten(parent string) (components []*HealthCheckResponse) {
 	components = make([]*HealthCheckResponse, 0, 1+len(s.Components))
 
-	pathName := fmt.Sprintf("%s/%s", strings.TrimSuffix(parent, "/"), s.Name)
+	pathName := s.Name
+	if s.Type != "" {
+		if s.Type != "satellite" {
+			pathName = fmt.Sprintf("%s/%s", s.Type, pathName)
+		}
+		if parent != "" {
+			pathName = fmt.Sprintf("%s/%s", strings.TrimSuffix(parent, "/"), pathName)
+		}
 
-	if s.Name != "" {
-		components = append(components, &HealthCheckResponse{
-			Type:     s.Type,
-			Name:     pathName,
-			Status:   s.Status,
-			Message:  s.Message,
-			Details:  s.Details,
-			Duration: s.Duration,
-		})
+		if s.Type != "satellite" {
+			components = append(components, &HealthCheckResponse{
+				Name:     pathName,
+				Status:   s.Status,
+				Message:  s.Message,
+				Details:  s.Details,
+				Duration: s.Duration,
+			})
+		}
 	}
 
 	for _, component := range s.Components {
