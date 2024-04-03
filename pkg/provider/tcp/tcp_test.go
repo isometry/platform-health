@@ -30,7 +30,7 @@ func TestTCP(t *testing.T) {
 	tests := []struct {
 		name     string
 		port     int
-		invert   bool
+		closed   bool
 		timeout  time.Duration
 		expected ph.Status
 	}{
@@ -40,14 +40,14 @@ func TestTCP(t *testing.T) {
 			expected: ph.Status_HEALTHY,
 		},
 		{
-			name:     "Port closed",
+			name:     "Port closed, wanted open",
 			port:     1,
 			expected: ph.Status_UNHEALTHY,
 		},
 		{
-			name:     "Port closed, expect failure",
+			name:     "Port closed, wanted closed",
 			port:     1,
-			invert:   true,
+			closed:   true,
 			expected: ph.Status_HEALTHY,
 		},
 		{
@@ -59,7 +59,7 @@ func TestTCP(t *testing.T) {
 		{
 			name:     "Expected timeout",
 			port:     port,
-			invert:   true,
+			closed:   true,
 			timeout:  time.Nanosecond,
 			expected: ph.Status_HEALTHY,
 		},
@@ -71,7 +71,7 @@ func TestTCP(t *testing.T) {
 				Name:    tt.name,
 				Host:    "localhost",
 				Port:    tt.port,
-				Invert:  tt.invert,
+				Closed:  tt.closed,
 				Timeout: tt.timeout,
 			}
 			instance.SetDefaults()
