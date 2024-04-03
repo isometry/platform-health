@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"log/slog"
 	"reflect"
-	"strings"
 
 	"github.com/fsnotify/fsnotify"
 	"github.com/mitchellh/mapstructure"
@@ -15,26 +14,42 @@ import (
 	"github.com/isometry/platform-health/pkg/utils"
 )
 
-const ServerFlagPrefix = "server"
-
 type abstractConfig map[string]any
 type concreteConfig map[string][]provider.Instance
 
-func New(ctx context.Context, configPaths []string, configName string) (*concreteConfig, error) {
+type flagPrefix string
+
+func (f flagPrefix) ViperKey(flag string) string {
+	return fmt.Sprintf("%s.%s", f, flag)
+}
+
+var FlagPrefix = flagPrefix("server")
+
+var log *slog.Logger
+
+func Load(ctx context.Context, configPaths []string, configName string) (*concreteConfig, error) {
+	log = utils.ContextLogger(ctx)
+
 	conf := &concreteConfig{}
-	if err := conf.initialize(ctx, configPaths, configName); err != nil {
+	if err := conf.initialize(configPaths, configName); err != nil {
 		return nil, err
 	}
 	return conf, nil
 }
 
-// function to initialize the configuration using viper
-func (c *concreteConfig) initialize(ctx context.Context, configPaths []string, configName string) (err error) {
-	log := utils.ContextLogger(ctx, slog.String("context", "config"))
-	log.Debug("initializing config")
+func (c *concreteConfig) GetInstances() []provider.Instance {
+	flatInstances := make([]provider.Instance, 0, c.totalInstances())
 
-	viper.AutomaticEnv() // read in environment variables that match bound variables
-	viper.SetEnvKeyReplacer(strings.NewReplacer(".", "_", "-", "_"))
+	for _, instances := range *c {
+		flatInstances = append(flatInstances, instances...)
+	}
+
+	return flatInstances
+}
+
+// function to initialize provider configuration using viper
+func (c *concreteConfig) initialize(configPaths []string, configName string) (err error) {
+	log.Debug("initializing server configuration")
 
 	if configName != "" {
 		if configPaths == nil {
@@ -47,76 +62,58 @@ func (c *concreteConfig) initialize(ctx context.Context, configPaths []string, c
 
 		if err = viper.ReadInConfig(); err != nil {
 			if _, ok := err.(viper.ConfigFileNotFoundError); ok {
-				log.Info("No configuration file found - using defaults")
+				log.Info("no configuration file found - using defaults")
 			} else {
-				log.Error("error reading config", "error", err)
+				log.Error("failed to read config", "error", err)
 				return err
 			}
 		} else {
-			log = log.With(slog.String("configFile", viper.ConfigFileUsed()))
+			log.Info("read config", slog.String("file", viper.ConfigFileUsed()))
 			viper.WatchConfig()
 			viper.OnConfigChange(func(e fsnotify.Event) {
 				log.Debug("config change")
 				if err = viper.ReadInConfig(); err != nil {
-					log.Error("error reading config", "error", err)
+					log.Error("failed to read config", "error", err)
 					return
 				}
-				concreteConf, err := UnmarshalConfig(ctx)
-				if err != nil {
-					log.Error("failed to update config", "error", err)
-					return
+				if err = c.update(); err != nil {
+					log.Error("failed to load config", "error", err)
 				}
-				*c = *concreteConf
-				log.Info("config updated", slog.Any("instances", concreteConf.InstanceCounts()))
+
+				log.Info("config reloaded", slog.Any("instances", c.countByProvider()))
 			})
 		}
 	}
 
-	concreteConf, err := UnmarshalConfig(ctx)
-	if err != nil {
+	if err := c.update(); err != nil {
 		log.Error("failed to load config", "error", err)
 		return err
+
 	}
 
-	*c = *concreteConf
-	log.Info("config loaded", slog.Any("instances", concreteConf.InstanceCounts()))
+	log.Info("config loaded", slog.Any("instances", c.countByProvider()))
 
 	return nil
 }
 
-func UnmarshalConfig(ctx context.Context) (*concreteConfig, error) {
-	log := utils.ContextLogger(ctx, slog.String("context", "config"))
-	log.Debug("reading config", "configFile", viper.ConfigFileUsed())
-
+func (c *concreteConfig) update() error {
 	abstract := make(abstractConfig)
+
 	if err := viper.Unmarshal(&abstract); err != nil {
-		log.Error("error unmarshalling config", "error", err)
-		return nil, err
+		log.Error("failed to unmarshal config", "error", err)
+		return err
 	}
 
-	return abstract.Harden(ctx)
+	*c = *abstract.harden()
+
+	return nil
 }
 
-func (c *concreteConfig) count() (count int) {
-	for _, instances := range *c {
-		count += len(instances)
-	}
-	return count
-}
-
-func (c *concreteConfig) GetInstances() []provider.Instance {
-	all := make([]provider.Instance, 0, c.count())
-	for _, instances := range *c {
-		all = append(all, instances...)
-	}
-	return all
-}
-
-func (c *abstractConfig) Harden(ctx context.Context) (*concreteConfig, error) {
-	log := utils.ContextLogger(ctx, slog.String("context", "config"))
+func (c *abstractConfig) harden() *concreteConfig {
 	concrete := concreteConfig{}
+
 	for typeName, instances := range *c {
-		if typeName == ServerFlagPrefix {
+		if typeName == string(FlagPrefix) {
 			// skip bound server flags
 			continue
 		}
@@ -142,7 +139,7 @@ func (c *abstractConfig) Harden(ctx context.Context) (*concreteConfig, error) {
 			instance := reflect.New(providerType)
 
 			if err := mapstructure.Decode(abstractInstance, instance.Interface()); err != nil {
-				log.Warn(fmt.Sprintf("failed to load instance[%d]: %v", i, err))
+				log.Warn("failed to decode instance", slog.Int("index", i), slog.Any("error", err))
 				continue
 			}
 
@@ -153,13 +150,23 @@ func (c *abstractConfig) Harden(ctx context.Context) (*concreteConfig, error) {
 		}
 	}
 
-	return &concrete, nil
+	return &concrete
 }
 
-func (c *concreteConfig) InstanceCounts() map[string]int {
-	counts := make(map[string]int)
-	for typeName, instances := range *c {
-		counts[typeName] = len(instances)
+func (c *concreteConfig) totalInstances() (count int) {
+	for _, instances := range *c {
+		count += len(instances)
 	}
+
+	return count
+}
+
+func (c *concreteConfig) countByProvider() map[string]int {
+	counts := make(map[string]int)
+
+	for provider, instances := range *c {
+		counts[provider] = len(instances)
+	}
+
 	return counts
 }
