@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"log/slog"
 	"reflect"
-	"strings"
 
 	"github.com/fsnotify/fsnotify"
 	"github.com/mitchellh/mapstructure"
@@ -15,7 +14,13 @@ import (
 	"github.com/isometry/platform-health/pkg/utils"
 )
 
-const ServerFlagPrefix = "server"
+type flagPrefix string
+
+func (f flagPrefix) ViperKey(flag string) string {
+	return fmt.Sprintf("%s.%s", f, flag)
+}
+
+var FlagPrefix = flagPrefix("server")
 
 type abstractConfig map[string]any
 type concreteConfig map[string][]provider.Instance
@@ -32,9 +37,6 @@ func New(ctx context.Context, configPaths []string, configName string) (*concret
 func (c *concreteConfig) initialize(ctx context.Context, configPaths []string, configName string) (err error) {
 	log := utils.ContextLogger(ctx, slog.String("context", "config"))
 	log.Debug("initializing config")
-
-	viper.AutomaticEnv() // read in environment variables that match bound variables
-	viper.SetEnvKeyReplacer(strings.NewReplacer(".", "_", "-", "_"))
 
 	if configName != "" {
 		if configPaths == nil {
@@ -116,7 +118,7 @@ func (c *abstractConfig) Harden(ctx context.Context) (*concreteConfig, error) {
 	log := utils.ContextLogger(ctx, slog.String("context", "config"))
 	concrete := concreteConfig{}
 	for typeName, instances := range *c {
-		if typeName == ServerFlagPrefix {
+		if typeName == string(FlagPrefix) {
 			// skip bound server flags
 			continue
 		}

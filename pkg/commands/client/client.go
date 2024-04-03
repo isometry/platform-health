@@ -12,7 +12,6 @@ import (
 	"time"
 
 	"github.com/spf13/cobra"
-	"github.com/spf13/viper"
 	slogctx "github.com/veqryn/slog-context"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
@@ -39,6 +38,18 @@ var ClientCmd = &cobra.Command{
 	PreRunE:      setup,
 	RunE:         query,
 	SilenceUsage: true,
+}
+
+func init() {
+	flagSet := ClientCmd.Flags()
+	flagSet.StringVarP(&targetHost, "server", "s", "localhost", "server host")
+	flagSet.IntVarP(&targetPort, "port", "p", 8080, "server port")
+	flagSet.BoolVar(&tlsClient, "tls", false, "enable tls")
+	flagSet.BoolVarP(&insecureSkipVerify, "insecure", "k", false, "disable certificate verification")
+	flagSet.DurationVarP(&clientTimeout, "timeout", "t", 10*time.Second, "timeout")
+	flagSet.BoolVarP(&flatOutput, "flat", "f", false, "flat output")
+	flagSet.CountVarP(&quietLevel, "quiet", "q", "quiet output")
+	flagSet.SortFlags = false
 }
 
 func setup(c *cobra.Command, args []string) (err error) {
@@ -124,28 +135,4 @@ func query(c *cobra.Command, _ []string) (err error) {
 	fmt.Println(string(pjson))
 
 	return nil
-}
-
-func init() {
-	ClientCmd.Flags().StringVarP(&targetHost, "server", "s", "localhost", "server host")
-	viper.BindPFlag("server", ClientCmd.Flags().Lookup("server"))
-	ClientCmd.Flags().IntVarP(&targetPort, "port", "p", 8080, "server port")
-	viper.BindPFlag("server", ClientCmd.Flags().Lookup("server"))
-
-	ClientCmd.Flags().BoolVar(&tlsClient, "tls", false, "enable tls")
-	viper.BindPFlag("tls", ClientCmd.Flags().Lookup("tls"))
-
-	ClientCmd.Flags().BoolVarP(&insecureSkipVerify, "insecure", "k", false, "disable certificate verification")
-	viper.BindPFlag("insecure", ClientCmd.Flags().Lookup("insecure"))
-
-	ClientCmd.Flags().DurationVarP(&clientTimeout, "timeout", "t", 10*time.Second, "timeout")
-	viper.BindPFlag("timeout", ClientCmd.Flags().Lookup("timeout"))
-
-	ClientCmd.Flags().BoolVarP(&flatOutput, "flat", "f", false, "flat output")
-	viper.BindPFlag("flat", ClientCmd.Flags().Lookup("flat"))
-
-	ClientCmd.Flags().CountVarP(&quietLevel, "quiet", "q", "quiet output")
-	viper.BindPFlag("quiet", ClientCmd.Flags().Lookup("quiet"))
-
-	ClientCmd.Flags().SortFlags = false
 }
