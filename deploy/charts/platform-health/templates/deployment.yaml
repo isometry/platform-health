@@ -1,0 +1,86 @@
+{{- if eq .Values.mode "deployment" }}
+---
+{{- $deployment := .Values.deployment | default dict }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ template "chart.fullname" . }}
+  labels:
+    {{- include "labels" . | nindent 4 }}
+    {{- with $deployment.extraLabels -}}{{ toYaml . | nindent 4 }}{{- end }}
+  {{- with mergeOverwrite (.Values.commonAnnotations | default dict) ($deployment.annotations | default dict) }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "matchLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "matchLabels" . | nindent 8 }}
+    spec:
+      {{- with .Values.priorityClassName }}
+      priorityClassName: {{ . | quote }}
+      {{- end }}
+      {{- with .Values.runtimeClassName }}
+      runtimeClassName: {{ . | quote }}
+      {{- end }}
+      serviceAccountName: {{ template "chart.fullname" . }}
+      hostNetwork: {{ .Values.hostNetwork | default false }}
+      restartPolicy: {{ .Values.restartPolicy | default "Always" }}
+      {{- with .Values.securityContext }}
+      securityContext:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with  .Values.topologySpreadConstraints }}
+      topologySpreadConstraints:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- $container :=  $deployment.container | default dict }}
+      containers:
+        - name: {{ template "chart.fullname" . }}
+          image: "{{ .Values.image.repository }}:{{ .Chart.AppVersion | default .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          {{- with $container.resources }}
+          resources: {{ toYaml . | nindent 12 }}
+          {{- end }}
+          ports:
+            - containerPort: {{ $container.port | default 8080 }}
+          args: {{ $container.args }}
+          {{- with .Values.containerSecurityContext }}
+          securityContext:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          volumeMounts:
+            - name: config
+              mountPath: /config
+          readinessProbe:
+            grpc:
+              port: {{ $container.port | default 8080 }}
+          livenessProbe:
+            grpc:
+              port: {{ $container.port | default 8080 }}
+          {{- with .Values.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+      volumes:
+        - name: config
+          configMap:
+            name: {{ template "chart.fullname" . }}
+{{- end }}

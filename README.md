@@ -42,9 +42,8 @@ $ phs -l & sleep 1 && phc && kill %1
 ```console
 helm upgrade \
     --install platform-health \
-    -n <namespace> \
-    --version <version> \
-    oci://ghcr.io/isometry/platform-health/charts
+    -n platform-health --create-namespace \
+    oci://ghcr.io/isometry/charts/platform-health
 ```
 
 #### Install via `kubectl`

@@ -5,8 +5,7 @@ repos:
       - id: check kubeconform
         name: Kubeconform validation
         entry: bash -c <<<-'
-          kubeconform -strict -output json -summary < <(helm template helm/charts) &&
-          kubeconform -strict -output json -summary < <(helm template helm/charts --set job.enabled=true) &&
-          kubeconform -strict -output json -summary < <(helm template helm/charts --set job.enabled=true --set job.type=CronJob)'
+          helm template platform-health deploy/charts/platform-health | kubeconform -strict -output json -summary
+          '
         language: system
         pass_filenames: false

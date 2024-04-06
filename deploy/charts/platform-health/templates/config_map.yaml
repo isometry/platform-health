@@ -1,0 +1,10 @@
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ template "chart.fullname" . }}
+  labels:
+    {{- include "labels" . | nindent 4 }}
+data:
+  platform-health.yaml: |
+    {{- .Values.serverConfig | default dict | toYaml | nindent 4 }}

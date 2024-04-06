@@ -1,0 +1,92 @@
+{{- if .Values.rbac.create -}}
+---
+{{- $roleKind := ternary "Role" "ClusterRole" .Values.namespaced}}
+apiVersion: rbac.authorization.k8s.io/v1
+kind: {{ $roleKind }}
+metadata:
+  name: {{ template "chart.fullname" . }}
+  labels:
+    {{- include "labels" . | nindent 4 }}
+  {{- with .Values.commonAnnotations | default dict }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+{{- with .Values.rbac.role | default dict}}
+rules:
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["get"]
+  {{- if .enableDeployments }}
+  - apiGroups: ["apps"]
+    resources: ["deployments", "replicasets", "statefulsets", "daemonsets"]
+    verbs: ["get"]
+  {{- end }}
+  {{- if .enableSecrets }}
+  - apiGroups: [""]
+    resources: ["secrets"]
+    verbs: ["get"]
+  {{- end }}
+  {{- if .enableConfigMaps }}
+  - apiGroups: [ "" ]
+    resources: [ "configmaps" ]
+    verbs: [ "get" ]
+  {{- end }}
+  {{- if .enableArgoApplications }}
+  - apiGroups: ["argoproj.io"]
+    resources: ["applications"]
+    verbs: ["get"]
+  {{- end }}
+  {{- if .enableArgoApplicationSets }}
+  - apiGroups: ["argoproj.io"]
+    resources: ["applicationsets"]
+    verbs: ["get"]
+  {{- end }}
+  {{- if .enableJobs }}
+  - apiGroups: ["batch"]
+    resources: ["jobs", "cronjobs"]
+    verbs: ["get"]
+  {{- end }}
+  {{- if .enableCertManager }}
+  - apiGroups: ["cert-manager.io"]
+    resources: ["clusterissuers", "issuers", "certificates"]
+    verbs: ["get"]
+  {{- end }}
+  {{- if .enableNetworking }}
+  - apiGroups: ["networking.k8s.io"]
+    resources: ["ingressclasses", "ingresses", "networkpolicies"]
+    verbs: ["get"]
+  - apiGroups: [""]
+    resources: ["services"]
+    verbs: ["get"]
+  {{- end }}
+  {{- if .enableStorage }}
+  - apiGroups: ["storage.k8s.io"]
+    resources: ["storageclasses", "volumeattachments", "csinodes", "csidrivers", "persistentvolumeclaims", "persistentvolumes"]
+    verbs: ["get"]
+  {{- end }}
+  {{- if .enablePodDisruptionBudgets }}
+  - apiGroups: ["policy"]
+    resources: ["poddisruptionbudgets", "podsecuritypolicies"]
+    verbs: ["get"]
+  {{- end }}
+{{- end }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: {{ $roleKind }}Binding
+metadata:
+  name: {{ template "chart.fullname" . }}
+  labels:
+    {{- include "labels" . | nindent 4 }}
+  {{- with .Values.commonAnnotations | default dict }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+subjects:
+  - kind: ServiceAccount
+    name: {{ template "chart.serviceAccountName" . }}
+    namespace: {{ include "chart.namespace" . }}
+roleRef:
+  kind: {{ $roleKind }}
+  name: {{ template "chart.fullname" . }}
+  apiGroup: rbac.authorization.k8s.io
+{{- end }}
