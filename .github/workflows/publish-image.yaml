@@ -51,5 +51,5 @@ jobs:
       - name: Build and Push Helm Chart
         run: |
           VERSION=${GITHUB_REF#refs/tags/v}
-          helm package deploy/charts/platform-health --destination /_build --version "$VERSION" --app-version "$VERSION"
-          helm push /_build/platform-health-*.tgz oci://ghcr.io/isometry/charts
+          helm package deploy/charts/platform-health --destination _build --version "$VERSION" --app-version "$VERSION"
+          helm push _build/platform-health-*.tgz oci://ghcr.io/isometry/charts
