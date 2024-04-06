@@ -38,7 +38,16 @@ $ phs -l & sleep 1 && phc && kill %1
 
 ### Kubernetes
 
-TODO: Helm chart :-)
+#### Install via `helm` chart
+
+```console
+helm upgrade \
+    --install platform-health \
+    -n platform-health --create-namespace \
+    oci://ghcr.io/isometry/charts/platform-health
+```
+
+#### Install via `kubectl`
 
 ```bash
 kubectl create configmap platform-health --from-file=platform-health.yaml=/dev/stdin <<-EOF

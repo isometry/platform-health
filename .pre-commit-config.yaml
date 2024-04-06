@@ -1,0 +1,11 @@
+---
+repos:
+  - repo: local
+    hooks:
+      - id: check kubeconform
+        name: Kubeconform validation
+        entry: bash -c <<<-'
+          helm template platform-health deploy/charts/platform-health | kubeconform -strict -output json -summary
+          '
+        language: system
+        pass_filenames: false
