@@ -10,8 +10,6 @@ namespaced: false
 
 # Common values
 commonLabels: ~
-fullnameOverride: ~
-nameOverride: ~
 
 # Application container :: custom configuration
 image:
