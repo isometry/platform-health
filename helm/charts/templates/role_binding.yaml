@@ -1,0 +1,19 @@
+{{ if .Values.namespaced }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{ template "platform-health.fullname" . }}
+  {{- $roleBinding := .Values.roleBinding | default dict }}
+  {{- $labels := mergeOverwrite (.Values.common_labels | default dict) ($roleBinding.labels | default dict) | toYaml | nindent 4 }}
+  labels: {{ $labels }}
+  {{- $annotations := mergeOverwrite (.Values.common_annotations | default dict) ($roleBinding.annotations | default dict) | toYaml | nindent 4 }}
+  annotations: {{ $annotations }}
+subjects:
+  - kind: ServiceAccount
+    name: {{ template "platform-health.fullname" . }}
+roleRef:
+  kind: Role
+  name: {{ template "platform-health.fullname" . }}
+  apiGroup: rbac.authorization.k8s.io
+{{- end }}

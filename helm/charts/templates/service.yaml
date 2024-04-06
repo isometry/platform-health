@@ -1,0 +1,21 @@
+{{ if .Values.service.enabled }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ template "platform-health.fullname" . }}
+  {{- $service := .Values.service | default dict }}
+  {{- $labels := mergeOverwrite (.Values.common_labels | default dict) ($service.labels | default dict) | toYaml | nindent 4 }}
+  labels: {{ $labels }}
+  {{- $annotations := mergeOverwrite (.Values.common_annotations | default dict) ($service.annotations | default dict) | toYaml | nindent 4 }}
+  annotations: {{ $annotations }}
+spec:
+  selector:
+    app: {{ template "platform-health.name" . }}
+  {{- $deployment := .Values.deployment | default dict }}
+  {{- $container :=  $deployment.container | default dict }}
+  ports:
+    - port: {{.Values.service.port}}
+      targetPort: {{$container.port}}
+  type: {{ .Values.service.type }}
+{{- end }}

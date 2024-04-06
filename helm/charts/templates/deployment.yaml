@@ -1,0 +1,78 @@
+{{- $type := (.Values.mode | default "deployment") | lower }}
+{{- if eq $type "deployment" }}
+---
+{{- $deployment := .Values.deployment | default dict }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ template "platform-health.fullname" . }}
+  {{- $labels := mergeOverwrite (.Values.common_labels | default dict) ($deployment.labels | default dict) | toYaml | nindent 4 }}
+  labels: {{ $labels }}
+  {{- $annotations := mergeOverwrite (.Values.common_annotations | default dict) ($deployment.annotations | default dict) | toYaml | nindent 4 }}
+  annotations: {{ $annotations }}
+spec:
+  replicas: {{ $deployment.replicaCount | default 1 }}
+  selector:
+    matchLabels:
+      app: {{ template "platform-health.name" . }}
+  template:
+    metadata:
+      labels:
+        app: {{ template "platform-health.name" . }}
+    spec:
+      {{- with $deployment.priorityClassName }}
+      priorityClassName: {{ . }}
+      {{- end }}
+      {{- with $deployment.runtimeClassName }}
+      runtimeClassName: {{ . }}
+      {{- end }}
+      serviceAccountName: {{ template "platform-health.fullname" . }}
+      hostNetwork: {{ $deployment.hostNetwork | default false }}
+      restartPolicy: {{ $deployment.restartPolicy | default "OnFailure" }}
+      volumes:
+        - name: config
+          configMap:
+            name: {{ template "platform-health.fullname" . }}
+      {{- with $deployment.nodeSelector }}
+      nodeSelector: {{ toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with $deployment.tolerations }}
+      tolerations: {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with $deployment.affinity }}
+      affinity: {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with $deployment.topologySpreadConstraints }}
+      topologySpreadConstraints: {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- $container :=  $deployment.container | default dict }}
+      containers:
+        - name: {{ template "platform-health.fullname" . }}
+          image: "{{ .Values.image.repository }}:{{ .Chart.AppVersion | default .Chart.Version | default .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          {{- with $container.resources }}
+          resources: {{ toYaml . | nindent 12 }}
+          {{- end }}
+          ports:
+            - containerPort: {{ $container.port | default 8080 }}
+          args: {{ $container.args }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+          volumeMounts:
+            - name: config
+              mountPath: /config
+          readinessProbe:
+            grpc:
+              port: {{ $container.port | default 8080 }}
+          livenessProbe:
+            grpc:
+              port: {{ $container.port | default 8080 }}
+      securityContext:
+        fsGroup: 1000
+        runAsGroup: 1000
+        runAsNonRoot: true
+        runAsUser: 1000
+        seccompProfile:
+          type: RuntimeDefault
+{{- end }}

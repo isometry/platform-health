@@ -26,3 +26,16 @@ jobs:
 
       - name: Run Tests
         run: go test -v ./...
+
+      - name: 'Fetch :: kubeconform'
+        run: |
+          go install github.com/yannh/kubeconform/cmd/kubeconform@latest
+
+      - name: '⎈️ Validate :: Helm + Schema :: AppSet'
+        run: |
+          # Mode: Deployment
+          kubeconform -strict -output json -summary < <(helm template helm/charts)
+          # Mode: Job
+          kubeconform -strict -output json -summary < <(helm template . --set job.enabled=true)
+          # Mode: CronJob
+          kubeconform -strict -output json -summary < <(helm template . --set job.enabled=true --set job.type=CronJob)

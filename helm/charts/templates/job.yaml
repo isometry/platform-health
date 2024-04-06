@@ -1,0 +1,110 @@
+{{- $type := (.Values.mode | default "deployment") | lower -}}
+{{- if or (eq $type "job") (eq $type "cronjob") }}
+---
+{{- $job := .Values.job | default dict }}
+apiVersion: batch/v1
+kind: {{ $job.kind | default "Job" }}
+metadata:
+  generateName: {{ include "platform-health.name" . }}--
+  {{- $labels := mergeOverwrite (.Values.common_labels | default dict) ($job.labels | default dict) | toYaml | nindent 4 }}
+  labels: {{ $labels }}
+  {{- $annotations := mergeOverwrite (.Values.common_annotations | default dict) ($job.annotations | default dict) | toYaml | nindent 4 }}
+  annotations: {{ $annotations }}
+spec:
+  {{- if eq $job.kind "CronJob" }}
+  {{- with $job.schedule }}
+  schedule: {{ . }}
+  {{- end }}
+  concurrencyPolicy: {{ $job.concurrencyPolicy | default "Forbid" }}
+  {{- end }}
+  {{- with $job.startingDeadlineSeconds }}
+  startingDeadlineSeconds: {{ . }}
+  {{- end }}
+  {{- with $job.parallelism }}
+  parallelism: {{ . }}
+  {{- end }}
+  {{- with $job.completions }}
+  completions: {{ . }}
+  {{- end }}
+  {{- with $job.backoffLimit }}
+  backoffLimit: {{ . }}
+  {{- end }}
+  {{- with $job.backoffLimitPerIndex }}
+  backoffLimitPerIndex: {{ . }}
+  {{- end }}
+  {{- with $job.maxFailedIndexes }}
+  maxFailedIndexes: {{ . }}
+  {{- end }}
+  {{- with $job.completionMode }}
+  completionMode: {{ . }}
+  {{- end }}
+  {{- with $job.activeDeadlineSeconds }}
+  activeDeadlineSeconds: {{ . }}
+  {{- end }}
+  {{- with $job.ttlSecondsAfterFinished }}
+  ttlSecondsAfterFinished: {{ . }}
+  {{- end }}
+  {{- with $job.successfulJobsHistoryLimit }}
+  successfulJobsHistoryLimit: {{ . }}
+  {{- end }}
+  {{- with $job.failedJobsHistoryLimit }}
+  failedJobsHistoryLimit: {{ . }}
+  {{- end }}
+  template:
+    spec:
+      {{- with $job.priorityClassName }}
+      priorityClassName: {{ . }}
+      {{- end }}
+      {{- with $job.runtimeClassName }}
+      runtimeClassName: {{ . }}
+      {{- end }}
+      serviceAccountName: {{ template "platform-health.fullname" . }}
+      hostNetwork: {{ $job.hostNetwork | default false }}
+      restartPolicy: {{ $job.restartPolicy | default "OnFailure" }}
+      volumes:
+        - name: config
+          configMap:
+            name: {{ template "platform-health.fullname" . }}
+      {{- with $job.nodeSelector }}
+      nodeSelector: {{ toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with $job.tolerations }}
+      tolerations: {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with $job.affinity }}
+      affinity: {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with $job.topologySpreadConstraints }}
+      topologySpreadConstraints: {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- $container :=  $job.container | default dict }}
+      containers:
+        - name: {{ template "platform-health.fullname" . }}
+          image: "{{ .Values.image.repository }}:{{ .Chart.AppVersion | default .Chart.Version | default .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          {{- with $container.resources }}
+          resources: {{ toYaml . | nindent 12 }}
+          {{- end }}
+          ports:
+            - containerPort: {{ $container.port | default 8080 }}
+          args: {{ $container.args }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+          volumeMounts:
+            - name: config
+              mountPath: /config
+          readinessProbe:
+            grpc:
+              port: {{ $container.port | default 8080 }}
+          livenessProbe:
+            grpc:
+              port: {{ $container.port | default 8080 }}
+      securityContext:
+        fsGroup: 1000
+        runAsGroup: 1000
+        runAsNonRoot: true
+        runAsUser: 1000
+        seccompProfile:
+          type: RuntimeDefault
+{{- end }}

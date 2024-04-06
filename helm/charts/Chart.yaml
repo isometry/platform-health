@@ -1,0 +1,7 @@
+---
+apiVersion: v2
+name: charts
+description: A Helm chart for platform-health
+
+type: application
+version: 0.1.0
