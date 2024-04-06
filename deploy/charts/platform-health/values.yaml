@@ -9,7 +9,10 @@ mode: deployment
 namespaced: false
 
 # Common values
-commonLabels: ~
+commonLabels: {}
+commonAnnotations: {}
+nameOverride: ""
+fullnameOverride: ""
 
 # Application container :: custom configuration
 image:
@@ -67,15 +70,13 @@ ingress:
   extraLabels: {}
   annotations: {}
   hosts: []
-  # - host: platform-health.local
-  #   paths:
-  #     - path: /
-  #       pathType: ImplementationSpecific
-  #
+  # - platform-health.local
+  paths: [/]
+  pathType: Prefix
   tls: []
-  #  - secretName: platform-health-tls
-  #    hosts:
-  #      - platform-health.local
+  # - hosts:
+  #     - platform-health.local
+  #   secretName: platform-health-tls
 
 # Resources to provide to the platform-health pod.
 #

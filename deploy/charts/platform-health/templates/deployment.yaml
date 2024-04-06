@@ -1,14 +1,14 @@
 {{- if eq .Values.mode "deployment" }}
 ---
-{{- $deployment := .Values.deployment | default dict }}
+{{- $deployment := .Values.deployment }}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: {{ template "chart.fullname" . }}
+  name: {{ include "chart.fullname" . }}
   labels:
     {{- include "labels" . | nindent 4 }}
     {{- with $deployment.extraLabels -}}{{ toYaml . | nindent 4 }}{{- end }}
-  {{- with mergeOverwrite (.Values.commonAnnotations | default dict) ($deployment.annotations | default dict) }}
+  {{- with mergeOverwrite .Values.commonAnnotations $deployment.annotations }}
   annotations:
     {{- toYaml . | nindent 4 }}
   {{- end }}
@@ -16,11 +16,11 @@ spec:
   replicas: {{ .Values.replicaCount }}
   selector:
     matchLabels:
-      {{- include "matchLabels" . | nindent 6 }}
+      {{- include "selectorLabels" . | nindent 6 }}
   template:
     metadata:
       labels:
-        {{- include "matchLabels" . | nindent 8 }}
+        {{- include "selectorLabels" . | nindent 8 }}
     spec:
       {{- with .Values.priorityClassName }}
       priorityClassName: {{ . | quote }}
@@ -28,7 +28,7 @@ spec:
       {{- with .Values.runtimeClassName }}
       runtimeClassName: {{ . | quote }}
       {{- end }}
-      serviceAccountName: {{ template "chart.fullname" . }}
+      serviceAccountName: {{ include "chart.fullname" . }}
       hostNetwork: {{ .Values.hostNetwork | default false }}
       restartPolicy: {{ .Values.restartPolicy | default "Always" }}
       {{- with .Values.securityContext }}
@@ -53,7 +53,7 @@ spec:
       {{- end }}
       {{- $container :=  $deployment.container | default dict }}
       containers:
-        - name: {{ template "chart.fullname" . }}
+        - name: {{ include "chart.fullname" . }}
           image: "{{ .Values.image.repository }}:{{ .Chart.AppVersion | default .Values.image.tag }}"
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           {{- with $container.resources }}
@@ -82,5 +82,5 @@ spec:
       volumes:
         - name: config
           configMap:
-            name: {{ template "chart.fullname" . }}
+            name: {{ include "chart.fullname" . }}
 {{- end }}

@@ -1,44 +1,38 @@
 {{- if .Values.ingress.enabled -}}
 ---
-{{- $ingress := .Values.ingress | default dict }}
+{{- $ingress := .Values.ingress }}
+{{- $serviceName := include "chart.fullname" . }}
+{{- $servicePort := .Values.service.port }}
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
-  name: {{ template "chart.fullname" . }}
+  name: {{ include "chart.fullname" . }}
   labels:
     {{- include "labels" . | nindent 4 }}
     {{- with $ingress.extraLabels -}}{{ toYaml . | nindent 4 }}{{- end }}
-  {{- with mergeOverwrite (.Values.commonAnnotations | default dict) ($ingress.annotations | default dict) }}
+  {{- with mergeOverwrite .Values.commonAnnotations $ingress.annotations }}
   annotations:
     {{- toYaml . | nindent 4 }}
   {{- end }}
 spec:
   ingressClassName: {{ $ingress.className }}
-  {{- if $ingress.tls }}
-  tls:
-    {{- range $ingress.tls }}
-    - hosts:
-        {{- range .hosts }}
-        - {{ . | quote }}
-        {{- end }}
-      secretName: {{ .secretName }}
-    {{- end }}
-  {{- end }}
   rules:
-    {{- range $ingress.hosts }}
-    - host: {{ .host | quote }}
+    {{- range $host := $ingress.hosts }}
+    - host: {{ tpl $host $ }}
       http:
         paths:
-          {{- range .paths }}
-          - path: {{ .path }}
-            {{- if .pathType }}
-            pathType: {{ .pathType }}
-            {{- end }}
+          {{- range $path := $ingress.paths }}
+          - path: {{ tpl $path $ }}
+            pathType: {{ $ingress.pathType }}
             backend:
               service:
-                name: {{ template "chart.fullname" . }}
+                name: {{ $serviceName }}
                 port:
-                  number: {{ .Values.service.port }}
+                  number: {{ $servicePort }}
           {{- end }}
     {{- end }}
+  {{- if $ingress.tls }}
+  tls:
+    {{- tpl (toYaml $ingress.tls | nindent 4) . }}
+  {{- end }}
 {{- end }}

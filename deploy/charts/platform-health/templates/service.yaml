@@ -1,20 +1,20 @@
 {{ if .Values.service.enabled }}
 ---
-{{- $service := .Values.service | default dict }}
+{{- $service := .Values.service }}
 apiVersion: v1
 kind: Service
 metadata:
-  name: {{ template "chart.fullname" . }}
+  name: {{ include "chart.fullname" . }}
   labels:
     {{- include "labels" . | nindent 4 }}
     {{- with $service.extraLabels -}}{{ toYaml . | nindent 4 }}{{- end }}
-  {{- with mergeOverwrite (.Values.commonAnnotations | default dict) ($service.annotations | default dict) }}
+  {{- with mergeOverwrite .Values.commonAnnotations $service.annotations }}
   annotations:
     {{- toYaml . | nindent 4 }}
   {{- end }}
 spec:
   selector:
-    {{- include "matchLabels" . | nindent 4 }}
+    {{- include "selectorLabels" . | nindent 4 }}
   ports:
     - port: {{ $service.port }}
       targetPort: {{ .Values.deployment.container.port }}
