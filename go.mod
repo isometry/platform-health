@@ -13,7 +13,7 @@ require (
 	github.com/spf13/viper v1.18.2
 	github.com/stretchr/testify v1.9.0
 	github.com/veqryn/slog-context v0.7.0
-	google.golang.org/grpc v1.62.1
+	google.golang.org/grpc v1.63.2
 	google.golang.org/protobuf v1.33.0
 	helm.sh/helm/v3 v3.14.3
 	k8s.io/api v0.29.3
