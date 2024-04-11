@@ -9,7 +9,9 @@ metadata:
     {{- include "labels" . | nindent 4 }}
   {{- with .Values.commonAnnotations }}
   annotations:
-    {{- toYaml . | nindent 4 }}
+    {{- range $key, $value := . }}
+    {{ $key }}: {{ $value | quote }}
+    {{- end }}
   {{- end }}
 {{- with .Values.rbac.role }}
 rules:
@@ -79,7 +81,9 @@ metadata:
     {{- include "labels" . | nindent 4 }}
   {{- with .Values.commonAnnotations | default dict }}
   annotations:
-    {{- toYaml . | nindent 4 }}
+    {{- range $key, $value := . }}
+    {{ $key }}: {{ $value | quote }}
+    {{- end }}
   {{- end }}
 subjects:
   - kind: ServiceAccount

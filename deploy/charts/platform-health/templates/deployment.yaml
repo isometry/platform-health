@@ -10,7 +10,9 @@ metadata:
     {{- with $deployment.extraLabels -}}{{ toYaml . | nindent 4 }}{{- end }}
   {{- with mergeOverwrite .Values.commonAnnotations $deployment.annotations }}
   annotations:
-    {{- toYaml . | nindent 4 }}
+    {{- range $key, $value := . }}
+    {{ $key }}: {{ $value | quote }}
+    {{- end }}
   {{- end }}
 spec:
   replicas: {{ .Values.replicaCount }}

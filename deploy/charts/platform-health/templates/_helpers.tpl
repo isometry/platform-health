@@ -10,16 +10,16 @@ Create a default fully qualified app name.
 We truncate at 63 chars because some Kubernetes name fields are limited to this (by the DNS naming spec).
 */}}
 {{- define "chart.fullname" -}}
-{{- if default false .Values.fullnameOverride }}
+{{-   if default false .Values.fullnameOverride }}
 {{- .Values.fullnameOverride | trunc 63 | trimSuffix "-" }}
-{{- else }}
+{{-   else }}
 {{- $name := default .Chart.Name .Values.nameOverride }}
-{{- if contains $name .Release.Name }}
+{{-     if contains $name .Release.Name }}
 {{- .Release.Name | trunc 63 | trimSuffix "-" }}
-{{- else }}
+{{-     else }}
 {{- printf "%s-%s" .Release.Name $name | trunc 63 | trimSuffix "-" }}
-{{- end }}
-{{- end }}
+{{-     end }}
+{{-   end }}
 {{- end }}
 
 {{/*
@@ -35,14 +35,16 @@ Common labels that should be on every resource
 {{- define "labels" -}}
 app: {{ include "chart.name" . }}
 {{ include "selectorLabels" . }}
-{{- if .Chart.AppVersion }}
+{{-   if .Chart.AppVersion }}
 app.kubernetes.io/version: {{ .Chart.AppVersion | quote }}
-{{- end }}
+{{-   end }}
 app.kubernetes.io/managed-by: {{ .Release.Service }}
 helm.sh/chart: {{ printf "%s-%s" .Chart.Name .Chart.Version | replace "+" "_" | trunc 63 | trimSuffix "-" }}
-{{- with .Values.commonLabels }}
-{{ toYaml . }}
-{{- end }}
+{{-   with .Values.commonLabels }}
+{{-     range $key, $value := . }}
+{{ $key }}: {{ $value | quote }}
+{{-     end }}
+{{-   end }}
 {{- end }}
 
 {{/*
@@ -57,9 +59,9 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 Name of the service account to use
 */}}
 {{- define "chart.serviceAccountName" -}}
-{{- if .Values.serviceAccount.create }}
+{{-   if .Values.serviceAccount.create }}
 {{- default (include "chart.fullname" .) .Values.serviceAccount.name }}
-{{- else }}
+{{-   else }}
 {{- default "default" .Values.serviceAccount.name }}
-{{- end }}
+{{-   end }}
 {{- end }}

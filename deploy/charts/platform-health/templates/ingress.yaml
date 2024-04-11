@@ -12,7 +12,9 @@ metadata:
     {{- with $ingress.extraLabels -}}{{ toYaml . | nindent 4 }}{{- end }}
   {{- with mergeOverwrite .Values.commonAnnotations $ingress.annotations }}
   annotations:
-    {{- toYaml . | nindent 4 }}
+    {{- range $key, $value := . }}
+    {{ $key }}: {{ $value | quote }}
+    {{- end }}
   {{- end }}
 spec:
   ingressClassName: {{ $ingress.className }}

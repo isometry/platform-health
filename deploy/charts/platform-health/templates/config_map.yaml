@@ -7,7 +7,9 @@ metadata:
     {{- include "labels" . | nindent 4 }}
   {{- with .Values.commonAnnotations }}
   annotations:
-    {{- toYaml . | nindent 4 }}
+    {{- range $key, $value := . }}
+    {{ $key }}: {{ $value | quote }}
+    {{- end }}
   {{- end }}
 data:
   platform-health.yaml: |

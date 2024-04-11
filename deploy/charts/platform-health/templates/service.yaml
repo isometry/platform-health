@@ -10,7 +10,9 @@ metadata:
     {{- with $service.extraLabels -}}{{ toYaml . | nindent 4 }}{{- end }}
   {{- with mergeOverwrite .Values.commonAnnotations $service.annotations }}
   annotations:
-    {{- toYaml . | nindent 4 }}
+    {{- range $key, $value := . }}
+    {{ $key }}: {{ $value | quote }}
+    {{- end }}
   {{- end }}
 spec:
   selector:
