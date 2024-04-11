@@ -12,8 +12,11 @@ import (
 	"github.com/google/uuid"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
+	slogctx "github.com/veqryn/slog-context"
+	"google.golang.org/protobuf/encoding/protojson"
 
 	"github.com/isometry/platform-health/pkg/config"
+	ph "github.com/isometry/platform-health/pkg/platform_health"
 	"github.com/isometry/platform-health/pkg/provider"
 	"github.com/isometry/platform-health/pkg/server"
 )
@@ -23,18 +26,27 @@ var (
 	listenPort     int
 	configPaths    []string
 	configName     string
+	oneShot        bool
 	noGrpcHealthV1 bool
 	grpcReflection bool
 	jsonOutput     bool
 	debugMode      bool
 	verbosity      int
+
+	log  *slog.Logger
+	conf provider.Config
 )
 
 var ServerCmd = &cobra.Command{
-	Args:         cobra.MaximumNArgs(1),
-	Use:          fmt.Sprintf("%s [flags] [host:port]", filepath.Base(os.Args[0])),
-	PreRun:       setup,
-	RunE:         serve,
+	Args:    cobra.MaximumNArgs(1),
+	Use:     fmt.Sprintf("%s [flags] [host:port]", filepath.Base(os.Args[0])),
+	PreRunE: setup,
+	RunE: func(cmd *cobra.Command, args []string) error {
+		if oneShot {
+			return oneshot(cmd, args)
+		}
+		return serve(cmd, args)
+	},
 	SilenceUsage: true,
 }
 
@@ -45,33 +57,34 @@ func init() {
 	serverFlags.register(ServerCmd.Flags(), false)
 }
 
-func setup(cmd *cobra.Command, _ []string) {
+func setup(cmd *cobra.Command, _ []string) (err error) {
 	var logLevel = new(slog.LevelVar)
 	logLevel.Set(slog.LevelWarn - slog.Level(verbosity*4))
 
-	opts := &slog.HandlerOptions{
+	handlerOpts := &slog.HandlerOptions{
 		AddSource: debugMode,
 		Level:     logLevel,
 	}
 
 	var handler slog.Handler
 	if jsonOutput {
-		handler = slog.NewJSONHandler(os.Stdout, opts)
+		handler = slog.NewJSONHandler(os.Stderr, handlerOpts)
 	} else {
-		handler = slog.NewTextHandler(os.Stdout, opts)
+		handler = slog.NewTextHandler(os.Stderr, handlerOpts)
 	}
 
 	slog.SetDefault(slog.New(handler))
+	log = slog.Default()
+
+	cmd.SetContext(slogctx.NewCtx(cmd.Context(), log))
+
+	log.Info("providers registered", slog.Any("providers", provider.ProviderList()))
+
+	conf, err = config.Load(cmd.Context(), configPaths, configName)
+	return err
 }
 
-func serve(c *cobra.Command, args []string) error {
-	slog.Info("providers registered", slog.Any("providers", provider.ProviderList()))
-
-	conf, err := config.Load(c.Context(), configPaths, configName)
-	if err != nil {
-		return err
-	}
-
+func serve(_ *cobra.Command, args []string) (err error) {
 	if len(args) == 1 {
 		var listenPortStr string
 		listenHost, listenPortStr, err = net.SplitHostPort(args[0])
@@ -87,11 +100,11 @@ func serve(c *cobra.Command, args []string) error {
 	address := net.JoinHostPort(listenHost, fmt.Sprint(listenPort))
 	listener, err := net.Listen("tcp", address)
 	if err != nil {
-		slog.Error("failed to open listener", slog.Any("error", err))
+		log.Error("failed to open listener", slog.Any("error", err))
 		return err
 	}
 
-	slog.Info("listening", "address", address)
+	log.Info("listening", "address", address)
 
 	serverId := uuid.New().String()
 
@@ -105,9 +118,33 @@ func serve(c *cobra.Command, args []string) error {
 
 	srv, err := server.NewPlatformHealthServer(&serverId, conf, opts...)
 	if err != nil {
-		slog.Error("failed to create server", "error", err)
+		log.Error("failed to create server", "error", err)
 		return err
 	}
 
 	return srv.Serve(listener)
+}
+
+func oneshot(cmd *cobra.Command, _ []string) error {
+	serverId := "oneshot"
+	srv, err := server.NewPlatformHealthServer(&serverId, conf)
+	if err != nil {
+		log.Error("failed to create server", "error", err)
+		return err
+	}
+
+	status, err := srv.Check(cmd.Context(), &ph.HealthCheckRequest{})
+	if err != nil {
+		slog.Info("failed to check", slog.Any("error", err))
+		return err
+	}
+
+	pjson, err := protojson.Marshal(status)
+	if err != nil {
+		return err
+	}
+
+	fmt.Println(string(pjson))
+
+	return nil
 }

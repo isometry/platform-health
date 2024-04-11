@@ -30,6 +30,8 @@ var (
 	clientTimeout      time.Duration
 	flatOutput         bool
 	quietLevel         int
+
+	log *slog.Logger
 )
 
 var ClientCmd = &cobra.Command{
@@ -52,9 +54,10 @@ func init() {
 	flagSet.SortFlags = false
 }
 
-func setup(c *cobra.Command, args []string) (err error) {
-	handler := slog.NewTextHandler(os.Stdout, nil)
+func setup(cmd *cobra.Command, args []string) (err error) {
+	handler := slog.NewTextHandler(os.Stderr, nil)
 	slog.SetDefault(slog.New(handler))
+	log = slog.Default()
 
 	if len(args) == 1 {
 		var targetPortStr string
@@ -71,14 +74,14 @@ func setup(c *cobra.Command, args []string) (err error) {
 	return nil
 }
 
-func query(c *cobra.Command, _ []string) (err error) {
+func query(cmd *cobra.Command, _ []string) (err error) {
 	address := net.JoinHostPort(targetHost, fmt.Sprint(targetPort))
 
 	ctx, cancel := context.WithTimeout(context.Background(), clientTimeout)
 	defer cancel()
 
-	ctx = slogctx.NewCtx(ctx, slog.Default())
-	c.SetContext(ctx)
+	ctx = slogctx.NewCtx(ctx, log)
+	cmd.SetContext(ctx)
 
 	if targetPort == 443 || targetPort == 8443 {
 		tlsClient = true
@@ -99,7 +102,7 @@ func query(c *cobra.Command, _ []string) (err error) {
 
 	conn, err := grpc.DialContext(ctx, address, dialOptions...)
 	if err != nil {
-		slog.Error("failed to connect to server", slog.String("server", targetHost), slog.Any("error", err))
+		log.Error("failed to connect to server", slog.String("server", targetHost), slog.Any("error", err))
 		return err
 	}
 
@@ -107,13 +110,13 @@ func query(c *cobra.Command, _ []string) (err error) {
 
 	status, err := health.Check(ctx, &ph.HealthCheckRequest{})
 	if err != nil {
-		slog.Info("failed to check", slog.Any("error", err))
+		log.Info("failed to check", slog.Any("error", err))
 		return err
 	}
 
 	switch {
 	case quietLevel > 1:
-		c.SilenceUsage = true
+		cmd.SilenceUsage = true
 		if status.Status == ph.Status_HEALTHY {
 			return nil
 		} else {

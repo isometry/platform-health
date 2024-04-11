@@ -48,6 +48,13 @@ var serverFlags = flagValues{
 		defaultValue: "platform-health",
 		usage:        "configuration name",
 	},
+	"one-shot": {
+		shorthand:    "1",
+		kind:         "bool",
+		variable:     &oneShot,
+		defaultValue: false,
+		usage:        "one-shot mode",
+	},
 	"no-grpc-health-v1": {
 		shorthand:    "H",
 		kind:         "bool",
