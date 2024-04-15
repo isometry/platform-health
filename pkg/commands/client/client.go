@@ -35,11 +35,12 @@ var (
 )
 
 var ClientCmd = &cobra.Command{
-	Args:         cobra.MaximumNArgs(1),
-	Use:          fmt.Sprintf("%s [flags] [host:port]", filepath.Base(os.Args[0])),
-	PreRunE:      setup,
-	RunE:         query,
-	SilenceUsage: true,
+	Args:          cobra.MaximumNArgs(1),
+	Use:           fmt.Sprintf("%s [flags] [host:port]", filepath.Base(os.Args[0])),
+	PreRunE:       setup,
+	RunE:          query,
+	SilenceErrors: true,
+	SilenceUsage:  true,
 }
 
 func init() {
@@ -116,12 +117,7 @@ func query(cmd *cobra.Command, _ []string) (err error) {
 
 	switch {
 	case quietLevel > 1:
-		cmd.SilenceUsage = true
-		if status.Status == ph.Status_HEALTHY {
-			return nil
-		} else {
-			return fmt.Errorf("unhealthy")
-		}
+		return status.IsHealthy()
 	case quietLevel > 0:
 		status.Components = nil
 	}
@@ -137,5 +133,5 @@ func query(cmd *cobra.Command, _ []string) (err error) {
 
 	fmt.Println(string(pjson))
 
-	return nil
+	return status.IsHealthy()
 }

@@ -33,8 +33,9 @@ var (
 	debugMode      bool
 	verbosity      int
 
-	log  *slog.Logger
-	conf provider.Config
+	log   *slog.Logger
+	level *slog.LevelVar
+	conf  provider.Config
 )
 
 var ServerCmd = &cobra.Command{
@@ -58,12 +59,12 @@ func init() {
 }
 
 func setup(cmd *cobra.Command, _ []string) (err error) {
-	var logLevel = new(slog.LevelVar)
-	logLevel.Set(slog.LevelWarn - slog.Level(verbosity*4))
+	level = new(slog.LevelVar)
+	level.Set(slog.LevelWarn - slog.Level(verbosity*4))
 
 	handlerOpts := &slog.HandlerOptions{
 		AddSource: debugMode,
-		Level:     logLevel,
+		Level:     level,
 	}
 
 	var handler slog.Handler
@@ -126,6 +127,9 @@ func serve(_ *cobra.Command, args []string) (err error) {
 }
 
 func oneshot(cmd *cobra.Command, _ []string) error {
+	cmd.SilenceErrors = true
+	level.Set(slog.LevelError)
+
 	serverId := "oneshot"
 	srv, err := server.NewPlatformHealthServer(&serverId, conf)
 	if err != nil {
@@ -146,5 +150,5 @@ func oneshot(cmd *cobra.Command, _ []string) error {
 
 	fmt.Println(string(pjson))
 
-	return nil
+	return status.IsHealthy()
 }

@@ -6,6 +6,12 @@ import (
 	"strings"
 )
 
+type UnhealthyError struct{}
+
+func (e *UnhealthyError) Error() string {
+	return "UNHEALTHY"
+}
+
 func (s *HealthCheckResponse) LogStatus(log *slog.Logger) {
 	if s.Status == Status_HEALTHY {
 		log.Info("success")
@@ -23,6 +29,13 @@ func (s *HealthCheckResponse) Unhealthy(msg string) *HealthCheckResponse {
 	s.Status = Status_UNHEALTHY
 	s.Message = msg
 	return s
+}
+
+func (s *HealthCheckResponse) IsHealthy() error {
+	if s.Status != Status_HEALTHY {
+		return &UnhealthyError{}
+	}
+	return nil
 }
 
 func (s *HealthCheckResponse) Flatten(parent string) (components []*HealthCheckResponse) {

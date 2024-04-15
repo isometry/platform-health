@@ -2,7 +2,6 @@ package main
 
 import (
 	"fmt"
-	"log/slog"
 	"os"
 
 	"github.com/isometry/platform-health/pkg/commands/server"
@@ -29,7 +28,6 @@ func main() {
 	rootCmd.Version = fmt.Sprintf("%s-%s (built %s)", version, commit, date)
 	err := rootCmd.Execute()
 	if err != nil {
-		slog.Error("error executing command", slog.Any("error", err))
 		os.Exit(1)
 	}
 }
