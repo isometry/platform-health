@@ -53,34 +53,30 @@ spec:
       topologySpreadConstraints:
         {{- toYaml . | nindent 8 }}
       {{- end }}
-      {{- $container :=  $deployment.container | default dict }}
       containers:
         - name: {{ include "chart.fullname" . }}
           image: "{{ .Values.image.repository }}:{{ .Chart.AppVersion | default .Values.image.tag }}"
           imagePullPolicy: {{ .Values.image.pullPolicy }}
-          {{- with $container.resources }}
-          resources: {{ toYaml . | nindent 12 }}
-          {{- end }}
           ports:
-            - containerPort: {{ $container.port | default 8080 }}
-          args: {{ $container.args }}
+            - containerPort: &port {{ .Values.containerPort }}
+          args: {{ .Values.serverArgs }}
           {{- with .Values.containerSecurityContext }}
           securityContext:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          livenessProbe:
+            grpc:
+              port: *port
+          readinessProbe:
+            grpc:
+              port: *port
+          {{- with .Values.resources }}
+          resources:
             {{- toYaml . | nindent 12 }}
           {{- end }}
           volumeMounts:
             - name: config
               mountPath: /config
-          readinessProbe:
-            grpc:
-              port: {{ $container.port | default 8080 }}
-          livenessProbe:
-            grpc:
-              port: {{ $container.port | default 8080 }}
-          {{- with .Values.resources }}
-          resources:
-            {{- toYaml . | nindent 12 }}
-          {{- end }}
       volumes:
         - name: config
           configMap:

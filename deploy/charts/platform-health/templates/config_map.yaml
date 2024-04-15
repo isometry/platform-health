@@ -13,4 +13,4 @@ metadata:
   {{- end }}
 data:
   platform-health.yaml: |
-    {{- .Values.serverConfig | toYaml | nindent 4 }}
+    {{- tpl (.Values.serverConfig | toYaml) . | nindent 4 }}

@@ -19,6 +19,6 @@ spec:
     {{- include "selectorLabels" . | nindent 4 }}
   ports:
     - port: {{ $service.port }}
-      targetPort: {{ .Values.deployment.container.port }}
+      targetPort: {{ .Values.containerPort }}
   type: {{ $service.type }}
 {{- end }}

@@ -46,13 +46,11 @@ serverArgs: &args
 #       url: https://google.com
 serverConfig: {}
 
+containerPort: &port 8080
+
 # Deployment :: custom configuration
 ## deployment-mode: deactivated if the job mode is enabled
 deployment:
-  # Container :: custom configuration
-  container:
-    port: &port 8080
-    args: *args
   extraLabels: {}
   annotations: {}
 
