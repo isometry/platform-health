@@ -44,6 +44,9 @@ serverArgs: &args
 #   http:
 #     - name: google
 #       url: https://google.com
+#
+# Explicitly passing nil (i.e. `serverConfig: ~`) disables ConfigMap generation,
+# leaving it to the user.
 serverConfig: {}
 
 containerPort: &port 8080

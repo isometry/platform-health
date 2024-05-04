@@ -1,3 +1,4 @@
+{{- if ne .Values.serverConfig nil }}
 ---
 apiVersion: v1
 kind: ConfigMap
@@ -14,3 +15,4 @@ metadata:
 data:
   platform-health.yaml: |
     {{- tpl (.Values.serverConfig | toYaml) . | nindent 4 }}
+{{- end }}
