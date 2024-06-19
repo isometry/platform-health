@@ -1,8 +1,10 @@
 version: 2
+
 before:
   hooks:
     - go generate ./...
     - go mod tidy
+
 builds:
   - &standardBuild
     id: client
@@ -10,7 +12,7 @@ builds:
     binary: phc
     env:
       - CGO_ENABLED=0
-    mod_timestamp: "{{ .CommitTimestamp }}"
+    mod_timestamp: "{{.CommitTimestamp}}"
     flags:
       - -trimpath
     ldflags:
@@ -27,22 +29,28 @@ builds:
     id: server
     main: ./cmd/phs
     binary: phs
+
 archives:
   - format: zip
-    name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    name_template: "{{.ProjectName}}_{{.Version}}_{{.Os}}_{{.Arch}}"
+
 snapshot:
-  name_template: "{{ .Tag }}-next"
+  name_template: "{{.Tag}}-next"
+
 checksum:
-  name_template: "{{ .ProjectName }}_{{ .Version }}_SHA256SUMS"
+  name_template: "{{.ProjectName}}_{{.Version}}_SHA256SUMS"
   algorithm: sha256
+
 release:
   draft: false
+
 changelog:
   sort: asc
   filters:
     exclude:
       - "^docs:"
       - "^test:"
+
 brews:
   - repository:
       owner: isometry
@@ -54,3 +62,34 @@ brews:
     install: |
       bin.install "phc"
       bin.install "phs"
+
+kos:
+  - id: server
+    repository: ghcr.io/isometry/platform-health
+    main: ./cmd/phs
+    platforms:
+      - linux/amd64
+      - linux/arm64
+    env:
+      - CGO_ENABLED=0
+    flags:
+      - -trimpath
+    ldflags:
+      - -s -w
+    ko_data_creation_time: "{{.CommitTimestamp}}"
+    labels:
+      org.opencontainers.image.created: "{{.Date}}"
+      org.opencontainers.image.name: "{{.ProjectName}}"
+      org.opencontainers.image.revision: "{{.FullCommit}}"
+      org.opencontainers.image.version: "{{.Version}}"
+      org.opencontainers.image.source: "{{.GitURL}}"
+    bare: true
+    preserve_import_paths: false
+    tags:
+      - "{{.Version}}"
+      - latest
+
+docker_signs:
+  - id: server
+    args: ["sign", "--yes", "${artifact}"]
+    artifacts: manifests
