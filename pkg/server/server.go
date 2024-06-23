@@ -4,6 +4,7 @@ import (
 	"context"
 	"net"
 	"slices"
+	"strings"
 	"time"
 
 	"google.golang.org/grpc"
@@ -110,6 +111,37 @@ func (s *PlatformHealthServer) Check(ctx context.Context, req *ph.HealthCheckReq
 	ctx = ContextWithHops(ctx, hops)
 
 	providerServices := s.Config.GetInstances()
+
+	componentPath := strings.Split(req.Component, "/")
+	if len(componentPath) > 1 {
+		switch len(componentPath) {
+		case 1:
+			// invalid component path
+		case 2:
+			for _, instance := range providerServices {
+				if instance.GetType() == componentPath[0] && instance.GetName() == componentPath[1] {
+					providerServices = []provider.Instance{instance}
+					goto singleComponent
+				}
+			}
+			// invalid component path
+		default:
+			for _, instance := range providerServices {
+				// "satellite" is a special case, as it is the only provider that can have multiple components
+				if instance.GetType() == "satellite" && instance.GetName() == componentPath[0] {
+					providerServices = []provider.Instance{instance}
+					instance.SetComponent(strings.Join(componentPath[1:], "/"))
+					goto singleComponent
+				}
+			}
+			// invalid component path
+		}
+		return &ph.HealthCheckResponse{
+			Status:  ph.Status_UNKNOWN,
+			Message: "invalid component path",
+		}, nil
+	}
+singleComponent:
 
 	start := time.Now()
 	platformServices, health := provider.Check(ctx, providerServices)
