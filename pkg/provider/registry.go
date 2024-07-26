@@ -14,7 +14,7 @@ func Register(name string, provider Instance) {
 	Providers[name] = reflect.TypeOf(provider)
 }
 
-// List returns a list of registered providers.
+// Keys returns a list of registered providers.
 func ProviderList() []string {
 	providers := make([]string, 0, len(Providers))
 	for provider := range Providers {

@@ -6,11 +6,10 @@ import (
 	"time"
 
 	vault "github.com/hashicorp/vault/api"
-	"github.com/mcuadros/go-defaults"
-
 	ph "github.com/isometry/platform-health/pkg/platform_health"
 	"github.com/isometry/platform-health/pkg/provider"
 	"github.com/isometry/platform-health/pkg/utils"
+	"github.com/mcuadros/go-defaults"
 )
 
 const TypeVault = "vault"
