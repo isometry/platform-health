@@ -22,12 +22,14 @@ import (
 const TypeSatellite = "satellite"
 
 type Satellite struct {
-	Name     string        `mapstructure:"name"`
-	Host     string        `mapstructure:"host"`
-	Port     int           `mapstructure:"port"`
-	TLS      bool          `mapstructure:"tls"`
-	Insecure bool          `mapstructure:"insecure"`
-	Timeout  time.Duration `mapstructure:"timeout" default:"30s"`
+	provider.UnimplementedProvider
+	Name      string        `mapstructure:"name"`
+	Host      string        `mapstructure:"host"`
+	Port      int           `mapstructure:"port"`
+	TLS       bool          `mapstructure:"tls"`
+	Insecure  bool          `mapstructure:"insecure"`
+	Timeout   time.Duration `mapstructure:"timeout" default:"30s"`
+	component string
 }
 
 func init() {
@@ -46,6 +48,10 @@ func (i *Satellite) LogValue() slog.Value {
 
 func (i *Satellite) SetDefaults() {
 	defaults.SetDefaults(i)
+}
+
+func (i *Satellite) SetComponent(component string) {
+	i.component = component
 }
 
 func (i *Satellite) GetType() string {
@@ -94,7 +100,8 @@ func (i *Satellite) GetHealth(ctx context.Context) *ph.HealthCheckResponse {
 
 	// Propagate already visited serverIds from context to enable loop detection
 	request := &ph.HealthCheckRequest{
-		Hops: server.HopsFromContext(ctx),
+		Component: i.component,
+		Hops:      server.HopsFromContext(ctx),
 	}
 
 	status, err := ph.NewHealthClient(conn).Check(ctx, request)
