@@ -18,8 +18,8 @@ require (
 	google.golang.org/grpc v1.67.1
 	google.golang.org/protobuf v1.35.1
 	helm.sh/helm/v3 v3.16.2
-	k8s.io/api v0.31.1
-	k8s.io/apimachinery v0.31.1
+	k8s.io/api v0.31.2
+	k8s.io/apimachinery v0.31.2
 	k8s.io/client-go v0.31.1
 )
 
