@@ -101,7 +101,7 @@ func query(cmd *cobra.Command, _ []string) (err error) {
 		dialOptions = append(dialOptions, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	}
 
-	conn, err := grpc.DialContext(ctx, address, dialOptions...)
+	conn, err := grpc.NewClient(address, dialOptions...)
 	if err != nil {
 		log.Error("failed to connect to server", slog.String("server", targetHost), slog.Any("error", err))
 		return err

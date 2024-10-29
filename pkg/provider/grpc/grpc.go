@@ -91,7 +91,7 @@ func (i *GRPC) GetHealth(ctx context.Context) *ph.HealthCheckResponse {
 	}
 
 	address := net.JoinHostPort(i.Host, fmt.Sprint(i.Port))
-	conn, err := grpc.DialContext(ctx, address, dialOptions...)
+	conn, err := grpc.NewClient(address, dialOptions...)
 	if err != nil {
 		return component.Unhealthy(err.Error())
 	}
