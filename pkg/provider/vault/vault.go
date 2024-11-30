@@ -16,6 +16,7 @@ import (
 const TypeVault = "vault"
 
 type Vault struct {
+	provider.UnimplementedProvider
 	Name     string        `mapstructure:"name"`
 	Address  string        `mapstructure:"address"`
 	Timeout  time.Duration `mapstructure:"timeout" default:"1s"`
