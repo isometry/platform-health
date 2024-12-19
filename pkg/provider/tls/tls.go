@@ -11,14 +11,13 @@ import (
 	"slices"
 	"time"
 
-	"github.com/mcuadros/go-defaults"
-	"google.golang.org/protobuf/types/known/anypb"
-	"google.golang.org/protobuf/types/known/timestamppb"
-
 	ph "github.com/isometry/platform-health/pkg/platform_health"
 	"github.com/isometry/platform-health/pkg/platform_health/details"
 	"github.com/isometry/platform-health/pkg/provider"
 	"github.com/isometry/platform-health/pkg/utils"
+	"github.com/mcuadros/go-defaults"
+	"google.golang.org/protobuf/types/known/anypb"
+	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 const TypeTLS = "tls"
