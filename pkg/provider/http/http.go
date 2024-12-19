@@ -23,6 +23,7 @@ import (
 const TypeHTTP = "http"
 
 type HTTP struct {
+	provider.UnimplementedProvider
 	Name     string        `mapstructure:"name"`
 	URL      string        `mapstructure:"url"`
 	Method   string        `mapstructure:"method" default:"HEAD"`
