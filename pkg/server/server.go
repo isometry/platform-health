@@ -56,6 +56,9 @@ func WithReflection() Option {
 
 func WithHealthService() Option {
 	return func(s *PlatformHealthServer) {
+		if s.grpcHealth == nil {
+			s.grpcHealth = &gRPCHealthServer{}
+		}
 		grpc_health_v1.RegisterHealthServer(s.grpcServer, s.grpcHealth)
 	}
 }
