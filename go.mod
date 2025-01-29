@@ -16,7 +16,7 @@ require (
 	github.com/stretchr/testify v1.10.0
 	github.com/veqryn/slog-context v0.7.0
 	google.golang.org/grpc v1.70.0
-	google.golang.org/protobuf v1.36.3
+	google.golang.org/protobuf v1.36.4
 	helm.sh/helm/v3 v3.17.0
 	k8s.io/api v0.32.1
 	k8s.io/apimachinery v0.32.1
