@@ -13,6 +13,7 @@ import (
 const TypeMock = "mock"
 
 type Mock struct {
+	provider.UnimplementedProvider
 	Name   string        `mapstructure:"name"`
 	Health ph.Status     `mapstructure:"health" default:"1"`
 	Sleep  time.Duration `mapstructure:"sleep" default:"1ns"`
