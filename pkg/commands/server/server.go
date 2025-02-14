@@ -10,15 +10,14 @@ import (
 	"strings"
 
 	"github.com/google/uuid"
-	"github.com/spf13/cobra"
-	"github.com/spf13/viper"
-	slogctx "github.com/veqryn/slog-context"
-	"google.golang.org/protobuf/encoding/protojson"
-
 	"github.com/isometry/platform-health/pkg/config"
 	ph "github.com/isometry/platform-health/pkg/platform_health"
 	"github.com/isometry/platform-health/pkg/provider"
 	"github.com/isometry/platform-health/pkg/server"
+	"github.com/spf13/cobra"
+	"github.com/spf13/viper"
+	slogctx "github.com/veqryn/slog-context"
+	"google.golang.org/protobuf/encoding/protojson"
 )
 
 var (
@@ -109,7 +108,7 @@ func serve(_ *cobra.Command, args []string) (err error) {
 
 	serverId := uuid.New().String()
 
-	opts := []server.Option{}
+	var opts []server.Option
 	if !noGrpcHealthV1 {
 		opts = append(opts, server.WithHealthService())
 	}

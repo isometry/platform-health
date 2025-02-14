@@ -7,11 +7,10 @@ import (
 	"reflect"
 
 	"github.com/fsnotify/fsnotify"
-	"github.com/mitchellh/mapstructure"
-	"github.com/spf13/viper"
-
 	"github.com/isometry/platform-health/pkg/provider"
 	"github.com/isometry/platform-health/pkg/utils"
+	"github.com/mitchellh/mapstructure"
+	"github.com/spf13/viper"
 )
 
 type abstractConfig map[string]any
