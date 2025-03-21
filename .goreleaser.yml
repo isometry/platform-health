@@ -31,7 +31,8 @@ builds:
     binary: phs
 
 archives:
-  - format: zip
+  - formats:
+      - zip
     name_template: "{{.ProjectName}}_{{.Version}}_{{.Os}}_{{.Arch}}"
 
 snapshot:
@@ -65,7 +66,8 @@ brews:
 
 kos:
   - id: server
-    repository: ghcr.io/isometry/platform-health
+    repositories:
+      - ghcr.io/isometry/platform-health
     main: ./cmd/phs
     platforms:
       - linux/amd64
