@@ -38,24 +38,26 @@ var (
 	conf  provider.Config
 )
 
-var ServerCmd = &cobra.Command{
-	Args:    cobra.MaximumNArgs(1),
-	Use:     fmt.Sprintf("%s [flags] [host:port]", filepath.Base(os.Args[0])),
-	PreRunE: setup,
-	RunE: func(cmd *cobra.Command, args []string) error {
-		if oneShot {
-			return oneshot(cmd, args)
-		}
-		return serve(cmd, args)
-	},
-	SilenceUsage: true,
-}
+func New() *cobra.Command {
+	cmd := &cobra.Command{
+		Args:    cobra.MaximumNArgs(1),
+		Use:     fmt.Sprintf("%s [flags] [host:port]", filepath.Base(os.Args[0])),
+		PreRunE: setup,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if oneShot {
+				return oneshot(cmd, args)
+			}
+			return serve(cmd, args)
+		},
+		SilenceUsage: true,
+	}
 
-func init() {
 	viper.AutomaticEnv()
 	viper.SetEnvKeyReplacer(strings.NewReplacer(".", "_", "-", "_"))
 
-	serverFlags.register(ServerCmd.Flags(), false)
+	serverFlags.register(cmd.Flags(), false)
+
+	return cmd
 }
 
 func setup(cmd *cobra.Command, _ []string) (err error) {

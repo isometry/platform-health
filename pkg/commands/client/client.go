@@ -34,17 +34,17 @@ var (
 	log *slog.Logger
 )
 
-var ClientCmd = &cobra.Command{
-	Args:          cobra.MaximumNArgs(1),
-	Use:           fmt.Sprintf("%s [flags] [host:port]", filepath.Base(os.Args[0])),
-	PreRunE:       setup,
-	RunE:          query,
-	SilenceErrors: true,
-	SilenceUsage:  true,
-}
+func New() *cobra.Command {
+	cmd := &cobra.Command{
+		Args:          cobra.MaximumNArgs(1),
+		Use:           fmt.Sprintf("%s [flags] [host:port]", filepath.Base(os.Args[0])),
+		PreRunE:       setup,
+		RunE:          query,
+		SilenceErrors: true,
+		SilenceUsage:  true,
+	}
 
-func init() {
-	flagSet := ClientCmd.Flags()
+	flagSet := cmd.Flags()
 	flagSet.StringVarP(&targetHost, "server", "s", "localhost", "server host")
 	flagSet.IntVarP(&targetPort, "port", "p", 8080, "server port")
 	flagSet.BoolVar(&tlsClient, "tls", false, "enable tls")
@@ -53,6 +53,8 @@ func init() {
 	flagSet.BoolVarP(&flatOutput, "flat", "f", false, "flat output")
 	flagSet.CountVarP(&quietLevel, "quiet", "q", "quiet output")
 	flagSet.SortFlags = false
+
+	return cmd
 }
 
 func setup(cmd *cobra.Command, args []string) (err error) {

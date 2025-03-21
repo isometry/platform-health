@@ -17,9 +17,9 @@ var (
 )
 
 func main() {
-	rootCmd := client.ClientCmd
-	rootCmd.Version = fmt.Sprintf("%s-%s (built %s)", version, commit, date)
-	err := rootCmd.Execute()
+	cmd := client.New()
+	cmd.Version = fmt.Sprintf("%s-%s (built %s)", version, commit, date)
+	err := cmd.Execute()
 	if err != nil {
 		os.Exit(1)
 	}
