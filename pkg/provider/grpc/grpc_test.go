@@ -32,7 +32,7 @@ func TestGetHealth(t *testing.T) {
 	healthServer := health.NewServer()
 	grpc_health_v1.RegisterHealthServer(server, healthServer)
 
-	go server.Serve(listener)
+	go func() { _ = server.Serve(listener) }()
 	defer server.Stop()
 
 	tests := []struct {

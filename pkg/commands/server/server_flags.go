@@ -94,7 +94,7 @@ var serverFlags = flagValues{
 
 func (f flagValues) register(flagSet *pflag.FlagSet, sort bool) {
 	for flagName, flag := range f {
-		flag.buildFlag(flagSet, flagName)
+		_ = flag.buildFlag(flagSet, flagName)
 	}
 
 	flagSet.SortFlags = sort

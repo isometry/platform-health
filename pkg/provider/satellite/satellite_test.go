@@ -42,7 +42,7 @@ func TestSatelliteGetHealth(t *testing.T) {
 		t.Fatalf("Failed to set up test server: %v", err)
 	}
 
-	go testServer.Serve(listener)
+	go func() { _ = testServer.Serve(listener) }()
 	defer testServer.Stop()
 
 	tests := []struct {

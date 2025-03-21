@@ -65,7 +65,7 @@ func TestVaultGetHealth(t *testing.T) {
 						case <-time.After(tt.delay):
 							w.WriteHeader(200)
 							w.Header().Set("Content-Type", "application/json")
-							w.Write([]byte(tt.response))
+							_, _ = w.Write([]byte(tt.response))
 						case <-ctx.Done():
 							return
 						}

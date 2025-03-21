@@ -64,7 +64,9 @@ func (i *Vault) GetHealth(ctx context.Context) *ph.HealthCheckResponse {
 	config := vault.DefaultConfig()
 	config.Address = i.Address
 	config.Timeout = i.Timeout
-	config.ConfigureTLS(&vault.TLSConfig{Insecure: i.Insecure})
+	if err := config.ConfigureTLS(&vault.TLSConfig{Insecure: i.Insecure}); err != nil {
+		return component.Unhealthy(err.Error())
+	}
 
 	client, err := vault.NewClient(config)
 	if err != nil {

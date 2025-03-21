@@ -77,7 +77,7 @@ func TestLocalHTTP(t *testing.T) {
 						select {
 						case <-time.After(tt.serverDelay):
 							w.WriteHeader(tt.serverStatus)
-							w.Write([]byte("IGNORED"))
+							_, _ = w.Write([]byte("IGNORED"))
 						case <-ctx.Done():
 							return
 						}
