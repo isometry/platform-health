@@ -25,6 +25,7 @@ import (
 const TypeKubernetes = "kubernetes"
 
 type Kubernetes struct {
+	provider.UnimplementedProvider
 	Group     string        `mapstructure:"group" default:"apps"`
 	Version   string        `mapstructure:"version" default:"v1"`
 	Kind      string        `mapstructure:"kind" default:"deployment"`
@@ -53,8 +54,8 @@ func (i *Kubernetes) LogValue() slog.Value {
 		slog.String("group", i.Group),
 		slog.String("version", i.Version),
 		slog.String("kind", i.Kind),
-		slog.String("name", i.Name),
 		slog.String("namespace", i.Namespace),
+		slog.String("name", i.Name),
 		slog.Any("timeout", i.Timeout),
 	}
 	return slog.GroupValue(logAttr...)
