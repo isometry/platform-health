@@ -17,7 +17,7 @@ require (
 	github.com/veqryn/slog-context v0.7.0
 	google.golang.org/grpc v1.71.0
 	google.golang.org/protobuf v1.36.6
-	helm.sh/helm/v3 v3.17.2
+	helm.sh/helm/v3 v3.17.3
 	k8s.io/api v0.32.3
 	k8s.io/apimachinery v0.32.3
 	k8s.io/client-go v0.32.3
