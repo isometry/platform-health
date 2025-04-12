@@ -14,7 +14,7 @@ require (
 	github.com/spf13/pflag v1.0.6
 	github.com/spf13/viper v1.20.1
 	github.com/stretchr/testify v1.10.0
-	github.com/veqryn/slog-context v0.7.0
+	github.com/veqryn/slog-context v0.8.0
 	google.golang.org/grpc v1.71.1
 	google.golang.org/protobuf v1.36.6
 	helm.sh/helm/v3 v3.17.3
