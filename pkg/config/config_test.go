@@ -2,6 +2,8 @@ package config
 
 import (
 	"context"
+	"slices"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -48,6 +50,9 @@ func TestGetInstances(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			instances := tt.config.GetInstances()
+			slices.SortFunc(instances, func(a, b provider.Instance) int {
+				return strings.Compare(a.GetName(), b.GetName())
+			})
 			assert.Equal(t, tt.expected, instances)
 		})
 	}
