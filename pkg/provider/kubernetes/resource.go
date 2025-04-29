@@ -3,7 +3,7 @@ package kubernetes
 import (
 	"fmt"
 
-	"github.com/mitchellh/mapstructure"
+	"github.com/go-viper/mapstructure/v2"
 	v1 "k8s.io/api/core/v1"
 )
 
