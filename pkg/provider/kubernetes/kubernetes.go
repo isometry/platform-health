@@ -9,17 +9,13 @@ import (
 	"strings"
 	"time"
 
-	"github.com/mcuadros/go-defaults"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/runtime/schema"
-	"k8s.io/client-go/discovery"
-	"k8s.io/client-go/discovery/cached/memory"
-	"k8s.io/client-go/dynamic"
-	"k8s.io/client-go/restmapper"
-
+	"github.com/isometry/platform-health/pkg/controllers/k8s"
 	ph "github.com/isometry/platform-health/pkg/platform_health"
 	"github.com/isometry/platform-health/pkg/provider"
 	"github.com/isometry/platform-health/pkg/utils"
+	"github.com/mcuadros/go-defaults"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 )
 
 const TypeKubernetes = "kubernetes"
@@ -82,20 +78,10 @@ func (i *Kubernetes) GetHealth(ctx context.Context) *ph.HealthCheckResponse {
 	}
 	defer component.LogStatus(log)
 
-	config, err := utils.GetKubeConfig()
+	k8sController, err := k8s.NewController(k8s.WithTimeout(i.Timeout))
 	if err != nil {
 		return component.Unhealthy(err.Error())
 	}
-
-	config.Timeout = i.Timeout
-
-	client, err := dynamic.NewForConfig(config)
-	if err != nil {
-		return component.Unhealthy(err.Error())
-	}
-
-	dc, _ := discovery.NewDiscoveryClientForConfig(config)
-	mapper := restmapper.NewDeferredDiscoveryRESTMapper(memory.NewMemCacheClient(dc))
 
 	// fix default group and version for common resources
 	if i.Group == "apps" && i.Version == "v1" && i.Kind != "deployment" {
@@ -106,19 +92,13 @@ func (i *Kubernetes) GetHealth(ctx context.Context) *ph.HealthCheckResponse {
 		}
 	}
 
-	gk := schema.GroupKind{
-		Group: i.Group,
-		Kind:  i.Kind,
-	}
-	mapping, err := mapper.RESTMapping(gk, i.Version)
-	if err != nil {
-		return component.Unhealthy(err.Error())
+	gvk := schema.GroupVersionKind{
+		Group:   i.Group,
+		Version: i.Version,
+		Kind:    i.Kind,
 	}
 
-	gvr := mapping.Resource
-
-	blob, err := client.Resource(gvr).Namespace(i.Namespace).Get(ctx, i.Name, metav1.GetOptions{})
-
+	blob, err := k8sController.GetResource(ctx, i.Namespace, i.Name, gvk, metav1.GetOptions{})
 	if err != nil {
 		return component.Unhealthy(err.Error())
 	}
