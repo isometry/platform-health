@@ -19,7 +19,7 @@ require (
 	google.golang.org/protobuf v1.36.6
 	helm.sh/helm/v3 v3.18.2
 	k8s.io/api v0.33.1
-	k8s.io/apimachinery v0.33.1
+	k8s.io/apimachinery v0.33.2
 	k8s.io/client-go v0.33.1
 )
 
