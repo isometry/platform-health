@@ -7,18 +7,17 @@ import (
 	"net"
 	"time"
 
-	"github.com/mcuadros/go-defaults"
-
 	ph "github.com/isometry/platform-health/pkg/platform_health"
 	"github.com/isometry/platform-health/pkg/provider"
 	"github.com/isometry/platform-health/pkg/utils"
+	"github.com/mcuadros/go-defaults"
 )
 
 const TypeTCP = "tcp"
 
 type TCP struct {
-	Name    string        `mapstructure:"name"`
-	Host    string        `mapstructure:"host"`
+	Name    string        `mapstructure:"name" ref:"tcpRef:name"`
+	Host    string        `mapstructure:"host" ref:"tcpRef:host"`
 	Port    int           `mapstructure:"port" default:"80"`
 	Closed  bool          `mapstructure:"closed" default:"false"`
 	Timeout time.Duration `mapstructure:"timeout" default:"1s"`
@@ -41,6 +40,9 @@ func (i *TCP) LogValue() slog.Value {
 
 func (i *TCP) SetDefaults() {
 	defaults.SetDefaults(i)
+	if err := provider.PopulateValuesWithRef(i); err != nil {
+		panic(err)
+	}
 }
 
 func (i *TCP) GetType() string {
