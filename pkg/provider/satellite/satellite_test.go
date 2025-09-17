@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"google.golang.org/grpc/resolver"
 
 	ph "github.com/isometry/platform-health/pkg/platform_health"
 	"github.com/isometry/platform-health/pkg/provider"
@@ -27,6 +28,9 @@ func (c *testConfig) GetInstances() []provider.Instance {
 }
 
 func TestSatelliteGetHealth(t *testing.T) {
+	// workaround for grpc resolver with Zscaler
+	resolver.SetDefaultScheme("passthrough")
+
 	// Start listener for the main server
 	listener, err := net.Listen("tcp", "localhost:0")
 	if err != nil {

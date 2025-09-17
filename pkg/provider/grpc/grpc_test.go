@@ -10,6 +10,7 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/health"
 	"google.golang.org/grpc/health/grpc_health_v1"
+	"google.golang.org/grpc/resolver"
 
 	ph "github.com/isometry/platform-health/pkg/platform_health"
 	provider_grpc "github.com/isometry/platform-health/pkg/provider/grpc"
@@ -20,6 +21,9 @@ func init() {
 }
 
 func TestGetHealth(t *testing.T) {
+	// workaround for grpc resolver with Zscaler
+	resolver.SetDefaultScheme("passthrough")
+
 	listener, err := net.Listen("tcp", "localhost:0")
 	if err != nil {
 		t.Fatalf("Failed to set up test server: %v", err)

@@ -91,6 +91,7 @@ func (i *Satellite) GetHealth(ctx context.Context) *ph.HealthCheckResponse {
 	if err != nil {
 		return component.Unhealthy(err.Error())
 	}
+	defer conn.Close()
 
 	// Propagate already visited serverIds from context to enable loop detection
 	request := &ph.HealthCheckRequest{
