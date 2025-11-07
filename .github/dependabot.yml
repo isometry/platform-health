@@ -6,8 +6,27 @@ updates:
     directory: "/"
     schedule:
       interval: "weekly"
+    groups:
+      actions:
+        patterns:
+          - "*"
 
   - package-ecosystem: "gomod"
     directory: "/"
     schedule:
       interval: "weekly"
+    groups:
+      golang:
+        applies-to: security-updates
+        patterns:
+          - "golang.org/*"
+          - "google.golang.org/*"
+      k8s:
+        applies-to: security-updates
+        patterns:
+          - "k8s.io/*"
+      spf13:
+        applies-to: security-updates
+        patterns:
+          - "github.com/spf13/*"
+    open-pull-requests-limit: 0
