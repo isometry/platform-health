@@ -29,7 +29,7 @@ func TestGetHealth(t *testing.T) {
 		t.Fatalf("Failed to set up test server: %v", err)
 	}
 	listenPort := listener.Addr().(*net.TCPAddr).Port
-	defer listener.Close()
+	defer func() { _ = listener.Close() }()
 
 	// Start a gRPC server that implements the Health service
 	server := grpc.NewServer()

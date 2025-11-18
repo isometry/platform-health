@@ -74,9 +74,9 @@ func writeToFile(filename string, output map[string]GV) error {
 	if err != nil {
 		return err
 	}
-	defer file.Close()
+	defer func() { _ = file.Close() }()
 
-	fmt.Fprintln(file, fileHeader)
+	_, _ = fmt.Fprintln(file, fileHeader)
 	keys := make([]string, 0, len(output))
 	for key := range output {
 		keys = append(keys, key)
@@ -84,9 +84,9 @@ func writeToFile(filename string, output map[string]GV) error {
 	sort.Strings(keys)
 	for _, key := range keys {
 		value := output[key]
-		fmt.Fprintf(file, "\t%q: {Group: %q, Version: %q},\n", key, value.Group, value.Version)
+		_, _ = fmt.Fprintf(file, "\t%q: {Group: %q, Version: %q},\n", key, value.Group, value.Version)
 	}
-	fmt.Fprintln(file, fileTrailer)
+	_, _ = fmt.Fprintln(file, fileTrailer)
 
 	return nil
 }

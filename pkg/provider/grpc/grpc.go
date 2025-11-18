@@ -95,7 +95,7 @@ func (i *GRPC) GetHealth(ctx context.Context) *ph.HealthCheckResponse {
 	if err != nil {
 		return component.Unhealthy(err.Error())
 	}
-	defer conn.Close()
+	defer func() { _ = conn.Close() }()
 
 	client := grpc_health_v1.NewHealthClient(conn)
 	request := &grpc_health_v1.HealthCheckRequest{Service: i.Service}

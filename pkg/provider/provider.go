@@ -32,11 +32,9 @@ func Check(ctx context.Context, instances []Instance) (response []*ph.HealthChec
 	instanceChan := make(chan *ph.HealthCheckResponse, len(instances))
 
 	for _, instance := range instances {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+		wg.Go(func() {
 			instanceChan <- GetHealthWithDuration(ctx, instance)
-		}()
+		})
 	}
 
 	go func() {

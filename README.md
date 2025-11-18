@@ -16,6 +16,7 @@ Probes use a compile-time [provider plugin system](pkg/provider) that supports e
 * [`tcp`](pkg/provider/tcp): TCP connectivity checks
 * [`tls`](pkg/provider/tls): TLS handshake and certificate verification
 * [`http`](pkg/provider/http): HTTP(S) queries with status code and certificate verification
+* [`rest`](pkg/provider/rest): REST API health checks with CEL-based response validation
 * [`grpc`](pkg/provider/grpc): gRPC Health v1 service status checks
 * [`kubernetes`](pkg/provider/kubernetes): Kubernetes resource existence and readiness
 * [`helm`](pkg/provider/helm): Helm release existence and deployment status
@@ -110,4 +111,13 @@ tls:
 http:
   - name: google
     url: https://google.com
+rest:
+  - name: api-health
+    url: https://api.example.com/health
+    method: GET
+    checks:
+      - expr: 'response.status == 200'
+        message: "Expected HTTP 200"
+      - expr: 'response.json.status == "healthy"'
+        message: "Service unhealthy"
 ```

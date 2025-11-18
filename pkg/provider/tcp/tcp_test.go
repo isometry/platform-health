@@ -23,7 +23,7 @@ func TestTCP(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to set up test server: %v", err)
 	}
-	defer listener.Close()
+	defer func() { _ = listener.Close() }()
 
 	port := listener.Addr().(*net.TCPAddr).Port
 
