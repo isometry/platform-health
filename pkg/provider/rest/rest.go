@@ -44,13 +44,13 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
-	"reflect"
 	"strings"
 	"time"
 
 	"github.com/google/cel-go/cel"
 	"github.com/mcuadros/go-defaults"
 
+	"github.com/isometry/platform-health/pkg/checks"
 	ph "github.com/isometry/platform-health/pkg/platform_health"
 	"github.com/isometry/platform-health/pkg/provider"
 	"github.com/isometry/platform-health/pkg/utils"
@@ -63,6 +63,7 @@ const (
 
 // Request represents HTTP request configuration
 type Request struct {
+	URL     string            `mapstructure:"url"`
 	Method  string            `mapstructure:"method" default:"GET"`
 	Body    string            `mapstructure:"body"`
 	Headers map[string]string `mapstructure:"headers"`
@@ -70,25 +71,23 @@ type Request struct {
 
 // REST provider extends HTTP provider with response validation capabilities
 type REST struct {
-	Name     string          `mapstructure:"name"`
-	URL      string          `mapstructure:"url"`
-	Request  Request         `mapstructure:"request"`
-	Timeout  time.Duration   `mapstructure:"timeout" default:"10s"`
-	Insecure bool            `mapstructure:"insecure"`
-	Checks   []CELExpression `mapstructure:"checks"`
+	Name     string              `mapstructure:"name"`
+	Request  Request             `mapstructure:"request"`
+	Insecure bool                `mapstructure:"insecure"`
+	Checks   []checks.Expression `mapstructure:"checks"`
+	Timeout  time.Duration       `mapstructure:"timeout" default:"10s"`
 
-	// Compiled validation components (cached after SetDefaults)
-	celEnv      *cel.Env
-	celPrograms []cel.Program
+	// Compiled CEL evaluator (cached after Setup)
+	evaluator *checks.Evaluator
 }
 
-// CELExpression represents a CEL expression validation rule
-type CELExpression struct {
-	Expression   string `mapstructure:"expression"`
-	ErrorMessage string `mapstructure:"errorMessage"`
-}
+var certPool *x509.CertPool
 
-var certPool *x509.CertPool = nil
+// CEL configuration for REST provider
+var celConfig = checks.NewCEL(
+	cel.Variable("request", cel.MapType(cel.StringType, cel.DynType)),
+	cel.Variable("response", cel.MapType(cel.StringType, cel.DynType)),
+)
 
 func init() {
 	provider.Register(TypeREST, new(REST))
@@ -100,7 +99,7 @@ func init() {
 func (i *REST) LogValue() slog.Value {
 	logAttr := []slog.Attr{
 		slog.String("name", i.Name),
-		slog.String("url", i.URL),
+		slog.String("url", i.Request.URL),
 		slog.String("method", i.Request.Method),
 		slog.Any("timeout", i.Timeout),
 		slog.Bool("insecure", i.Insecure),
@@ -111,49 +110,17 @@ func (i *REST) LogValue() slog.Value {
 	return slog.GroupValue(logAttr...)
 }
 
-func (i *REST) SetDefaults() {
+func (i *REST) Setup() error {
 	defaults.SetDefaults(i)
 
-	// Pre-compile CEL programs if checks exist
+	// Pre-compile CEL evaluator if checks exist (using package-level cache)
 	if len(i.Checks) > 0 {
-		if err := i.compileCELPrograms(); err != nil {
-			// Log error but don't fail - will be caught during GetHealth
-			slog.Error("failed to compile CEL programs", "error", err.Error())
-		}
-	}
-}
-
-// compileCELPrograms pre-compiles all CEL expressions for efficient evaluation
-func (i *REST) compileCELPrograms() error {
-	// Create CEL environment
-	env, err := cel.NewEnv(
-		cel.Variable("request", cel.MapType(cel.StringType, cel.DynType)),
-		cel.Variable("response", cel.MapType(cel.StringType, cel.DynType)),
-	)
-	if err != nil {
-		return fmt.Errorf("failed to create CEL environment: %w", err)
-	}
-
-	// Pre-compile all expressions
-	programs := make([]cel.Program, len(i.Checks))
-	for idx, expr := range i.Checks {
-		ast, issues := env.Compile(expr.Expression)
-		if issues != nil && issues.Err() != nil {
-			return fmt.Errorf("CEL expression [%d] compilation error: %w", idx, issues.Err())
-		}
-		if ast.OutputType() != cel.BoolType {
-			return fmt.Errorf("CEL expression [%d] must return boolean", idx)
-		}
-		program, err := env.Program(ast)
+		evaluator, err := celConfig.NewEvaluator(i.Checks)
 		if err != nil {
-			return fmt.Errorf("failed to create CEL program [%d]: %w", idx, err)
+			return fmt.Errorf("invalid CEL expression: %w", err)
 		}
-		programs[idx] = program
+		i.evaluator = evaluator
 	}
-
-	// Only update instance fields after successful compilation
-	i.celEnv = env
-	i.celPrograms = programs
 	return nil
 }
 
@@ -203,7 +170,7 @@ func (i *REST) executeHTTPRequest(ctx context.Context) (*http.Response, []byte, 
 		bodyReader = strings.NewReader(i.Request.Body)
 	}
 
-	request, err := http.NewRequestWithContext(ctx, i.Request.Method, i.URL, bodyReader)
+	request, err := http.NewRequestWithContext(ctx, i.Request.Method, i.Request.URL, bodyReader)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to create request: %w", err)
 	}
@@ -257,52 +224,29 @@ func (i *REST) executeHTTPRequest(ctx context.Context) (*http.Response, []byte, 
 	return response, body, nil
 }
 
-// validateCEL evaluates CEL expressions against response using cached programs
+// validateCEL evaluates CEL expressions against response using cached evaluator
 func (i *REST) validateCEL(response *http.Response, body []byte) error {
 	if len(i.Checks) == 0 {
 		return nil
 	}
 
-	// Ensure CEL programs are compiled
-	if i.celEnv == nil || len(i.celPrograms) == 0 {
-		if err := i.compileCELPrograms(); err != nil {
+	// Ensure CEL evaluator is compiled
+	if i.evaluator == nil {
+		evaluator, err := celConfig.NewEvaluator(i.Checks)
+		if err != nil {
 			return fmt.Errorf("failed to compile CEL programs: %w", err)
 		}
+		i.evaluator = evaluator
 	}
 
 	// Build CEL context with request and response
-	celCtx, err := i.buildCELContext(response, body)
-	if err != nil {
-		return fmt.Errorf("failed to build CEL context: %w", err)
-	}
+	celCtx := i.buildCELContext(response, body)
 
-	// Evaluate each pre-compiled CEL program
-	for idx, program := range i.celPrograms {
-		result, _, err := program.Eval(celCtx)
-		if err != nil {
-			return fmt.Errorf("CEL expression [%d] failed to evaluate: %w", idx, err)
-		}
-
-		// Convert result to native boolean
-		value, err := result.ConvertToNative(reflect.TypeOf(false))
-		if err != nil {
-			return fmt.Errorf("CEL expression [%d] result conversion failed: %w", idx, err)
-		}
-
-		// Check if result is boolean true
-		if boolResult, ok := value.(bool); !ok || !boolResult {
-			if i.Checks[idx].ErrorMessage != "" {
-				return fmt.Errorf("%s", i.Checks[idx].ErrorMessage)
-			}
-			return fmt.Errorf("CEL expression failed: %s", i.Checks[idx].Expression)
-		}
-	}
-
-	return nil
+	return i.evaluator.Evaluate(celCtx)
 }
 
 // buildCELContext creates CEL evaluation context from HTTP request and response
-func (i *REST) buildCELContext(response *http.Response, body []byte) (map[string]any, error) {
+func (i *REST) buildCELContext(response *http.Response, body []byte) map[string]any {
 	bodyText := string(body)
 
 	// Parse JSON body if possible (ignore error, jsonData remains nil for non-JSON)
@@ -328,7 +272,7 @@ func (i *REST) buildCELContext(response *http.Response, body []byte) (map[string
 			"method":  i.Request.Method,
 			"body":    i.Request.Body,
 			"headers": reqHeaders,
-			"url":     i.URL,
+			"url":     i.Request.URL,
 		},
 		"response": map[string]any{
 			"json":    jsonData,
@@ -336,5 +280,5 @@ func (i *REST) buildCELContext(response *http.Response, body []byte) (map[string
 			"status":  response.StatusCode,
 			"headers": respHeaders,
 		},
-	}, nil
+	}
 }

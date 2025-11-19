@@ -45,8 +45,10 @@ func (i *GRPC) LogValue() slog.Value {
 	return slog.GroupValue(logAttr...)
 }
 
-func (i *GRPC) SetDefaults() {
+func (i *GRPC) Setup() error {
 	defaults.SetDefaults(i)
+
+	return nil
 }
 
 func (i *GRPC) GetType() string {

@@ -11,8 +11,8 @@ Once the REST Provider is configured, any query to the platform-health server wi
 The REST Provider is configured through the platform-health server's configuration file, with component instances listed under the `rest` key.
 
 - `name` (required): The name of the REST service instance, used to identify the service in the health reports.
-- `url` (required): The URL of the REST service to monitor.
-- `request` (optional): HTTP request configuration with the following fields:
+- `request` (required): HTTP request configuration with the following fields:
+  - `url` (required): The URL of the REST service to monitor.
   - `method` (default: `GET`): The HTTP method to use (GET, POST, PUT, etc.).
   - `body` (optional): Request body to send with POST/PUT requests.
   - `headers` (optional): Map of custom HTTP headers to send with the request (e.g., `{"Authorization": "Bearer token", "Content-Type": "application/json"}`).
@@ -54,8 +54,8 @@ CEL expressions have access to both `request` and `response` objects:
 ```yaml
 rest:
   - name: api-health
-    url: https://api.example.com/health
     request:
+      url: https://api.example.com/health
       method: GET
     timeout: 10s
     checks:
@@ -76,8 +76,8 @@ In this example, the platform-health server will send a `GET` request to `https:
 ```yaml
 rest:
   - name: auth-check
-    url: https://api.example.com/auth/login
     request:
+      url: https://api.example.com/auth/login
       method: POST
       body: '{"username":"healthcheck","password":"test123"}'
     checks:
@@ -92,8 +92,8 @@ In this example, the provider sends a POST request with credentials, accepting e
 ```yaml
 rest:
   - name: authenticated-api
-    url: https://api.example.com/v1/status
     request:
+      url: https://api.example.com/v1/status
       method: GET
       headers:
         Authorization: "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
@@ -112,8 +112,8 @@ In this example, the provider includes custom headers for API authentication, al
 ```yaml
 rest:
   - name: status-page
-    url: https://status.example.com
     request:
+      url: https://status.example.com
       method: GET
     checks:
       - expression: 'response.status == 200'
@@ -129,8 +129,8 @@ In this example, the provider validates that the HTML response contains the text
 ```yaml
 rest:
   - name: error-detection
-    url: https://monitor.example.com/status
     request:
+      url: https://monitor.example.com/status
       method: GET
     checks:
       - expression: 'response.status == 200'
@@ -146,8 +146,8 @@ In this example, the provider fails if it finds any of the error-related keyword
 ```yaml
 rest:
   - name: json-api
-    url: https://api.example.com/v1/health
     request:
+      url: https://api.example.com/v1/health
       method: GET
     checks:
       - expression: 'response.status == 200'
@@ -165,8 +165,8 @@ In this example, the provider validates that the Content-Type header contains "a
 ```yaml
 rest:
   - name: comprehensive-check
-    url: https://api.example.com/status
     request:
+      url: https://api.example.com/status
       method: GET
     timeout: 15s
     checks:
@@ -186,84 +186,6 @@ rest:
 
 In this example, the provider combines Content-Type validation, regex pattern matching, and multiple JSON field checks to thoroughly verify the service health.
 
-## CEL Expression Examples
-
-### Simple Field Validation
-
-```yaml
-checks:
-  - expression: "response.json.ready == true"
-    errorMessage: "Service not ready"
-```
-
-### Nested Field Access
-
-```yaml
-checks:
-  - expression: "response.json.services.database.connected == true"
-    errorMessage: "Database not connected"
-```
-
-### Numeric Comparisons
-
-```yaml
-checks:
-  - expression: "response.json.activeConnections < 1000"
-    errorMessage: "Too many active connections"
-```
-
-### Array Operations
-
-```yaml
-checks:
-  - expression: "size(response.json.errors) == 0"
-    errorMessage: "System has reported errors"
-  - expression: "size(response.json.items) > 0"
-    errorMessage: "No items in response"
-```
-
-### String Operations
-
-```yaml
-checks:
-  - expression: 'response.body.contains("SUCCESS")'
-    errorMessage: "Success message not found"
-  - expression: 'response.json.version.startsWith("2.")'
-    errorMessage: "Wrong API version"
-  - expression: 'response.headers["content-type"].contains("json")'
-    errorMessage: "Expected JSON content type"
-```
-
-### Logical Operations
-
-```yaml
-checks:
-  - expression: "response.status >= 200 && response.status < 300"
-    errorMessage: "Status code outside success range"
-  - expression: 'response.json.state == "active" || response.json.state == "standby"'
-    errorMessage: "Service in unexpected state"
-```
-
-### Regex Pattern Matching
-
-```yaml
-checks:
-  - expression: 'response.body.matches("\\d{3}-\\d{2}-\\d{4}")'
-    errorMessage: "Invalid format in response"
-  - expression: 'response.body.matches("(?i)success|ok|healthy")'
-    errorMessage: "No success indicator found"
-```
-
-### Header Validation
-
-```yaml
-checks:
-  - expression: 'response.headers["X-API-Version"].startsWith("v2")'
-    errorMessage: "Wrong API version in header"
-  - expression: 'response.headers["Cache-Control"] == "no-cache"'
-    errorMessage: "Unexpected cache control"
-```
-
 ## Security Considerations
 
 - Response bodies are limited to 10MB to prevent memory exhaustion.
@@ -271,79 +193,4 @@ checks:
 - TLS certificate validation is enabled by default (use `insecure: true` only for testing).
 - CEL expressions are sandboxed and cannot execute arbitrary code or access the filesystem.
 
-## Migration Notes
-
-### From bodyMatch
-
-If you were using the `bodyMatch` field in a previous version, you can migrate to CEL expressions:
-
-**Old (bodyMatch):**
-
-```yaml
-bodyMatch:
-  pattern: "healthy"
-```
-
-**New (CEL):**
-
-```yaml
-checks:
-  - expression: 'response.body.contains("healthy")'
-    errorMessage: "Healthy status not found"
-```
-
-**Old (inverted bodyMatch):**
-
-```yaml
-bodyMatch:
-  pattern: "error"
-  invert: true
-```
-
-**New (CEL with negation):**
-
-```yaml
-checks:
-  - expression: '!response.body.contains("error")'
-    errorMessage: "Error found in response"
-```
-
-### From status field
-
-The `status` field has been removed in favor of CEL expressions for status code validation:
-
-**Old:**
-
-```yaml
-status: [200]
-```
-
-**New:**
-
-```yaml
-checks:
-  - expression: 'response.status == 200'
-    errorMessage: "Expected HTTP 200 status"
-```
-
-**Old (multiple status codes):**
-
-```yaml
-status: [200, 201, 202]
-```
-
-**New (using range):**
-
-```yaml
-checks:
-  - expression: 'response.status >= 200 && response.status < 300'
-    errorMessage: "Expected 2xx status"
-```
-
-**New (using specific codes):**
-
-```yaml
-checks:
-  - expression: 'response.status == 200 || response.status == 201 || response.status == 202'
-    errorMessage: "Expected 200, 201, or 202 status"
-```
+For general CEL expression syntax and patterns, see [pkg/checks/README.md](../../checks/README.md).

@@ -18,8 +18,9 @@ type Instance interface {
 	GetName() string
 	// GetHealth checks and returns the instance
 	GetHealth(context.Context) *ph.HealthCheckResponse
-	// SetDefaults sets the default values for the instance
-	SetDefaults()
+	// Setup sets the default values for the instance and validates specification.
+	// Returns an error if the specification is invalid.
+	Setup() error
 }
 
 // Config is the interface through which the provider configuration is retrieved.

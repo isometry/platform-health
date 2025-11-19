@@ -152,7 +152,10 @@ func (c *abstractConfig) harden() *concreteConfig {
 			}
 
 			concreteInstance := instance.Elem().Interface().(provider.Instance)
-			concreteInstance.SetDefaults()
+			if err := concreteInstance.Setup(); err != nil {
+				log.Warn("invalid instance configuration", slog.Int("index", i), slog.Any("error", err))
+				continue
+			}
 
 			concrete[typeName] = append(concrete[typeName], concreteInstance)
 		}

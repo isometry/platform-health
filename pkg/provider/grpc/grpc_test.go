@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/health"
 	"google.golang.org/grpc/health/grpc_health_v1"
@@ -94,7 +95,7 @@ func TestGetHealth(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			healthServer.SetServingStatus(tt.grpc.Service, tt.status)
-			tt.grpc.SetDefaults()
+			require.NoError(t, tt.grpc.Setup())
 			service := tt.grpc.GetHealth(context.Background())
 			assert.Equal(t, tt.expected, service.Status)
 		})

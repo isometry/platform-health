@@ -58,8 +58,10 @@ func (i *TLS) LogValue() slog.Value {
 	return slog.GroupValue(logAttr...)
 }
 
-func (i *TLS) SetDefaults() {
+func (i *TLS) Setup() error {
 	defaults.SetDefaults(i)
+
+	return nil
 }
 
 func (i *TLS) GetType() string {

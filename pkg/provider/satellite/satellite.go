@@ -44,8 +44,10 @@ func (i *Satellite) LogValue() slog.Value {
 	return slog.GroupValue(logAttr...)
 }
 
-func (i *Satellite) SetDefaults() {
+func (i *Satellite) Setup() error {
 	defaults.SetDefaults(i)
+
+	return nil
 }
 
 func (i *Satellite) GetType() string {

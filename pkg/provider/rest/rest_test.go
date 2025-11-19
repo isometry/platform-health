@@ -10,7 +10,9 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
+	"github.com/isometry/platform-health/pkg/checks"
 	ph "github.com/isometry/platform-health/pkg/platform_health"
 	restProvider "github.com/isometry/platform-health/pkg/provider/rest"
 )
@@ -23,7 +25,7 @@ func TestRESTProvider_JSONValidation(t *testing.T) {
 	tests := []struct {
 		name           string
 		responseBody   map[string]any
-		checks         []restProvider.CELExpression
+		checks         []checks.Expression
 		expectedStatus ph.Status
 		expectedMsg    string
 	}{
@@ -32,7 +34,7 @@ func TestRESTProvider_JSONValidation(t *testing.T) {
 			responseBody: map[string]any{
 				"status": "healthy",
 			},
-			checks: []restProvider.CELExpression{
+			checks: []checks.Expression{
 				{
 					Expression:   `response.json.status == "healthy"`,
 					ErrorMessage: "service is not healthy",
@@ -45,7 +47,7 @@ func TestRESTProvider_JSONValidation(t *testing.T) {
 			responseBody: map[string]any{
 				"status": "unhealthy",
 			},
-			checks: []restProvider.CELExpression{
+			checks: []checks.Expression{
 				{
 					Expression:   `response.json.status == "healthy"`,
 					ErrorMessage: "service is not healthy",
@@ -63,7 +65,7 @@ func TestRESTProvider_JSONValidation(t *testing.T) {
 					},
 				},
 			},
-			checks: []restProvider.CELExpression{
+			checks: []checks.Expression{
 				{
 					Expression:   `response.json.data.database.connected == true`,
 					ErrorMessage: "database not connected",
@@ -78,7 +80,7 @@ func TestRESTProvider_JSONValidation(t *testing.T) {
 				"version": "1.2.3",
 				"uptime":  3600,
 			},
-			checks: []restProvider.CELExpression{
+			checks: []checks.Expression{
 				{
 					Expression:   `response.json.status == "ok"`,
 					ErrorMessage: "status not ok",
@@ -96,7 +98,7 @@ func TestRESTProvider_JSONValidation(t *testing.T) {
 				"status": "ok",
 				"uptime": 0,
 			},
-			checks: []restProvider.CELExpression{
+			checks: []checks.Expression{
 				{
 					Expression:   `response.json.status == "ok"`,
 					ErrorMessage: "status not ok",
@@ -114,7 +116,7 @@ func TestRESTProvider_JSONValidation(t *testing.T) {
 			responseBody: map[string]any{
 				"status": "ok",
 			},
-			checks: []restProvider.CELExpression{
+			checks: []checks.Expression{
 				{
 					Expression:   `response.status == 200`,
 					ErrorMessage: "unexpected status code",
@@ -127,7 +129,7 @@ func TestRESTProvider_JSONValidation(t *testing.T) {
 			responseBody: map[string]any{
 				"items": []any{"a", "b", "c"},
 			},
-			checks: []restProvider.CELExpression{
+			checks: []checks.Expression{
 				{
 					Expression:   `size(response.json.items) == 3`,
 					ErrorMessage: "wrong number of items",
@@ -153,14 +155,14 @@ func TestRESTProvider_JSONValidation(t *testing.T) {
 			// Create REST provider instance
 			instance := &restProvider.REST{
 				Name: "test-service",
-				URL:  server.URL,
 				Request: restProvider.Request{
+					URL:    server.URL,
 					Method: "GET",
 				},
-				Timeout: 5 * time.Second,
 				Checks:  tt.checks,
+				Timeout: 5 * time.Second,
 			}
-			instance.SetDefaults()
+			require.NoError(t, instance.Setup())
 
 			// Execute health check
 			result := instance.GetHealth(ctx)
@@ -182,7 +184,7 @@ func TestRESTProvider_POSTWithBody(t *testing.T) {
 		expectedMethod string
 		expectedBody   string
 		responseBody   map[string]any
-		checks         []restProvider.CELExpression
+		checks         []checks.Expression
 		expectedStatus ph.Status
 	}{
 		{
@@ -194,7 +196,7 @@ func TestRESTProvider_POSTWithBody(t *testing.T) {
 				"authenticated": true,
 				"token":         "abc123",
 			},
-			checks: []restProvider.CELExpression{
+			checks: []checks.Expression{
 				{
 					Expression:   `response.json.authenticated == true`,
 					ErrorMessage: "authentication failed",
@@ -234,15 +236,15 @@ func TestRESTProvider_POSTWithBody(t *testing.T) {
 			// Create REST provider instance
 			instance := &restProvider.REST{
 				Name: "test-service",
-				URL:  server.URL,
 				Request: restProvider.Request{
+					URL:    server.URL,
 					Method: "POST",
 					Body:   tt.requestBody,
 				},
-				Timeout: 5 * time.Second,
 				Checks:  tt.checks,
+				Timeout: 5 * time.Second,
 			}
-			instance.SetDefaults()
+			require.NoError(t, instance.Setup())
 
 			// Execute health check
 			result := instance.GetHealth(ctx)
@@ -260,13 +262,13 @@ func TestRESTProvider_StatusCodeValidation(t *testing.T) {
 	tests := []struct {
 		name           string
 		serverStatus   int
-		checks         []restProvider.CELExpression
+		checks         []checks.Expression
 		expectedResult ph.Status
 	}{
 		{
 			name:         "status match - single expected",
 			serverStatus: 200,
-			checks: []restProvider.CELExpression{
+			checks: []checks.Expression{
 				{
 					Expression:   `response.status == 200`,
 					ErrorMessage: "expected status 200",
@@ -277,7 +279,7 @@ func TestRESTProvider_StatusCodeValidation(t *testing.T) {
 		{
 			name:         "status match - multiple expected",
 			serverStatus: 201,
-			checks: []restProvider.CELExpression{
+			checks: []checks.Expression{
 				{
 					Expression:   `response.status >= 200 && response.status < 300`,
 					ErrorMessage: "expected 2xx status",
@@ -288,7 +290,7 @@ func TestRESTProvider_StatusCodeValidation(t *testing.T) {
 		{
 			name:         "status mismatch",
 			serverStatus: 500,
-			checks: []restProvider.CELExpression{
+			checks: []checks.Expression{
 				{
 					Expression:   `response.status == 200`,
 					ErrorMessage: "expected status 200",
@@ -313,14 +315,14 @@ func TestRESTProvider_StatusCodeValidation(t *testing.T) {
 			// Create REST provider instance
 			instance := &restProvider.REST{
 				Name: "test-service",
-				URL:  server.URL,
 				Request: restProvider.Request{
+					URL:    server.URL,
 					Method: "GET",
 				},
-				Timeout: 5 * time.Second,
 				Checks:  tt.checks,
+				Timeout: 5 * time.Second,
 			}
-			instance.SetDefaults()
+			require.NoError(t, instance.Setup())
 
 			// Execute health check
 			result := instance.GetHealth(ctx)
@@ -356,11 +358,11 @@ func TestRESTProvider_CombinedValidation(t *testing.T) {
 	// Create REST provider with CEL validation
 	instance := &restProvider.REST{
 		Name: "test-service",
-		URL:  server.URL,
 		Request: restProvider.Request{
+			URL:    server.URL,
 			Method: "GET",
 		},
-		Checks: []restProvider.CELExpression{
+		Checks: []checks.Expression{
 			{
 				Expression:   `response.status == 200`,
 				ErrorMessage: "expected status 200",
@@ -388,7 +390,7 @@ func TestRESTProvider_CombinedValidation(t *testing.T) {
 		},
 		Timeout: 5 * time.Second,
 	}
-	instance.SetDefaults()
+	require.NoError(t, instance.Setup())
 
 	// Execute health check
 	result := instance.GetHealth(ctx)
@@ -402,13 +404,13 @@ func TestRESTProvider_ContentTypeValidation(t *testing.T) {
 	tests := []struct {
 		name           string
 		contentType    string
-		checks         []restProvider.CELExpression
+		checks         []checks.Expression
 		expectedStatus ph.Status
 	}{
 		{
 			name:        "content type matches JSON",
 			contentType: "application/json",
-			checks: []restProvider.CELExpression{
+			checks: []checks.Expression{
 				{
 					Expression:   `response.headers["content-type"] == "application/json"`,
 					ErrorMessage: "Expected JSON content type",
@@ -419,7 +421,7 @@ func TestRESTProvider_ContentTypeValidation(t *testing.T) {
 		{
 			name:        "content type contains JSON",
 			contentType: "application/json; charset=utf-8",
-			checks: []restProvider.CELExpression{
+			checks: []checks.Expression{
 				{
 					Expression:   `response.headers["content-type"].contains("application/json")`,
 					ErrorMessage: "Expected JSON content type",
@@ -430,7 +432,7 @@ func TestRESTProvider_ContentTypeValidation(t *testing.T) {
 		{
 			name:        "content type mismatch",
 			contentType: "text/html",
-			checks: []restProvider.CELExpression{
+			checks: []checks.Expression{
 				{
 					Expression:   `response.headers["content-type"] == "application/json"`,
 					ErrorMessage: "Expected JSON content type",
@@ -456,14 +458,14 @@ func TestRESTProvider_ContentTypeValidation(t *testing.T) {
 			// Create REST provider instance
 			instance := &restProvider.REST{
 				Name: "test-service",
-				URL:  server.URL,
 				Request: restProvider.Request{
+					URL:    server.URL,
 					Method: "GET",
 				},
-				Timeout: 5 * time.Second,
 				Checks:  tt.checks,
+				Timeout: 5 * time.Second,
 			}
-			instance.SetDefaults()
+			require.NoError(t, instance.Setup())
 
 			// Execute health check
 			result := instance.GetHealth(ctx)
@@ -476,55 +478,25 @@ func TestRESTProvider_ContentTypeValidation(t *testing.T) {
 }
 
 func TestRESTProvider_ErrorCases(t *testing.T) {
-	tests := []struct {
-		name           string
-		setupServer    func() *httptest.Server
-		checks         []restProvider.CELExpression
-		expectedStatus ph.Status
-	}{
-		{
-			name: "invalid CEL expression syntax",
-			setupServer: func() *httptest.Server {
-				return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-					w.WriteHeader(http.StatusOK)
-					_, _ = w.Write([]byte(`{"status":"ok"}`))
-				}))
+	t.Run("invalid CEL expression syntax", func(t *testing.T) {
+		instance := &restProvider.REST{
+			Name: "test-service",
+			Request: restProvider.Request{
+				URL:    "http://localhost",
+				Method: "GET",
 			},
-			checks: []restProvider.CELExpression{
+			Checks: []checks.Expression{
 				{
 					Expression:   `invalid syntax here!!!`,
 					ErrorMessage: "validation failed",
 				},
 			},
-			expectedStatus: ph.Status_UNHEALTHY,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-			defer cancel()
-
-			server := tt.setupServer()
-			defer server.Close()
-
-			instance := &restProvider.REST{
-				Name: "test-service",
-				URL:  server.URL,
-				Request: restProvider.Request{
-					Method: "GET",
-				},
-				Timeout: 5 * time.Second,
-				Checks:  tt.checks,
-			}
-			instance.SetDefaults()
-
-			result := instance.GetHealth(ctx)
-
-			assert.NotNil(t, result)
-			assert.Equal(t, tt.expectedStatus, result.GetStatus())
-		})
-	}
+			Timeout: 5 * time.Second,
+		}
+		err := instance.Setup()
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "invalid CEL expression")
+	})
 }
 
 func TestRESTProvider_RequestContextValidation(t *testing.T) {
@@ -550,8 +522,8 @@ func TestRESTProvider_RequestContextValidation(t *testing.T) {
 	// Create REST provider with request context validation
 	instance := &restProvider.REST{
 		Name: "test-service",
-		URL:  server.URL,
 		Request: restProvider.Request{
+			URL:    server.URL,
 			Method: "POST",
 			Body:   `{"test":"data"}`,
 			Headers: map[string]string{
@@ -559,7 +531,7 @@ func TestRESTProvider_RequestContextValidation(t *testing.T) {
 				"Authorization": "Bearer token123",
 			},
 		},
-		Checks: []restProvider.CELExpression{
+		Checks: []checks.Expression{
 			{
 				Expression:   `request.method == "POST"`,
 				ErrorMessage: "request method validation failed",
@@ -587,7 +559,7 @@ func TestRESTProvider_RequestContextValidation(t *testing.T) {
 		},
 		Timeout: 5 * time.Second,
 	}
-	instance.SetDefaults()
+	require.NoError(t, instance.Setup())
 
 	// Execute health check
 	result := instance.GetHealth(ctx)

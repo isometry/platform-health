@@ -113,11 +113,12 @@ http:
     url: https://google.com
 rest:
   - name: api-health
-    url: https://api.example.com/health
-    method: GET
+    request:
+      url: https://api.example.com/health
+      method: GET
     checks:
-      - expr: 'response.status == 200'
-        message: "Expected HTTP 200"
-      - expr: 'response.json.status == "healthy"'
-        message: "Service unhealthy"
+      - expression: 'response.status == 200'
+        errorMessage: "Expected HTTP 200"
+      - expression: 'response.json.status == "healthy"'
+        errorMessage: "Service unhealthy"
 ```

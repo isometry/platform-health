@@ -22,8 +22,10 @@ func init() {
 	provider.Register(TypeMock, new(Mock))
 }
 
-func (i *Mock) SetDefaults() {
+func (i *Mock) Setup() error {
 	defaults.SetDefaults(i)
+
+	return nil
 }
 
 func (i *Mock) GetType() string {

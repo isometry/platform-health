@@ -6,17 +6,17 @@ import (
 )
 
 func TestGenerateOutput(t *testing.T) {
-	gvToKinds := map[GV][]string{
-		{Group: "group1", Version: "v1"}: {"kind1", "kind2"},
-		{Group: "group2", Version: "v2"}: {"kind3", "kind4"},
+	groupToKinds := map[string][]string{
+		"group1": {"kind1", "kind2"},
+		"group2": {"kind3", "kind4"},
 	}
-	expected := map[string]GV{
-		"kind1": {Group: "group1", Version: "v1"},
-		"kind2": {Group: "group1", Version: "v1"},
-		"kind3": {Group: "group2", Version: "v2"},
-		"kind4": {Group: "group2", Version: "v2"},
+	expected := map[string]string{
+		"kind1": "group1",
+		"kind2": "group1",
+		"kind3": "group2",
+		"kind4": "group2",
 	}
-	output := generateOutput(gvToKinds)
+	output := generateOutput(groupToKinds)
 	if !reflect.DeepEqual(output, expected) {
 		t.Errorf("expected %v, got %v", expected, output)
 	}

@@ -1,0 +1,18 @@
+syntax = "proto3";
+
+package platform_health.detail.v1;
+
+option go_package = "github.com/isometry/platform-health/pkg/platform_health/details";
+
+message Detail_KStatus {
+  string status = 1;
+  string message = 2;
+  repeated Condition conditions = 3;
+}
+
+message Condition {
+  string type = 1;
+  string status = 2;
+  string reason = 3;
+  string message = 4;
+}

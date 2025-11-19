@@ -36,8 +36,10 @@ func (i *Vault) LogValue() slog.Value {
 	return slog.GroupValue(logAttr...)
 }
 
-func (i *Vault) SetDefaults() {
+func (i *Vault) Setup() error {
 	defaults.SetDefaults(i)
+
+	return nil
 }
 
 func (i *Vault) GetType() string {

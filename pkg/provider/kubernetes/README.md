@@ -1,42 +1,193 @@
 # Kubernetes Provider
 
-The Kubernetes Provider extends the platform-health server to enable monitoring the health and status of Kubernetes resources. It does this by checking the existence and readiness of the specified Kubernetes resources, and reporting on the success or failure of these operations.
+The Kubernetes Provider extends the platform-health server to enable monitoring the health and status of Kubernetes resources. It validates resources using flexible CEL (Common Expression Language) expressions that have full access to the resource's structure.
 
 ## Usage
 
-Once the Kubernetes Provider is configured, any query to the platform health server will trigger validation of the configured Kubernetes resource(s). The server will attempt to query the Kubernetes API for each resource, and it will report each resource as "healthy" if the query is successful and the condition matches expectations, or "unhealthy" if the request fails or times out, or if the resource does not exist or the status condition does not match.
+Once the Kubernetes Provider is configured, any query to the platform health server will trigger validation of the configured Kubernetes resource(s). The server will attempt to query the Kubernetes API for each resource, and it will report each resource as "healthy" if the query is successful and all CEL checks pass, or "unhealthy" if the request fails, times out, or any check fails.
 
 ## Configuration
 
 The Kubernetes Provider is configured through the platform-health server's configuration file, with list of instances under the `kubernetes` key.
 
 * `group` (default: `apps`): The group of the Kubernetes resource.
-* `version` (default: `v1`): The version of the Kubernetes resource.
+* `version` (optional): The version of the Kubernetes resource. If not specified, the API server's preferred version is used automatically.
 * `kind` (default: `deployment`): The kind of the Kubernetes resource.
 * `name` (required): The name of the Kubernetes resource.
 * `namespace` (default: `default`): The namespace of the Kubernetes resource.
-* `condition` (default: `null`): A condition to check on the Kubernetes resource. This is an object with two properties:
-  * `type` (default: `Available`): The type of the condition.
-  * `status` (default: `"True"`): The status of the condition.
+* `checks`: A list of CEL expressions to validate the resource. Each check has:
+  * `expression` (required): A CEL expression that must evaluate to `true` for the resource to be healthy.
+  * `errorMessage` (optional): Custom error message when the check fails.
+* `kstatus` (default: `true`): Whether to evaluate resource health using the [kstatus](https://github.com/kubernetes-sigs/cli-utils/tree/master/pkg/kstatus) library. When enabled, resources must reach "Current" status to be considered healthy. A `Detail_KStatus` is included in the response with status, message, and conditions.
+* `timeout` (default: `10s`): Timeout for the Kubernetes API request.
 
-Please note that the `condition` option is only applicable to Kubernetes resources that have conditions, such as `deployment`, `pod`, etc. For other resources, such as `service`, `secret`, etc., the `condition` option should not be specified, and the Kubernetes Provider will only check the existence of the resource.
-
-Many common resource kinds (see [common/resources.go](common/resources.go)) are internally mapped to the correct `group` and `version` if those options are left at default.
+Many common resource kinds (see [common/generator.go](common/generator.go)) are internally mapped to the correct `group` if that option is left at default.
 
 For queries to succeed, the platform-health server must be run in a context with appropriate access privileges to list and get the monitored resources. Running "in-cluster", this means an appropriate service account, role and role binding must be configured.
 
-### Example
+## Backward Compatibility
 
+The legacy `condition` field is still supported but deprecated. It will be automatically converted to an equivalent CEL expression with a deprecation warning logged at startup.
+
+**Legacy configuration:**
 ```yaml
 kubernetes:
-  - group: apps # default
-    version: v1 # default
-    kind: deployment
-    name: example-deployment
-    namespace: default # default
+  - name: my-deployment
+    kind: Deployment
     condition:
       type: Available
       status: "True"
 ```
 
-In this example, the Kubernetes Provider will check the existence and readiness of a Deployment named `example-deployment` in the `default` namespace. It will report the service as "unhealthy" if the `Available` condition of the Deployment is not `True`.
+**Equivalent modern configuration:**
+```yaml
+kubernetes:
+  - name: my-deployment
+    kind: Deployment
+    checks:
+      - expression: "resource.status.conditions.exists(c, c.type == 'Available' && c.status == 'True')"
+```
+
+## CEL Expression Context
+
+The `resource` variable exposes the full Kubernetes resource as a map, giving you access to all fields:
+
+* `resource.apiVersion` - API version (e.g., "apps/v1")
+* `resource.kind` - Resource kind (e.g., "Deployment")
+* `resource.metadata` - Metadata including name, namespace, labels, annotations
+* `resource.spec` - Full resource specification
+* `resource.status` - Full resource status including conditions, replicas, etc.
+
+### Example CEL Expressions
+
+```cel
+// Check deployment has all replicas ready
+resource.status.readyReplicas >= resource.spec.replicas
+
+// Check for Available condition
+resource.status.conditions.exists(c, c.type == 'Available' && c.status == 'True')
+
+// Check specific label value
+resource.metadata.labels['app'] == 'myapp'
+
+// Check minimum replicas
+resource.status.readyReplicas >= 3
+
+// Check annotation exists
+'prometheus.io/scrape' in resource.metadata.annotations
+
+// Combined checks
+resource.status.readyReplicas >= 1 && resource.status.updatedReplicas == resource.spec.replicas
+```
+
+## Examples
+
+### Basic Deployment Health Check
+
+```yaml
+kubernetes:
+  - name: my-app
+    kind: Deployment
+    namespace: production
+    checks:
+      - expression: "resource.status.readyReplicas >= resource.spec.replicas"
+        errorMessage: "Not all replicas are ready"
+```
+
+### Condition-Based Check
+
+```yaml
+kubernetes:
+  - name: my-app
+    kind: Deployment
+    checks:
+      - expression: "resource.status.conditions.exists(c, c.type == 'Available' && c.status == 'True')"
+        errorMessage: "Deployment is not available"
+```
+
+### Multiple Validation Checks
+
+```yaml
+kubernetes:
+  - name: my-app
+    kind: Deployment
+    checks:
+      - expression: "resource.status.readyReplicas >= 1"
+        errorMessage: "No replicas ready"
+      - expression: "resource.status.updatedReplicas == resource.spec.replicas"
+        errorMessage: "Rolling update in progress"
+      - expression: "resource.metadata.labels['version'] == 'v2'"
+        errorMessage: "Expected version v2"
+```
+
+### StatefulSet Check
+
+```yaml
+kubernetes:
+  - name: my-database
+    kind: StatefulSet
+    checks:
+      - expression: "resource.status.readyReplicas == resource.spec.replicas"
+        errorMessage: "StatefulSet not fully ready"
+```
+
+### Service Existence Check
+
+For resources without status conditions, simply omit the `checks` field to verify existence only:
+
+```yaml
+kubernetes:
+  - name: my-service
+    kind: Service
+    namespace: default
+```
+
+### Pod Phase Check
+
+```yaml
+kubernetes:
+  - name: my-pod
+    kind: Pod
+    checks:
+      - expression: "resource.status.phase == 'Running'"
+        errorMessage: "Pod is not running"
+```
+
+### ConfigMap Content Validation
+
+```yaml
+kubernetes:
+  - name: app-config
+    kind: ConfigMap
+    checks:
+      - expression: "'database_url' in resource.data"
+        errorMessage: "Missing database_url in ConfigMap"
+```
+
+### Disable kstatus Evaluation
+
+For resources where kstatus evaluation is not appropriate (e.g., custom resources without standard status conditions), disable it:
+
+```yaml
+kubernetes:
+  - name: my-custom-resource
+    group: example.com
+    version: v1
+    kind: MyCustomResource
+    kstatus: false
+    checks:
+      - expression: "resource.status.ready == true"
+        errorMessage: "Custom resource is not ready"
+```
+
+## Response Details
+
+When `kstatus: true` (the default), the health check response includes a `Detail_KStatus` containing:
+
+* `status`: The kstatus result (e.g., "Current", "InProgress", "Failed")
+* `message`: Human-readable status message
+* `conditions`: Array of Kubernetes conditions from the resource (only included when status is not "Current", for debugging):
+  * `type`: Condition type (e.g., "Available", "Progressing")
+  * `status`: Condition status ("True", "False", "Unknown")
+  * `reason`: Machine-readable reason for the condition
+  * `message`: Human-readable message about the condition

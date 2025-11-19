@@ -1,13 +1,13 @@
-package rest
+package checks
 
 import (
-	"reflect"
 	"testing"
 
+	"github.com/google/cel-go/cel"
 	"github.com/stretchr/testify/assert"
 )
 
-func TestValidateCELExpression(t *testing.T) {
+func TestValidateExpression(t *testing.T) {
 	tests := []struct {
 		name        string
 		expression  string
@@ -70,7 +70,9 @@ func TestValidateCELExpression(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			err := ValidateCELExpression(tt.expression)
+			err := ValidateExpression(tt.expression,
+				cel.Variable("response", cel.MapType(cel.StringType, cel.DynType)),
+			)
 
 			if tt.expectError {
 				assert.Error(t, err)
@@ -84,7 +86,7 @@ func TestValidateCELExpression(t *testing.T) {
 	}
 }
 
-func TestCELExpressionEvaluation(t *testing.T) {
+func TestEvaluatorEvaluation(t *testing.T) {
 	tests := []struct {
 		name        string
 		expression  string
@@ -181,29 +183,30 @@ func TestCELExpressionEvaluation(t *testing.T) {
 		},
 	}
 
+	// Create CEL config with test variables
+	celConfig := NewCEL(
+		cel.Variable("request", cel.MapType(cel.StringType, cel.DynType)),
+		cel.Variable("response", cel.MapType(cel.StringType, cel.DynType)),
+	)
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			// Create REST instance with single expression to test
-			rest := &REST{
-				Checks: []CELExpression{
-					{Expression: tt.expression},
-				},
-			}
-
-			// Compile the CEL programs
-			err := rest.compileCELPrograms()
+			// Create evaluator with the test expression
+			evaluator, err := celConfig.NewEvaluator(
+				[]Expression{{Expression: tt.expression}},
+			)
 			assert.NoError(t, err)
 
-			// Evaluate the compiled program directly
-			result, _, err := rest.celPrograms[0].Eval(tt.context)
+			// Evaluate using the shared evaluator
+			err = evaluator.Evaluate(tt.context)
 			if tt.expectError {
 				assert.Error(t, err)
 			} else {
-				assert.NoError(t, err)
-				// Convert CEL value to native Go boolean
-				value, err := result.ConvertToNative(reflect.TypeOf(false))
-				assert.NoError(t, err)
-				assert.Equal(t, tt.expected, value)
+				if tt.expected {
+					assert.NoError(t, err)
+				} else {
+					assert.Error(t, err)
+				}
 			}
 		})
 	}

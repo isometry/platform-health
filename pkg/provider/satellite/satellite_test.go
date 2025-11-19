@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc/resolver"
 
 	ph "github.com/isometry/platform-health/pkg/platform_health"
@@ -106,7 +107,7 @@ func TestSatelliteGetHealth(t *testing.T) {
 				Port:    tt.port,
 				Timeout: time.Second,
 			}
-			component.SetDefaults()
+			require.NoError(t, component.Setup())
 
 			*config = tt.config
 
