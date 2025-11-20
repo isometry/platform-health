@@ -5,6 +5,7 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 
@@ -99,6 +100,22 @@ func TestHarden(t *testing.T) {
 				},
 			},
 			expected: concreteConfig{},
+		},
+		{
+			name: "Duration Parsing",
+			abstract: abstractConfig{
+				"mock": []any{
+					map[string]any{
+						"name":  "duration-test",
+						"sleep": "5s",
+					},
+				},
+			},
+			expected: concreteConfig{
+				"mock": []provider.Instance{
+					&mock.Mock{Name: "duration-test", Health: 1, Sleep: 5 * time.Second},
+				},
+			},
 		},
 	}
 

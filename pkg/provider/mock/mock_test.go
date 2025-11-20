@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	ph "github.com/isometry/platform-health/pkg/platform_health"
 	"github.com/isometry/platform-health/pkg/provider/mock"
@@ -45,7 +46,7 @@ func TestMock(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			tt.mock.SetDefaults()
+			require.NoError(t, tt.mock.Setup())
 
 			start := time.Now()
 			result := tt.mock.GetHealth(context.Background())

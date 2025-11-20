@@ -58,8 +58,10 @@ func (i *TLS) LogValue() slog.Value {
 	return slog.GroupValue(logAttr...)
 }
 
-func (i *TLS) SetDefaults() {
+func (i *TLS) Setup() error {
 	defaults.SetDefaults(i)
+
+	return nil
 }
 
 func (i *TLS) GetType() string {
@@ -90,7 +92,7 @@ func (i *TLS) GetHealth(ctx context.Context) *ph.HealthCheckResponse {
 	if err != nil {
 		return component.Unhealthy(err.Error())
 	}
-	defer conn.Close()
+	defer func() { _ = conn.Close() }()
 
 	tlsConf := &tls.Config{
 		ServerName: i.Host,
@@ -114,7 +116,7 @@ func (i *TLS) GetHealth(ctx context.Context) *ph.HealthCheckResponse {
 			return component.Unhealthy(err.Error())
 		}
 	}
-	defer tlsConn.Close()
+	defer func() { _ = tlsConn.Close() }()
 
 	connectionState := tlsConn.ConnectionState()
 	if i.Detail {

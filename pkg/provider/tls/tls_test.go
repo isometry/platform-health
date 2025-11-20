@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	ph "github.com/isometry/platform-health/pkg/platform_health"
 	"github.com/isometry/platform-health/pkg/provider/tls"
@@ -92,7 +93,7 @@ func TestTLS(t *testing.T) {
 				SANs:        tt.sans,
 				Timeout:     tt.timeout,
 			}
-			instance.SetDefaults()
+			require.NoError(t, instance.Setup())
 
 			result := instance.GetHealth(ctx)
 

@@ -53,8 +53,10 @@ func (i *HTTP) LogValue() slog.Value {
 	return slog.GroupValue(logAttr...)
 }
 
-func (i *HTTP) SetDefaults() {
+func (i *HTTP) Setup() error {
 	defaults.SetDefaults(i)
+
+	return nil
 }
 
 func (i *HTTP) GetType() string {

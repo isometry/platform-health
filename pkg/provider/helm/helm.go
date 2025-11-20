@@ -38,8 +38,10 @@ func (i *Helm) LogValue() slog.Value {
 	return slog.GroupValue(logAttr...)
 }
 
-func (i *Helm) SetDefaults() {
+func (i *Helm) Setup() error {
 	defaults.SetDefaults(i)
+
+	return nil
 }
 
 func (i *Helm) GetType() string {

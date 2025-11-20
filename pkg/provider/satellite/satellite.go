@@ -44,8 +44,10 @@ func (i *Satellite) LogValue() slog.Value {
 	return slog.GroupValue(logAttr...)
 }
 
-func (i *Satellite) SetDefaults() {
+func (i *Satellite) Setup() error {
 	defaults.SetDefaults(i)
+
+	return nil
 }
 
 func (i *Satellite) GetType() string {
@@ -91,7 +93,7 @@ func (i *Satellite) GetHealth(ctx context.Context) *ph.HealthCheckResponse {
 	if err != nil {
 		return component.Unhealthy(err.Error())
 	}
-	defer conn.Close()
+	defer func() { _ = conn.Close() }()
 
 	// Propagate already visited serverIds from context to enable loop detection
 	request := &ph.HealthCheckRequest{

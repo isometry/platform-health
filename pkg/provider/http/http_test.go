@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	ph "github.com/isometry/platform-health/pkg/platform_health"
 	httpProvider "github.com/isometry/platform-health/pkg/provider/http"
@@ -92,7 +93,7 @@ func TestLocalHTTP(t *testing.T) {
 				Status:  []int{tt.status},
 				Timeout: tt.timeout,
 			}
-			instance.SetDefaults()
+			require.NoError(t, instance.Setup())
 
 			result := instance.GetHealth(ctx)
 

@@ -23,7 +23,7 @@ func NewClient(ctx context.Context, target string) (*Client, error) {
 	// Close the connection when the context is done
 	go func() {
 		<-ctx.Done()
-		conn.Close()
+		_ = conn.Close()
 	}()
 
 	return &Client{

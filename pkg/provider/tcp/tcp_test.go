@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	ph "github.com/isometry/platform-health/pkg/platform_health"
 	"github.com/isometry/platform-health/pkg/provider/tcp"
@@ -23,7 +24,7 @@ func TestTCP(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to set up test server: %v", err)
 	}
-	defer listener.Close()
+	defer func() { _ = listener.Close() }()
 
 	port := listener.Addr().(*net.TCPAddr).Port
 
@@ -74,7 +75,7 @@ func TestTCP(t *testing.T) {
 				Closed:  tt.closed,
 				Timeout: tt.timeout,
 			}
-			instance.SetDefaults()
+			require.NoError(t, instance.Setup())
 
 			result := instance.GetHealth(context.Background())
 

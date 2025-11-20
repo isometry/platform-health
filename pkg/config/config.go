@@ -138,13 +138,24 @@ func (c *abstractConfig) harden() *concreteConfig {
 		for i, abstractInstance := range abstractInstances {
 			instance := reflect.New(providerType)
 
-			if err := mapstructure.Decode(abstractInstance, instance.Interface()); err != nil {
+			decoder, err := mapstructure.NewDecoder(&mapstructure.DecoderConfig{
+				DecodeHook: mapstructure.StringToTimeDurationHookFunc(),
+				Result:     instance.Interface(),
+			})
+			if err != nil {
+				log.Warn("failed to create decoder", slog.Int("index", i), slog.Any("error", err))
+				continue
+			}
+			if err := decoder.Decode(abstractInstance); err != nil {
 				log.Warn("failed to decode instance", slog.Int("index", i), slog.Any("error", err))
 				continue
 			}
 
 			concreteInstance := instance.Elem().Interface().(provider.Instance)
-			concreteInstance.SetDefaults()
+			if err := concreteInstance.Setup(); err != nil {
+				log.Warn("invalid instance configuration", slog.Int("index", i), slog.Any("error", err))
+				continue
+			}
 
 			concrete[typeName] = append(concrete[typeName], concreteInstance)
 		}

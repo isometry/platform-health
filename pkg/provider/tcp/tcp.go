@@ -39,8 +39,10 @@ func (i *TCP) LogValue() slog.Value {
 	return slog.GroupValue(logAttr...)
 }
 
-func (i *TCP) SetDefaults() {
+func (i *TCP) Setup() error {
 	defaults.SetDefaults(i)
+
+	return nil
 }
 
 func (i *TCP) GetType() string {
