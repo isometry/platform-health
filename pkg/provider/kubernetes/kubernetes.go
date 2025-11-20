@@ -49,6 +49,7 @@ type Kubernetes struct {
 	Resource Resource            `mapstructure:"resource"`
 	Checks   []checks.Expression `mapstructure:"checks"`
 	KStatus  *bool               `mapstructure:"kstatus"`
+	Detail   bool                `mapstructure:"detail"`
 	Timeout  time.Duration       `mapstructure:"timeout" default:"10s"`
 
 	// Compiled CEL evaluator (cached after Setup)
@@ -68,6 +69,7 @@ func (i *Kubernetes) LogValue() slog.Value {
 		slog.String("resourceName", i.Resource.Name),
 		slog.Any("timeout", i.Timeout),
 		slog.Int("checks", len(i.Checks)),
+		slog.Bool("detail", i.Detail),
 	}
 	if i.Resource.Version != "" {
 		logAttr = append(logAttr, slog.String("version", i.Resource.Version))
@@ -196,11 +198,13 @@ func (i *Kubernetes) GetHealth(ctx context.Context) *ph.HealthCheckResponse {
 			}
 		}
 
-		// Append detail to component
-		if detail, err := anypb.New(kstatusDetail); err != nil {
-			return component.Unhealthy(err.Error())
-		} else {
-			component.Details = append(component.Details, detail)
+		// Append detail to component if Detail is enabled
+		if i.Detail {
+			if detail, err := anypb.New(kstatusDetail); err != nil {
+				return component.Unhealthy(err.Error())
+			} else {
+				component.Details = append(component.Details, detail)
+			}
 		}
 
 		if result.Status != status.CurrentStatus {
