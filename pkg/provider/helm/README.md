@@ -14,6 +14,9 @@ The Helm Provider is configured through the platform-health server's configurati
 - `release` (required): The name of the Helm release to monitor.
 - `namespace` (required): The namespace of the Helm release to monitor.
 - `timeout` (default: `5s`): The maximum time to wait for a status check to be completed before timing out.
+- `checks` (optional): List of CEL expressions for custom health validation. Each check has:
+  - `expression` (required): A CEL expression that must evaluate to `true` for the release to be healthy.
+  - `errorMessage` (optional): Custom error message when the check fails.
 
 For queries to succeed, the platform-health server must be run in a context with appropriate access privileges to list and get the `Secret` resources that Helm uses internally to track releases. Running "in-cluster", this means an appropriate service account, role and role binding must be configured.
 
@@ -27,4 +30,64 @@ example:
   timeout: 5s
 ```
 
-In this example, the Helm Provider will check the status of the Helm release named "example-chart" in the "example-namespace" namespace, and it will wait for 5s before timing out. It will not include detailed information about the Helm release in the health reports.
+In this example, the Helm Provider will check the status of the Helm release named "example-chart" in the "example-namespace" namespace, and it will wait for 5s before timing out.
+
+## CEL Expressions
+
+The `checks` field accepts a list of CEL (Common Expression Language) expressions for custom health validation. Each expression must evaluate to `true` for the release to be considered healthy.
+
+### Available Context
+
+The following variables are available in CEL expressions:
+
+#### Release Properties
+- `release.Name` - Release name
+- `release.Namespace` - Release namespace
+- `release.Version` - Release revision number (int)
+- `release.Manifest` - Rendered manifest content
+- `release.Labels` - Release labels (map)
+- `release.Config` - User-provided value overrides (map)
+- `release.Values` - Chart default values (map)
+
+#### Release Info
+- `release.Info.Status` - Release status (string: "deployed", "failed", etc.)
+- `release.Info.FirstDeployed` - First deployment timestamp
+- `release.Info.LastDeployed` - Last deployment timestamp
+- `release.Info.Deleted` - Deletion timestamp
+- `release.Info.Description` - Release description
+- `release.Info.Notes` - Chart NOTES.txt content
+
+#### Chart Metadata
+- `release.Chart.Metadata.Name` - Chart name
+- `release.Chart.Metadata.Version` - Chart version
+- `release.Chart.Metadata.AppVersion` - Application version
+- `release.Chart.Metadata.Description` - Chart description
+- `release.Chart.Metadata.Deprecated` - Whether chart is deprecated (bool)
+- `release.Chart.Metadata.KubeVersion` - Required Kubernetes version
+- `release.Chart.Metadata.Type` - Chart type
+- `release.Chart.Metadata.Annotations` - Chart annotations (map)
+
+### Example with CEL Checks
+
+```yaml
+my-app:
+  type: helm
+  release: my-app
+  namespace: production
+  timeout: 10s
+  checks:
+    - expression: "release.Version >= 2"
+      errorMessage: "Release must have at least one upgrade"
+    - expression: "!release.Chart.Metadata.Deprecated"
+      errorMessage: "Chart is deprecated"
+    - expression: "'team' in release.Labels && 'env' in release.Labels"
+      errorMessage: "Release must have team and env labels"
+    - expression: "release.Config['replicas'] >= 3"
+      errorMessage: "Production must have at least 3 replicas"
+```
+
+This example validates that:
+- The release has been upgraded at least once
+- The chart is not deprecated
+- Required labels are present
+- The replica count meets production requirements

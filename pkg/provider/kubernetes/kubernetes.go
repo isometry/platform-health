@@ -16,16 +16,14 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
-	"k8s.io/client-go/discovery"
-	"k8s.io/client-go/discovery/cached/memory"
 	"k8s.io/client-go/dynamic"
-	"k8s.io/client-go/restmapper"
 	"sigs.k8s.io/cli-utils/pkg/kstatus/status"
 
 	"github.com/isometry/platform-health/pkg/checks"
 	ph "github.com/isometry/platform-health/pkg/platform_health"
 	"github.com/isometry/platform-health/pkg/platform_health/details"
 	"github.com/isometry/platform-health/pkg/provider"
+	"github.com/isometry/platform-health/pkg/provider/kubernetes/client"
 	"github.com/isometry/platform-health/pkg/server"
 	"github.com/isometry/platform-health/pkg/utils"
 )
@@ -134,20 +132,14 @@ func (i *Kubernetes) GetHealth(ctx context.Context) *ph.HealthCheckResponse {
 	}
 	defer component.LogStatus(log)
 
-	config, err := utils.GetKubeConfig()
+	clients, err := client.ClientFactory.GetClients()
 	if err != nil {
 		return component.Unhealthy(err.Error())
 	}
 
-	config.Timeout = i.Timeout
-
-	client, err := dynamic.NewForConfig(config)
-	if err != nil {
-		return component.Unhealthy(err.Error())
-	}
-
-	dc, _ := discovery.NewDiscoveryClientForConfig(config)
-	mapper := restmapper.NewDeferredDiscoveryRESTMapper(memory.NewMemCacheClient(dc))
+	clients.Config.Timeout = i.Timeout
+	client := clients.Dynamic
+	mapper := clients.Mapper
 
 	// Default group based on kind for common resources
 	group := i.Resource.Group
@@ -235,11 +227,6 @@ func (i *Kubernetes) checkBySelector(ctx context.Context, client dynamic.Interfa
 	}
 	if err != nil {
 		return component.Unhealthy(err.Error())
-	}
-
-	// UNHEALTHY if no resources match
-	if len(list.Items) == 0 {
-		return component.Unhealthy("no resources matched selector")
 	}
 
 	// Filter by component paths if specified

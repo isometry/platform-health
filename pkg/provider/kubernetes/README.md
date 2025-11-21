@@ -203,6 +203,20 @@ all-system-deployments:
     namespace: kube-system
 ```
 
+**Note:** Empty results (no matching resources) are considered HEALTHY by default. Use CEL checks to require resources:
+
+```yaml
+require-deployments:
+  type: kubernetes
+  resource:
+    kind: Deployment
+    namespace: production
+    labelSelector: "app=myapp"
+  checks:
+    - expression: "items.size() >= 1"
+      errorMessage: "No deployments found"
+```
+
 ### Label Selector - Multiple Resources
 
 Select resources matching a label selector. CEL checks use `items` for cardinality and collection-based validation:
