@@ -150,7 +150,7 @@ func (i *Kubernetes) GetHealth(ctx context.Context) *ph.HealthCheckResponse {
 
 	// Default group based on kind for common resources
 	group := i.Resource.Group
-	if group == "apps" { // default value
+	if group == "" {
 		k := strings.ToLower(i.Resource.Kind)
 		if g, ok := commonKindToGroup[k]; ok {
 			group = g
