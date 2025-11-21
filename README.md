@@ -88,6 +88,23 @@ EOF
 kubectl create service loadbalancer platform-health --tcp=8080:8080
 ```
 
+## Usage
+
+### One-Shot Mode
+
+Run health checks once and exit without starting a server:
+
+```bash
+phs -o
+# or
+phs --one-shot
+```
+
+This is useful for:
+- Validating configuration files
+- Local health check verification
+- CI/CD pipeline integration
+
 ## Configuration
 
 The Platform Health server reads a simple configuration file, defaulting to `platform-health.yaml` with the following structure:
