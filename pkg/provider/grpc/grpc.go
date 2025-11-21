@@ -22,7 +22,7 @@ import (
 var TypeGRPC = "grpc"
 
 type GRPC struct {
-	Name     string        `mapstructure:"name"`
+	Name     string        `mapstructure:"-"`
 	Host     string        `mapstructure:"host"`
 	Port     int           `mapstructure:"port"`
 	Service  string        `mapstructure:"service"`
@@ -57,6 +57,10 @@ func (i *GRPC) GetType() string {
 
 func (i *GRPC) GetName() string {
 	return i.Name
+}
+
+func (i *GRPC) SetName(name string) {
+	i.Name = name
 }
 
 func (i *GRPC) GetHealth(ctx context.Context) *ph.HealthCheckResponse {

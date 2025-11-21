@@ -17,7 +17,7 @@ import (
 const TypeTCP = "tcp"
 
 type TCP struct {
-	Name    string        `mapstructure:"name"`
+	Name    string        `mapstructure:"-"`
 	Host    string        `mapstructure:"host"`
 	Port    int           `mapstructure:"port" default:"80"`
 	Closed  bool          `mapstructure:"closed" default:"false"`
@@ -51,6 +51,10 @@ func (i *TCP) GetType() string {
 
 func (i *TCP) GetName() string {
 	return i.Name
+}
+
+func (i *TCP) SetName(name string) {
+	i.Name = name
 }
 
 func (i *TCP) GetHealth(ctx context.Context) *ph.HealthCheckResponse {

@@ -8,9 +8,9 @@ Once the Satellite Provider is configured, any query to the platform health serv
 
 ## Configuration
 
-The Satellite Provider is configured through the platform-health server's configuration file, with list of instances under the `satellite` key.
+The Satellite Provider is configured through the platform-health server's configuration file. Each instance is defined with its name as the YAML key.
 
-* `name` (required): The name of the Satellite service instance, used to identify the service in the health reports.
+* `type` (required): Must be `satellite`.
 * `host` (required): The hostname or IP address of the Satellite service to monitor.
 * `port` (default: `8080`): The port number of the Satellite service to monitor.
 * `tls` (default: `false`, unless `port` is `443`): Enable TLS for the gRPC dialer.
@@ -19,10 +19,10 @@ The Satellite Provider is configured through the platform-health server's config
 ### Example
 
 ```yaml
-satellite:
-  - name: example
-    host: satellite.example.com
-    port: 8080
+example:
+  type: satellite
+  host: satellite.example.com
+  port: 8080
 ```
 
 In this example, the Satellite Provider will return the health of the platform-health server and its instances running on `satellite.example.com:8080`.

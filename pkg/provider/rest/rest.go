@@ -71,7 +71,7 @@ type Request struct {
 
 // REST provider extends HTTP provider with response validation capabilities
 type REST struct {
-	Name     string              `mapstructure:"name"`
+	Name     string              `mapstructure:"-"`
 	Request  Request             `mapstructure:"request"`
 	Insecure bool                `mapstructure:"insecure"`
 	Checks   []checks.Expression `mapstructure:"checks"`
@@ -130,6 +130,10 @@ func (i *REST) GetType() string {
 
 func (i *REST) GetName() string {
 	return i.Name
+}
+
+func (i *REST) SetName(name string) {
+	i.Name = name
 }
 
 func (i *REST) GetHealth(ctx context.Context) *ph.HealthCheckResponse {

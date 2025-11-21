@@ -8,9 +8,9 @@ Once the Vault Provider is configured, any query to the platform-health server w
 
 ## Configuration
 
-The Vault Provider is configured through the platform-health server's configuration file, with component instances listed under the `vault` key.
+The Vault Provider is configured through the platform-health server's configuration file. Each instance is defined with its name as the YAML key.
 
-* `name` (required): The name of the Vault service instance, used to identify the service in the health reports.
+* `type` (required): Must be `vault`.
 * `address` (required): The address of the Vault instance in standard `VAULT_ADDR` format.
 * `timeout` (default: `1s`): The maximum time to wait for a response before timing out.
 * `insecure` (default: `false`): If set to true, allows the Vault provider to establish connections even if the TLS certificate of the service is invalid or untrusted. This is useful for testing or in environments where services use self-signed certificates. Note that using this option in a production environment is not recommended, as it disables important security checks.
@@ -18,9 +18,9 @@ The Vault Provider is configured through the platform-health server's configurat
 ### Example
 
 ```yaml
-vault:
-  - name: example
-    address: https://vault.example.com
+example:
+  type: vault
+  address: https://vault.example.com
 ```
 
 In this example, the platform-health server will validate that the Vault cluster running at `https://vault.example.com` is up, initialized and unsealed.

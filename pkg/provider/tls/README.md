@@ -8,9 +8,9 @@ Once the TLS Provider is configured, any query to the platform health server wil
 
 ## Configuration
 
-The TLS Provider is configured through the platform-health server's configuration file, with list of instances under the `tls` key.
+The TLS Provider is configured through the platform-health server's configuration file. Each instance is defined with its name as the YAML key.
 
-* `name` (required): The name of the TLS service instance, used to identify the service in the health reports.
+* `type` (required): Must be `tls`.
 * `host` (required): The hostname or IP address of the TLS service to monitor.
 * `port` (default: 443): The port number of the TLS service to monitor.
 * `timeout` (default: 1s): The maximum time to wait for a connection to be established before timing out.
@@ -22,14 +22,14 @@ The TLS Provider is configured through the platform-health server's configuratio
 ### Example
 
 ```yaml
-tls:
-  - name: example
-    host: tls.example.com
-    port: 465
-    timeout: 1s
-    insecure: false
-    minValidity: 336h # 14 days
-    detail: true
+example:
+  type: tls
+  host: tls.example.com
+  port: 465
+  timeout: 1s
+  insecure: false
+  minValidity: 336h # 14 days
+  detail: true
 ```
 
 In this example, the TLS Provider will establish a TLS connection to `tls.example.com` on port 465, it will wait for 1s before timing out, it will provide detailed information about the TLS connection, it will report the service as "unhealthy" if the remaining validity of the certificate is less than 14 days, and it will not establish connections if the TLS certificate of the service is invalid or untrusted.

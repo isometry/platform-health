@@ -4,17 +4,21 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
-	"reflect"
 
 	"github.com/fsnotify/fsnotify"
-	"github.com/go-viper/mapstructure/v2"
 	"github.com/spf13/viper"
 
 	"github.com/isometry/platform-health/pkg/provider"
 	"github.com/isometry/platform-health/pkg/utils"
 )
 
+// abstractConfig holds raw YAML before provider type resolution
+// Structure: map[instanceName]instanceConfigWithType
+// Each instance config must have a "type" field specifying the provider type
 type abstractConfig map[string]any
+
+// concreteConfig holds resolved provider instances
+// Structure: map[providerType][]provider.Instance
 type concreteConfig map[string][]provider.Instance
 
 type flagPrefix string
@@ -109,56 +113,47 @@ func (c *concreteConfig) update() error {
 	return nil
 }
 
-func (c *abstractConfig) harden() *concreteConfig {
-	concrete := concreteConfig{}
+func (a abstractConfig) harden() *concreteConfig {
+	concrete := make(concreteConfig)
 
-	for typeName, instances := range *c {
-		if typeName == string(FlagPrefix) {
-			// skip bound server flags
-			continue
-		}
+	// Iterate over instances
+	for instanceName, instanceConfig := range a {
+		instanceLog := log.With(slog.String("instance", instanceName))
 
-		log := log.With(slog.String("provider", typeName))
-
-		providerType, ok := provider.Providers[typeName]
+		// Convert instance config to map
+		configMap, ok := instanceConfig.(map[string]any)
 		if !ok {
-			log.Warn("skipping unknown provider")
+			instanceLog.Warn("invalid instance configuration: expected map")
 			continue
 		}
 
-		log.Debug("loading instances")
-		abstractInstances, ok := instances.([]any)
+		// Extract provider type from config
+		providerType, ok := configMap["type"].(string)
 		if !ok {
-			log.Warn("invalid provider configuration")
+			instanceLog.Warn("missing or invalid 'type' field")
 			continue
 		}
 
-		concrete[typeName] = make([]provider.Instance, 0, len(abstractInstances))
-
-		for i, abstractInstance := range abstractInstances {
-			instance := reflect.New(providerType)
-
-			decoder, err := mapstructure.NewDecoder(&mapstructure.DecoderConfig{
-				DecodeHook: mapstructure.StringToTimeDurationHookFunc(),
-				Result:     instance.Interface(),
-			})
-			if err != nil {
-				log.Warn("failed to create decoder", slog.Int("index", i), slog.Any("error", err))
-				continue
-			}
-			if err := decoder.Decode(abstractInstance); err != nil {
-				log.Warn("failed to decode instance", slog.Int("index", i), slog.Any("error", err))
-				continue
-			}
-
-			concreteInstance := instance.Elem().Interface().(provider.Instance)
-			if err := concreteInstance.Setup(); err != nil {
-				log.Warn("invalid instance configuration", slog.Int("index", i), slog.Any("error", err))
-				continue
-			}
-
-			concrete[typeName] = append(concrete[typeName], concreteInstance)
+		// Check if this is a registered provider type
+		registeredType, isRegistered := provider.Providers[providerType]
+		if !isRegistered {
+			instanceLog.Warn("unknown provider type, skipping", slog.String("type", providerType))
+			continue
 		}
+
+		// Initialize provider slice if needed
+		if concrete[providerType] == nil {
+			concrete[providerType] = make([]provider.Instance, 0)
+		}
+
+		instance, err := provider.NewInstanceFromConfig(registeredType, instanceName, configMap)
+		if err != nil {
+			instanceLog.Warn("failed to create instance", slog.Any("error", err))
+			continue
+		}
+
+		instanceLog.Debug("loaded instance", slog.String("type", providerType))
+		concrete[providerType] = append(concrete[providerType], instance)
 	}
 
 	return &concrete
@@ -168,15 +163,14 @@ func (c *concreteConfig) totalInstances() (count int) {
 	for _, instances := range *c {
 		count += len(instances)
 	}
-
 	return count
 }
 
 func (c *concreteConfig) countByProvider() map[string]int {
 	counts := make(map[string]int)
 
-	for provider, instances := range *c {
-		counts[provider] = len(instances)
+	for providerType, instances := range *c {
+		counts[providerType] = len(instances)
 	}
 
 	return counts

@@ -8,12 +8,13 @@ Once the Kubernetes Provider is configured, any query to the platform health ser
 
 ## Configuration
 
-The Kubernetes Provider is configured through the platform-health server's configuration file, with list of instances under the `kubernetes` key.
+The Kubernetes Provider is configured through the platform-health server's configuration file. Each instance is defined with its name as the YAML key.
 
+* `type` (required): Must be `kubernetes`.
 * `group` (default: `apps`): The group of the Kubernetes resource.
 * `version` (optional): The version of the Kubernetes resource. If not specified, the API server's preferred version is used automatically.
 * `kind` (default: `deployment`): The kind of the Kubernetes resource.
-* `name` (required): The name of the Kubernetes resource.
+* `resource` (required): The name of the Kubernetes resource.
 * `namespace` (default: `default`): The namespace of the Kubernetes resource.
 * `checks`: A list of CEL expressions to validate the resource. Each check has:
   * `expression` (required): A CEL expression that must evaluate to `true` for the resource to be healthy.
@@ -31,21 +32,23 @@ The legacy `condition` field is still supported but deprecated. It will be autom
 
 **Legacy configuration:**
 ```yaml
-kubernetes:
-  - name: my-deployment
-    kind: Deployment
-    condition:
-      type: Available
-      status: "True"
+my-deployment:
+  type: kubernetes
+  kind: Deployment
+  resource: my-deployment
+  condition:
+    type: Available
+    status: "True"
 ```
 
 **Equivalent modern configuration:**
 ```yaml
-kubernetes:
-  - name: my-deployment
-    kind: Deployment
-    checks:
-      - expression: "resource.status.conditions.exists(c, c.type == 'Available' && c.status == 'True')"
+my-deployment:
+  type: kubernetes
+  kind: Deployment
+  resource: my-deployment
+  checks:
+    - expression: "resource.status.conditions.exists(c, c.type == 'Available' && c.status == 'True')"
 ```
 
 ## CEL Expression Context
@@ -85,50 +88,54 @@ resource.status.readyReplicas >= 1 && resource.status.updatedReplicas == resourc
 ### Basic Deployment Health Check
 
 ```yaml
-kubernetes:
-  - name: my-app
-    kind: Deployment
-    namespace: production
-    checks:
-      - expression: "resource.status.readyReplicas >= resource.spec.replicas"
-        errorMessage: "Not all replicas are ready"
+my-app:
+  type: kubernetes
+  kind: Deployment
+  resource: my-app
+  namespace: production
+  checks:
+    - expression: "resource.status.readyReplicas >= resource.spec.replicas"
+      errorMessage: "Not all replicas are ready"
 ```
 
 ### Condition-Based Check
 
 ```yaml
-kubernetes:
-  - name: my-app
-    kind: Deployment
-    checks:
-      - expression: "resource.status.conditions.exists(c, c.type == 'Available' && c.status == 'True')"
-        errorMessage: "Deployment is not available"
+my-app:
+  type: kubernetes
+  kind: Deployment
+  resource: my-app
+  checks:
+    - expression: "resource.status.conditions.exists(c, c.type == 'Available' && c.status == 'True')"
+      errorMessage: "Deployment is not available"
 ```
 
 ### Multiple Validation Checks
 
 ```yaml
-kubernetes:
-  - name: my-app
-    kind: Deployment
-    checks:
-      - expression: "resource.status.readyReplicas >= 1"
-        errorMessage: "No replicas ready"
-      - expression: "resource.status.updatedReplicas == resource.spec.replicas"
-        errorMessage: "Rolling update in progress"
-      - expression: "resource.metadata.labels['version'] == 'v2'"
-        errorMessage: "Expected version v2"
+my-app:
+  type: kubernetes
+  kind: Deployment
+  resource: my-app
+  checks:
+    - expression: "resource.status.readyReplicas >= 1"
+      errorMessage: "No replicas ready"
+    - expression: "resource.status.updatedReplicas == resource.spec.replicas"
+      errorMessage: "Rolling update in progress"
+    - expression: "resource.metadata.labels['version'] == 'v2'"
+      errorMessage: "Expected version v2"
 ```
 
 ### StatefulSet Check
 
 ```yaml
-kubernetes:
-  - name: my-database
-    kind: StatefulSet
-    checks:
-      - expression: "resource.status.readyReplicas == resource.spec.replicas"
-        errorMessage: "StatefulSet not fully ready"
+my-database:
+  type: kubernetes
+  kind: StatefulSet
+  resource: my-database
+  checks:
+    - expression: "resource.status.readyReplicas == resource.spec.replicas"
+      errorMessage: "StatefulSet not fully ready"
 ```
 
 ### Service Existence Check
@@ -136,32 +143,35 @@ kubernetes:
 For resources without status conditions, simply omit the `checks` field to verify existence only:
 
 ```yaml
-kubernetes:
-  - name: my-service
-    kind: Service
-    namespace: default
+my-service:
+  type: kubernetes
+  kind: Service
+  resource: my-service
+  namespace: default
 ```
 
 ### Pod Phase Check
 
 ```yaml
-kubernetes:
-  - name: my-pod
-    kind: Pod
-    checks:
-      - expression: "resource.status.phase == 'Running'"
-        errorMessage: "Pod is not running"
+my-pod:
+  type: kubernetes
+  kind: Pod
+  resource: my-pod
+  checks:
+    - expression: "resource.status.phase == 'Running'"
+      errorMessage: "Pod is not running"
 ```
 
 ### ConfigMap Content Validation
 
 ```yaml
-kubernetes:
-  - name: app-config
-    kind: ConfigMap
-    checks:
-      - expression: "'database_url' in resource.data"
-        errorMessage: "Missing database_url in ConfigMap"
+app-config:
+  type: kubernetes
+  kind: ConfigMap
+  resource: app-config
+  checks:
+    - expression: "'database_url' in resource.data"
+      errorMessage: "Missing database_url in ConfigMap"
 ```
 
 ### Disable kstatus Evaluation
@@ -169,15 +179,16 @@ kubernetes:
 For resources where kstatus evaluation is not appropriate (e.g., custom resources without standard status conditions), disable it:
 
 ```yaml
-kubernetes:
-  - name: my-custom-resource
-    group: example.com
-    version: v1
-    kind: MyCustomResource
-    kstatus: false
-    checks:
-      - expression: "resource.status.ready == true"
-        errorMessage: "Custom resource is not ready"
+my-custom-resource:
+  type: kubernetes
+  group: example.com
+  version: v1
+  kind: MyCustomResource
+  resource: my-custom-resource
+  kstatus: false
+  checks:
+    - expression: "resource.status.ready == true"
+      errorMessage: "Custom resource is not ready"
 ```
 
 ## Response Details
