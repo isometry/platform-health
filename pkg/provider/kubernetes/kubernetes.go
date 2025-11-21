@@ -14,6 +14,7 @@ import (
 	"google.golang.org/protobuf/types/known/anypb"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/discovery"
 	"k8s.io/client-go/discovery/cached/memory"
@@ -25,6 +26,7 @@ import (
 	ph "github.com/isometry/platform-health/pkg/platform_health"
 	"github.com/isometry/platform-health/pkg/platform_health/details"
 	"github.com/isometry/platform-health/pkg/provider"
+	"github.com/isometry/platform-health/pkg/server"
 	"github.com/isometry/platform-health/pkg/utils"
 )
 
@@ -49,11 +51,12 @@ type Kubernetes struct {
 
 // Resource represents a Kubernetes resource to check
 type Resource struct {
-	Group     string `mapstructure:"group" default:"apps"`
-	Version   string `mapstructure:"version"` // Optional: if empty, uses API server's preferred version
-	Kind      string `mapstructure:"kind" default:"deployment"`
-	Namespace string `mapstructure:"namespace" default:"default"`
-	Name      string `mapstructure:"name"`
+	Group         string `mapstructure:"group"`
+	Version       string `mapstructure:"version"` // Optional: if empty, uses API server's preferred version
+	Kind          string `mapstructure:"kind"`
+	Namespace     string `mapstructure:"namespace"`
+	Name          string `mapstructure:"name"`
+	LabelSelector string `mapstructure:"labelSelector"` // Mutually exclusive with Name
 }
 
 func init() {
@@ -66,10 +69,15 @@ func (i *Kubernetes) LogValue() slog.Value {
 		slog.String("group", i.Resource.Group),
 		slog.String("kind", i.Resource.Kind),
 		slog.String("namespace", i.Resource.Namespace),
-		slog.String("resourceName", i.Resource.Name),
 		slog.Any("timeout", i.Timeout),
 		slog.Int("checks", len(i.Checks)),
 		slog.Bool("detail", i.Detail),
+	}
+	if i.Resource.Name != "" {
+		logAttr = append(logAttr, slog.String("resourceName", i.Resource.Name))
+	}
+	if i.Resource.LabelSelector != "" {
+		logAttr = append(logAttr, slog.String("labelSelector", i.Resource.LabelSelector))
 	}
 	if i.Resource.Version != "" {
 		logAttr = append(logAttr, slog.String("version", i.Resource.Version))
@@ -79,6 +87,11 @@ func (i *Kubernetes) LogValue() slog.Value {
 
 func (i *Kubernetes) Setup() error {
 	defaults.SetDefaults(i)
+
+	// Validate mutually exclusive Name/LabelSelector
+	if i.Resource.Name != "" && i.Resource.LabelSelector != "" {
+		return fmt.Errorf("resource.name and resource.labelSelector are mutually exclusive")
+	}
 
 	// Default kstatus to true if not set
 	if i.KStatus == nil {
@@ -162,12 +175,108 @@ func (i *Kubernetes) GetHealth(ctx context.Context) *ph.HealthCheckResponse {
 
 	gvr := mapping.Resource
 
-	blob, err := client.Resource(gvr).Namespace(i.Resource.Namespace).Get(ctx, i.Resource.Name, metav1.GetOptions{})
+	// Branch based on Name vs selector mode (empty selector = all resources)
+	if i.Resource.Name == "" {
+		return i.checkBySelector(ctx, client, gvr, mapping, component, log)
+	}
 
+	return i.checkByName(ctx, client, gvr, component)
+}
+
+// checkByName checks a single resource by name
+func (i *Kubernetes) checkByName(ctx context.Context, client dynamic.Interface, gvr schema.GroupVersionResource, component *ph.HealthCheckResponse) *ph.HealthCheckResponse {
+	blob, err := client.Resource(gvr).Namespace(i.Resource.Namespace).Get(ctx, i.Resource.Name, metav1.GetOptions{})
 	if err != nil {
 		return component.Unhealthy(err.Error())
 	}
 
+	return i.checkResource(blob, component)
+}
+
+// checkBySelector lists resources matching the label selector and checks each
+func (i *Kubernetes) checkBySelector(ctx context.Context, client dynamic.Interface, gvr schema.GroupVersionResource, mapping *meta.RESTMapping, component *ph.HealthCheckResponse, log *slog.Logger) *ph.HealthCheckResponse {
+	listOpts := metav1.ListOptions{
+		LabelSelector: i.Resource.LabelSelector,
+	}
+
+	// Handle cluster-scoped vs namespaced resources
+	var list *unstructured.UnstructuredList
+	var err error
+	if mapping.Scope.Name() == meta.RESTScopeNameRoot {
+		list, err = client.Resource(gvr).List(ctx, listOpts)
+	} else {
+		list, err = client.Resource(gvr).Namespace(i.Resource.Namespace).List(ctx, listOpts)
+	}
+	if err != nil {
+		return component.Unhealthy(err.Error())
+	}
+
+	// UNHEALTHY if no resources match
+	if len(list.Items) == 0 {
+		return component.Unhealthy("no resources matched selector")
+	}
+
+	// Filter by component paths if specified
+	componentPaths := server.ComponentPathsFromContext(ctx)
+	if len(componentPaths) > 0 {
+		requestedNames := make(map[string]bool)
+		for _, paths := range componentPaths {
+			if len(paths) > 0 {
+				requestedNames[paths[0]] = true
+			}
+		}
+
+		var filtered []unstructured.Unstructured
+		for _, item := range list.Items {
+			if requestedNames[item.GetName()] {
+				filtered = append(filtered, item)
+				delete(requestedNames, item.GetName())
+			}
+		}
+
+		// Error if requested components not found
+		if len(requestedNames) > 0 {
+			var invalid []string
+			for name := range requestedNames {
+				invalid = append(invalid, name)
+			}
+			return component.Unhealthy(fmt.Sprintf("invalid components: %v", invalid))
+		}
+
+		list.Items = filtered
+	}
+
+	// Check each matched resource
+	var components []*ph.HealthCheckResponse
+	worstStatus := ph.Status_HEALTHY
+
+	for idx := range list.Items {
+		item := &list.Items[idx]
+		resourceName := item.GetName()
+
+		childComponent := &ph.HealthCheckResponse{
+			Type: TypeKubernetes,
+			Name: resourceName,
+		}
+
+		result := i.checkResource(item, childComponent)
+		components = append(components, result)
+
+		if result.Status > worstStatus {
+			worstStatus = result.Status
+		}
+
+		childLog := log.With(slog.String("resource", resourceName))
+		result.LogStatus(childLog)
+	}
+
+	component.Status = worstStatus
+	component.Components = components
+	return component
+}
+
+// checkResource applies kstatus and CEL checks to a single resource
+func (i *Kubernetes) checkResource(blob *unstructured.Unstructured, component *ph.HealthCheckResponse) *ph.HealthCheckResponse {
 	// Apply kstatus evaluation if enabled
 	if *i.KStatus {
 		result, err := status.Compute(blob)
