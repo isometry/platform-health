@@ -30,9 +30,17 @@ For queries to succeed, the platform-health server must be run in a context with
 
 ## CEL Expression Context
 
-The `resource` variable exposes the full Kubernetes resource as a map, giving you access to *all* fields of the resource, typically including `resource.metadata`, `resource.spec`, and `resource.status`.
+The CEL context differs based on the selection mode:
 
-### Example CEL Expressions
+**Single-resource mode** (when `name` is specified):
+
+- `resource`: The Kubernetes resource as a map, with access to `resource.metadata`, `resource.spec`, and `resource.status`.
+
+**Selector mode** (when `name` is not specified):
+
+- `items`: Array of all matched Kubernetes resources. Each item is a map with the same structure as `resource` above.
+
+### Example CEL Expressions (Single-Resource Mode)
 
 ```cel
 // Check deployment has all replicas ready
@@ -52,6 +60,25 @@ resource.status.readyReplicas >= 3
 
 // Combined checks
 resource.status.readyReplicas >= 1 && resource.status.updatedReplicas == resource.spec.replicas
+```
+
+### Example CEL Expressions (Selector Mode)
+
+```cel
+// Minimum number of resources
+items.size() >= 3
+
+// All resources must be running
+items.all(r, r.status.phase == 'Running')
+
+// At least N resources must be ready
+items.filter(r, r.status.conditions.exists(c, c.type == 'Ready' && c.status == 'True')).size() >= 2
+
+// All deployments fully scaled
+items.all(r, r.status.readyReplicas >= r.spec.replicas)
+
+// Check total replica count across all deployments
+items.map(r, r.status.readyReplicas).sum() >= 10
 ```
 
 ## Examples
@@ -178,7 +205,7 @@ all-system-deployments:
 
 ### Label Selector - Multiple Resources
 
-Select resources matching a label selector:
+Select resources matching a label selector. CEL checks use `items` for cardinality and collection-based validation:
 
 ```yaml
 vault-pods:
@@ -188,8 +215,10 @@ vault-pods:
     namespace: vault
     labelSelector: "app.kubernetes.io/name=vault"
   checks:
-    - expression: "resource.status.phase == 'Running'"
-      errorMessage: "Pod is not running"
+    - expression: "items.size() >= 3"
+      errorMessage: "Less than 3 vault pods found"
+    - expression: "items.all(r, r.status.phase == 'Running')"
+      errorMessage: "Not all pods are running"
 ```
 
 ### Label Selector with Multiple Conditions
@@ -204,8 +233,8 @@ app-deployments:
     namespace: production
     labelSelector: "app.kubernetes.io/part-of=myapp,tier in (frontend,backend)"
   checks:
-    - expression: "resource.status.readyReplicas >= resource.spec.replicas"
-      errorMessage: "Not all replicas are ready"
+    - expression: "items.all(r, r.status.readyReplicas >= r.spec.replicas)"
+      errorMessage: "Not all deployments are fully ready"
 ```
 
 ### Component Selection with Label Selector

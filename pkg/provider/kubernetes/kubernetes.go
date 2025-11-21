@@ -35,6 +35,7 @@ const TypeKubernetes = "kubernetes"
 // CEL configuration for Kubernetes provider
 var celConfig = checks.NewCEL(
 	cel.Variable("resource", cel.MapType(cel.StringType, cel.DynType)),
+	cel.Variable("items", cel.ListType(cel.MapType(cel.StringType, cel.DynType))),
 )
 
 type Kubernetes struct {
@@ -190,7 +191,32 @@ func (i *Kubernetes) checkByName(ctx context.Context, client dynamic.Interface, 
 		return component.Unhealthy(err.Error())
 	}
 
-	return i.checkResource(blob, component)
+	// Apply kstatus evaluation
+	i.applyKStatus(blob, component)
+	if component.Status == ph.Status_UNHEALTHY {
+		return component
+	}
+
+	// Apply CEL checks with resource context
+	if len(i.Checks) > 0 {
+		if i.evaluator == nil {
+			evaluator, err := celConfig.NewEvaluator(i.Checks)
+			if err != nil {
+				return component.Unhealthy(fmt.Sprintf("failed to compile CEL programs: %v", err))
+			}
+			i.evaluator = evaluator
+		}
+
+		celCtx := map[string]any{
+			"resource": blob.Object,
+		}
+
+		if err := i.evaluator.Evaluate(celCtx); err != nil {
+			return component.Unhealthy(err.Error())
+		}
+	}
+
+	return component
 }
 
 // checkBySelector lists resources matching the label selector and checks each
@@ -259,7 +285,7 @@ func (i *Kubernetes) checkBySelector(ctx context.Context, client dynamic.Interfa
 			Name: resourceName,
 		}
 
-		result := i.checkResource(item, childComponent)
+		result := i.applyKStatus(item, childComponent)
 		components = append(components, result)
 
 		if result.Status > worstStatus {
@@ -272,61 +298,8 @@ func (i *Kubernetes) checkBySelector(ctx context.Context, client dynamic.Interfa
 
 	component.Status = worstStatus
 	component.Components = components
-	return component
-}
 
-// checkResource applies kstatus and CEL checks to a single resource
-func (i *Kubernetes) checkResource(blob *unstructured.Unstructured, component *ph.HealthCheckResponse) *ph.HealthCheckResponse {
-	// Apply kstatus evaluation if enabled
-	if *i.KStatus {
-		result, err := status.Compute(blob)
-		if err != nil {
-			return component.Unhealthy(err.Error())
-		}
-
-		// Build kstatus detail
-		kstatusDetail := &details.Detail_KStatus{
-			Status:  result.Status.String(),
-			Message: result.Message,
-		}
-
-		// Only include conditions if not Current (for debugging)
-		if result.Status != status.CurrentStatus {
-			if statusMap, ok := blob.Object["status"].(map[string]any); ok {
-				if conditionsRaw, ok := statusMap["conditions"].([]any); ok {
-					for _, condRaw := range conditionsRaw {
-						if cond, ok := condRaw.(map[string]any); ok {
-							kstatusDetail.Conditions = append(kstatusDetail.Conditions, &details.Condition{
-								Type:    getString(cond, "type"),
-								Status:  getString(cond, "status"),
-								Reason:  getString(cond, "reason"),
-								Message: getString(cond, "message"),
-							})
-						}
-					}
-				}
-			}
-		}
-
-		// Append detail to component if Detail is enabled
-		if i.Detail {
-			if detail, err := anypb.New(kstatusDetail); err != nil {
-				return component.Unhealthy(err.Error())
-			} else {
-				component.Details = append(component.Details, detail)
-			}
-		}
-
-		if result.Status != status.CurrentStatus {
-			msg := result.Message
-			if msg == "" {
-				msg = fmt.Sprintf("kstatus: %s", result.Status)
-			}
-			return component.Unhealthy(msg)
-		}
-	}
-
-	// Apply CEL checks if configured
+	// Apply CEL checks against items list (selector mode)
 	if len(i.Checks) > 0 {
 		// Ensure CEL evaluator is compiled
 		if i.evaluator == nil {
@@ -337,14 +310,74 @@ func (i *Kubernetes) checkResource(blob *unstructured.Unstructured, component *p
 			i.evaluator = evaluator
 		}
 
-		// Pass the raw resource object to CEL for full access
+		// Build items list from all matched resources
+		var items []any
+		for idx := range list.Items {
+			items = append(items, list.Items[idx].Object)
+		}
+
 		celCtx := map[string]any{
-			"resource": blob.Object,
+			"items": items,
 		}
 
 		if err := i.evaluator.Evaluate(celCtx); err != nil {
 			return component.Unhealthy(err.Error())
 		}
+	}
+
+	return component
+}
+
+// applyKStatus applies kstatus evaluation to a single resource
+func (i *Kubernetes) applyKStatus(blob *unstructured.Unstructured, component *ph.HealthCheckResponse) *ph.HealthCheckResponse {
+	if !*i.KStatus {
+		return component.Healthy()
+	}
+
+	result, err := status.Compute(blob)
+	if err != nil {
+		return component.Unhealthy(err.Error())
+	}
+
+	// Build kstatus detail
+	kstatusDetail := &details.Detail_KStatus{
+		Status:  result.Status.String(),
+		Message: result.Message,
+	}
+
+	// Only include conditions if not Current (for debugging)
+	if result.Status != status.CurrentStatus {
+		if statusMap, ok := blob.Object["status"].(map[string]any); ok {
+			if conditionsRaw, ok := statusMap["conditions"].([]any); ok {
+				for _, condRaw := range conditionsRaw {
+					if cond, ok := condRaw.(map[string]any); ok {
+						kstatusDetail.Conditions = append(kstatusDetail.Conditions, &details.Condition{
+							Type:    getString(cond, "type"),
+							Status:  getString(cond, "status"),
+							Reason:  getString(cond, "reason"),
+							Message: getString(cond, "message"),
+						})
+					}
+				}
+			}
+		}
+	}
+
+	// Append detail to component if Detail is enabled
+	if i.Detail {
+		if detail, err := anypb.New(kstatusDetail); err != nil {
+			return component.Unhealthy(err.Error())
+		} else {
+			component.Details = append(component.Details, detail)
+		}
+	}
+
+	if result.Status != status.CurrentStatus {
+		msg := result.Message
+		if msg == "" {
+			msg = fmt.Sprintf("kstatus: %s", result.Status)
+		}
+		return component.Unhealthy(msg)
 	}
 
 	return component.Healthy()

@@ -8,6 +8,7 @@ import (
 	"sync"
 
 	"github.com/google/cel-go/cel"
+	"github.com/google/cel-go/ext"
 )
 
 // CEL holds configuration for CEL expression evaluation including
@@ -31,8 +32,8 @@ func (c *CEL) NewEvaluator(exprs []Expression) (*Evaluator, error) {
 		return nil, nil
 	}
 
-	// Create CEL environment with provided variables
-	env, err := cel.NewEnv(c.variables...)
+	// Create CEL environment with provided variables and extensions
+	env, err := cel.NewEnv(append(c.variables, ext.Lists())...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create CEL environment: %w", err)
 	}
@@ -93,7 +94,7 @@ type Evaluator struct {
 // ValidateExpression validates CEL expression syntax at configuration time.
 // Variables should be declared using cel.Variable() options.
 func ValidateExpression(expression string, variables ...cel.EnvOption) error {
-	env, err := cel.NewEnv(variables...)
+	env, err := cel.NewEnv(append(variables, ext.Lists())...)
 	if err != nil {
 		return fmt.Errorf("failed to create CEL environment: %w", err)
 	}
