@@ -77,9 +77,9 @@ func (Status) EnumDescriptor() ([]byte, []int) {
 
 type HealthCheckRequest struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// allow specification of restricted subset of components to validate
-	Component     string   `protobuf:"bytes,1,opt,name=component,proto3" json:"component,omitempty"` // TODO: define syntax for specifying component
-	Hops          []string `protobuf:"bytes,2,rep,name=hops,proto3" json:"hops,omitempty"`           // list of server IDs for loop detection
+	// components to check (empty = all); supports hierarchical paths like "system/subcomponent"
+	Components    []string `protobuf:"bytes,1,rep,name=components,proto3" json:"components,omitempty"`
+	Hops          []string `protobuf:"bytes,2,rep,name=hops,proto3" json:"hops,omitempty"` // list of server IDs for loop detection
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -114,11 +114,11 @@ func (*HealthCheckRequest) Descriptor() ([]byte, []int) {
 	return file_proto_platform_health_proto_rawDescGZIP(), []int{0}
 }
 
-func (x *HealthCheckRequest) GetComponent() string {
+func (x *HealthCheckRequest) GetComponents() []string {
 	if x != nil {
-		return x.Component
+		return x.Components
 	}
-	return ""
+	return nil
 }
 
 func (x *HealthCheckRequest) GetHops() []string {
@@ -232,9 +232,11 @@ var File_proto_platform_health_proto protoreflect.FileDescriptor
 
 const file_proto_platform_health_proto_rawDesc = "" +
 	"\n" +
-	"\x1bproto/platform_health.proto\x12\x12platform_health.v1\x1a\x19google/protobuf/any.proto\x1a\x1egoogle/protobuf/duration.proto\"F\n" +
-	"\x12HealthCheckRequest\x12\x1c\n" +
-	"\tcomponent\x18\x01 \x01(\tR\tcomponent\x12\x12\n" +
+	"\x1bproto/platform_health.proto\x12\x12platform_health.v1\x1a\x19google/protobuf/any.proto\x1a\x1egoogle/protobuf/duration.proto\"H\n" +
+	"\x12HealthCheckRequest\x12\x1e\n" +
+	"\n" +
+	"components\x18\x01 \x03(\tR\n" +
+	"components\x12\x12\n" +
 	"\x04hops\x18\x02 \x03(\tR\x04hops\"\xe9\x02\n" +
 	"\x13HealthCheckResponse\x12\x12\n" +
 	"\x04type\x18\x01 \x01(\tR\x04type\x12\x12\n" +

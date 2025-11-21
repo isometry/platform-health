@@ -90,6 +90,22 @@ kubectl create service loadbalancer platform-health --tcp=8080:8080
 
 ## Usage
 
+### Client
+
+```bash
+# Check all components
+phc
+
+# Check specific components
+phc -c google -c github
+
+# Check with hierarchical path (system/component)
+phc -c fluxcd/source-controller
+
+# Connect to remote server
+phc prod:8080 -c google
+```
+
 ### One-Shot Mode
 
 Run health checks once and exit without starting a server:
@@ -98,12 +114,16 @@ Run health checks once and exit without starting a server:
 phs -o
 # or
 phs --one-shot
+
+# Check specific components only
+phs -o -c google -c fluxcd/source-controller
 ```
 
 This is useful for:
 - Validating configuration files
 - Local health check verification
 - CI/CD pipeline integration
+- Testing specific components
 
 ## Configuration
 
