@@ -35,14 +35,14 @@ var serverFlags = flagValues{
 		usage:        "listen on port",
 	},
 	"config-path": {
-		shorthand:    "C",
+		shorthand:    "",
 		kind:         "stringSlice",
 		variable:     &configPaths,
 		defaultValue: []string{"/config", "."},
 		usage:        "configuration paths",
 	},
 	"config-name": {
-		shorthand:    "c",
+		shorthand:    "",
 		kind:         "string",
 		variable:     &configName,
 		defaultValue: "platform-health",
@@ -89,6 +89,13 @@ var serverFlags = flagValues{
 		variable:     &verbosity,
 		defaultValue: 0,
 		usage:        "verbose output",
+	},
+	"component": {
+		shorthand:    "c",
+		kind:         "stringSlice",
+		variable:     &components,
+		defaultValue: []string{},
+		usage:        "component(s) to check (one-shot mode)",
 	},
 }
 

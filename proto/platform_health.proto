@@ -12,8 +12,8 @@ service Health {
 }
 
 message HealthCheckRequest {
-  // allow specification of restricted subset of components to validate
-  string component = 1; // TODO: define syntax for specifying component
+  // components to check (empty = all); supports hierarchical paths like "system/subcomponent"
+  repeated string components = 1;
   repeated string hops = 2; // list of server IDs for loop detection
 }
 

@@ -2,8 +2,10 @@ package server
 
 import (
 	"context"
+	"fmt"
 	"net"
 	"slices"
+	"strings"
 	"time"
 
 	"google.golang.org/grpc"
@@ -44,6 +46,94 @@ func HopsFromContext(ctx context.Context) Hops {
 	} else {
 		return Hops{}
 	}
+}
+
+// ComponentPaths represents hierarchical component paths for filtering health checks
+type ComponentPaths [][]string // Each path like ["system", "subcomponent"]
+type componentPathsKeyType string
+
+const componentPathsKey = componentPathsKeyType("componentPaths")
+
+func ContextWithComponentPaths(ctx context.Context, paths ComponentPaths) context.Context {
+	return context.WithValue(ctx, componentPathsKey, paths)
+}
+
+func ComponentPathsFromContext(ctx context.Context) ComponentPaths {
+	if paths, ok := ctx.Value(componentPathsKey).(ComponentPaths); ok {
+		return paths
+	}
+	return nil
+}
+
+// filterInstances filters provider instances based on component paths
+// Returns the filtered instances and any invalid component names
+func filterInstances(instances []provider.Instance, components []string) ([]provider.Instance, []string) {
+	// Empty components means check all instances
+	if len(components) == 0 {
+		return instances, nil
+	}
+
+	// Build map for quick lookup
+	instanceMap := make(map[string]provider.Instance)
+	for _, inst := range instances {
+		instanceMap[inst.GetName()] = inst
+	}
+
+	// Track which instances to include and their sub-components
+	type componentMatch struct {
+		instance      provider.Instance
+		subComponents [][]string
+	}
+	matched := make(map[string]*componentMatch)
+	var invalidComponents []string
+
+	for _, component := range components {
+		parts := strings.Split(component, "/")
+		topLevel := parts[0]
+
+		inst, ok := instanceMap[topLevel]
+		if !ok {
+			invalidComponents = append(invalidComponents, component)
+			continue
+		}
+
+		if _, exists := matched[topLevel]; !exists {
+			matched[topLevel] = &componentMatch{instance: inst}
+		}
+
+		// If there are sub-components, track them for hierarchical filtering
+		if len(parts) > 1 {
+			matched[topLevel].subComponents = append(matched[topLevel].subComponents, parts[1:])
+		}
+	}
+
+	// Build result slice
+	result := make([]provider.Instance, 0, len(matched))
+	for _, cm := range matched {
+		if len(cm.subComponents) > 0 {
+			// Wrap instance with component filtering capability
+			result = append(result, &filteredInstance{
+				Instance: cm.instance,
+				subPaths: cm.subComponents,
+			})
+		} else {
+			result = append(result, cm.instance)
+		}
+	}
+
+	return result, invalidComponents
+}
+
+// filteredInstance wraps a provider.Instance to pass sub-component paths via context
+type filteredInstance struct {
+	provider.Instance
+	subPaths [][]string
+}
+
+func (f *filteredInstance) GetHealth(ctx context.Context) *ph.HealthCheckResponse {
+	// Pass sub-component paths via context for hierarchical filtering
+	ctx = ContextWithComponentPaths(ctx, f.subPaths)
+	return f.Instance.GetHealth(ctx)
 }
 
 type Option func(*PlatformHealthServer)
@@ -113,6 +203,21 @@ func (s *PlatformHealthServer) Check(ctx context.Context, req *ph.HealthCheckReq
 	ctx = ContextWithHops(ctx, hops)
 
 	providerServices := s.Config.GetInstances()
+
+	// Apply component filtering if specified
+	components := req.GetComponents()
+	var invalidComponents []string
+	if len(components) > 0 {
+		providerServices, invalidComponents = filterInstances(providerServices, components)
+	}
+
+	// Return error for invalid components
+	if len(invalidComponents) > 0 {
+		return &ph.HealthCheckResponse{
+			Status:  ph.Status_UNHEALTHY,
+			Message: fmt.Sprintf("invalid components: %s", strings.Join(invalidComponents, ", ")),
+		}, nil
+	}
 
 	start := time.Now()
 	platformServices, health := provider.Check(ctx, providerServices)

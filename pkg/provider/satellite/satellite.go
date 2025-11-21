@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net"
+	"strings"
 	"time"
 
 	"github.com/mcuadros/go-defaults"
@@ -99,9 +100,17 @@ func (i *Satellite) GetHealth(ctx context.Context) *ph.HealthCheckResponse {
 	}
 	defer func() { _ = conn.Close() }()
 
-	// Propagate already visited serverIds from context to enable loop detection
+	// Build request with hops for loop detection
 	request := &ph.HealthCheckRequest{
 		Hops: server.HopsFromContext(ctx),
+	}
+
+	// Forward any component filtering to the remote server
+	if componentPaths := server.ComponentPathsFromContext(ctx); len(componentPaths) > 0 {
+		// Convert path slices back to strings for the remote server
+		for _, path := range componentPaths {
+			request.Components = append(request.Components, strings.Join(path, "/"))
+		}
 	}
 
 	status, err := ph.NewHealthClient(conn).Check(ctx, request)

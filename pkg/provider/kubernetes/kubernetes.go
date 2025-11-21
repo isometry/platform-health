@@ -103,10 +103,7 @@ func (i *Kubernetes) GetType() string {
 }
 
 func (i *Kubernetes) GetName() string {
-	if i.Name != "" {
-		return i.Name
-	}
-	return fmt.Sprintf("%s/%s", i.Resource.Kind, i.Resource.Name)
+	return i.Name
 }
 
 func (i *Kubernetes) SetName(name string) {

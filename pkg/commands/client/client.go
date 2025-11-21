@@ -30,6 +30,7 @@ var (
 	clientTimeout      time.Duration
 	flatOutput         bool
 	quietLevel         int
+	components         []string
 
 	log *slog.Logger
 )
@@ -50,6 +51,7 @@ func New() *cobra.Command {
 	flagSet.BoolVar(&tlsClient, "tls", false, "enable tls")
 	flagSet.BoolVarP(&insecureSkipVerify, "insecure", "k", false, "disable certificate verification")
 	flagSet.DurationVarP(&clientTimeout, "timeout", "t", 10*time.Second, "timeout")
+	flagSet.StringSliceVarP(&components, "component", "c", nil, "component(s) to check")
 	flagSet.BoolVarP(&flatOutput, "flat", "f", false, "flat output")
 	flagSet.CountVarP(&quietLevel, "quiet", "q", "quiet output")
 	flagSet.SortFlags = false
@@ -111,7 +113,9 @@ func query(cmd *cobra.Command, _ []string) (err error) {
 
 	health := ph.NewHealthClient(conn)
 
-	status, err := health.Check(ctx, &ph.HealthCheckRequest{})
+	status, err := health.Check(ctx, &ph.HealthCheckRequest{
+		Components: components,
+	})
 	if err != nil {
 		log.Info("failed to check", slog.Any("error", err))
 		return err

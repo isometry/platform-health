@@ -32,6 +32,7 @@ var (
 	jsonOutput     bool
 	debugMode      bool
 	verbosity      int
+	components     []string
 
 	log   *slog.Logger
 	level *slog.LevelVar
@@ -60,7 +61,7 @@ func New() *cobra.Command {
 	return cmd
 }
 
-func setup(cmd *cobra.Command, _ []string) (err error) {
+func setup(cmd *cobra.Command, args []string) (err error) {
 	level = new(slog.LevelVar)
 	level.Set(slog.LevelWarn - slog.Level(verbosity*4))
 
@@ -83,11 +84,6 @@ func setup(cmd *cobra.Command, _ []string) (err error) {
 
 	log.Info("providers registered", slog.Any("providers", provider.ProviderList()))
 
-	conf, err = config.Load(cmd.Context(), configPaths, configName)
-	return err
-}
-
-func serve(_ *cobra.Command, args []string) (err error) {
 	if len(args) == 1 {
 		var listenPortStr string
 		listenHost, listenPortStr, err = net.SplitHostPort(args[0])
@@ -100,6 +96,11 @@ func serve(_ *cobra.Command, args []string) (err error) {
 		}
 	}
 
+	conf, err = config.Load(cmd.Context(), configPaths, configName)
+	return err
+}
+
+func serve(_ *cobra.Command, _ []string) (err error) {
 	address := net.JoinHostPort(listenHost, fmt.Sprint(listenPort))
 	listener, err := net.Listen("tcp", address)
 	if err != nil {
@@ -139,7 +140,9 @@ func oneshot(cmd *cobra.Command, _ []string) error {
 		return err
 	}
 
-	status, err := srv.Check(cmd.Context(), &ph.HealthCheckRequest{})
+	status, err := srv.Check(cmd.Context(), &ph.HealthCheckRequest{
+		Components: components,
+	})
 	if err != nil {
 		slog.Info("failed to check", slog.Any("error", err))
 		return err
