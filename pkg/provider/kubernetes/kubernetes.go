@@ -35,17 +35,8 @@ var celConfig = checks.NewCEL(
 	cel.Variable("resource", cel.MapType(cel.StringType, cel.DynType)),
 )
 
-// Resource represents a Kubernetes resource to check
-type Resource struct {
-	Group     string `mapstructure:"group" default:"apps"`
-	Version   string `mapstructure:"version"` // Optional: if empty, uses API server's preferred version
-	Kind      string `mapstructure:"kind" default:"deployment"`
-	Namespace string `mapstructure:"namespace" default:"default"`
-	Name      string `mapstructure:"name"`
-}
-
 type Kubernetes struct {
-	Name     string              `mapstructure:"name"`
+	Name     string              `mapstructure:"-"`
 	Resource Resource            `mapstructure:"resource"`
 	Checks   []checks.Expression `mapstructure:"checks"`
 	KStatus  *bool               `mapstructure:"kstatus"`
@@ -54,6 +45,15 @@ type Kubernetes struct {
 
 	// Compiled CEL evaluator (cached after Setup)
 	evaluator *checks.Evaluator
+}
+
+// Resource represents a Kubernetes resource to check
+type Resource struct {
+	Group     string `mapstructure:"group" default:"apps"`
+	Version   string `mapstructure:"version"` // Optional: if empty, uses API server's preferred version
+	Kind      string `mapstructure:"kind" default:"deployment"`
+	Namespace string `mapstructure:"namespace" default:"default"`
+	Name      string `mapstructure:"name"`
 }
 
 func init() {
@@ -107,6 +107,10 @@ func (i *Kubernetes) GetName() string {
 		return i.Name
 	}
 	return fmt.Sprintf("%s/%s", i.Resource.Kind, i.Resource.Name)
+}
+
+func (i *Kubernetes) SetName(name string) {
+	i.Name = name
 }
 
 func (i *Kubernetes) GetHealth(ctx context.Context) *ph.HealthCheckResponse {

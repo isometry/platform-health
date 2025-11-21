@@ -8,9 +8,9 @@ Once the HTTP Provider is configured, any query to the platform-health server wi
 
 ## Configuration
 
-The HTTP Provider is configured through the platform-health server's configuration file, with component instances listed under the `http` key.
+The HTTP Provider is configured through the platform-health server's configuration file. Each instance is defined with its name as the YAML key.
 
-* `name` (required): The name of the HTTP service instance, used to identify the service in the health reports.
+* `type` (required): Must be `http`.
 * `url` (required): The URL of the HTTP service to monitor.
 * `method` (default: `HEAD`): The HTTP method to use for the request.
 * `timeout` (default: `10s`): The maximum time to wait for a response before timing out.
@@ -21,11 +21,11 @@ The HTTP Provider is configured through the platform-health server's configurati
 ### Example
 
 ```yaml
-http:
-  - name: example
-    url: https://example.com
-    method: GET
-    detail: true
+example:
+  type: http
+  url: https://example.com
+  method: GET
+  detail: true
 ```
 
-In this example, the platform-health server will send a `GET` request to `http://example.com`; it will allow the default `10s` before timing out; it will expect the HTTP status code to be `200`; it will not establish connections if the HTTP certificate of the service is invalid or untrusted; and it will provide additional detailed information about the HTTP connection.
+In this example, the platform-health server will send a `GET` request to `https://example.com`; it will allow the default `10s` before timing out; it will expect the HTTP status code to be `200`; it will not establish connections if the HTTP certificate of the service is invalid or untrusted; and it will provide additional detailed information about the HTTP connection.

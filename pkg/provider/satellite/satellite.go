@@ -22,7 +22,7 @@ import (
 const TypeSatellite = "satellite"
 
 type Satellite struct {
-	Name     string        `mapstructure:"name"`
+	Name     string        `mapstructure:"-"`
 	Host     string        `mapstructure:"host"`
 	Port     int           `mapstructure:"port"`
 	TLS      bool          `mapstructure:"tls"`
@@ -56,6 +56,10 @@ func (i *Satellite) GetType() string {
 
 func (i *Satellite) GetName() string {
 	return i.Name
+}
+
+func (i *Satellite) SetName(name string) {
+	i.Name = name
 }
 
 func (i *Satellite) GetHealth(ctx context.Context) *ph.HealthCheckResponse {

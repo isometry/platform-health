@@ -107,6 +107,7 @@ func TestSatelliteGetHealth(t *testing.T) {
 				Port:    tt.port,
 				Timeout: time.Second,
 			}
+			component.SetName("TestSatellite")
 			require.NoError(t, component.Setup())
 
 			*config = tt.config
@@ -117,7 +118,7 @@ func TestSatelliteGetHealth(t *testing.T) {
 
 			assert.NotNil(t, result)
 			assert.Equal(t, satellite.TypeSatellite, result.GetType())
-			assert.Equal(t, component.Name, result.GetName())
+			assert.Equal(t, "TestSatellite", result.GetName())
 			assert.Equal(t, tt.expected, result.GetStatus())
 		})
 	}

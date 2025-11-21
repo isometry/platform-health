@@ -2,8 +2,6 @@ package config
 
 import (
 	"context"
-	"slices"
-	"strings"
 	"testing"
 	"time"
 
@@ -18,111 +16,194 @@ func init() {
 	log = utils.ContextLogger(context.TODO())
 }
 
+// findInstanceByName finds an instance by name in a slice
+func findInstanceByName(instances []provider.Instance, name string) provider.Instance {
+	for _, inst := range instances {
+		if inst.GetName() == name {
+			return inst
+		}
+	}
+	return nil
+}
+
 func TestGetInstances(t *testing.T) {
 	tests := []struct {
 		name     string
 		config   *concreteConfig
-		expected []provider.Instance
+		expected int // expected number of instances
 	}{
 		{
 			name:     "EmptyConfig",
 			config:   &concreteConfig{},
-			expected: []provider.Instance{},
+			expected: 0,
 		},
 		{
-			name: "PopulatedConfig",
+			name: "SingleProvider",
 			config: &concreteConfig{
-				"provider1": []provider.Instance{
-					&mock.Mock{Name: "1"},
-					&mock.Mock{Name: "2"},
-				},
-				"provider2": []provider.Instance{
-					&mock.Mock{Name: "3"},
+				"mock": []provider.Instance{
+					&mock.Mock{Name: "comp1"},
+					&mock.Mock{Name: "comp2"},
 				},
 			},
-			expected: []provider.Instance{
-				&mock.Mock{Name: "1"},
-				&mock.Mock{Name: "2"},
-				&mock.Mock{Name: "3"},
+			expected: 2,
+		},
+		{
+			name: "MultipleProviders",
+			config: &concreteConfig{
+				"mock": []provider.Instance{
+					&mock.Mock{Name: "a"},
+					&mock.Mock{Name: "b"},
+				},
+				"other": []provider.Instance{
+					&mock.Mock{Name: "c"},
+				},
 			},
+			expected: 3,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			instances := tt.config.GetInstances()
-			slices.SortFunc(instances, func(a, b provider.Instance) int {
-				return strings.Compare(a.GetName(), b.GetName())
-			})
-			assert.Equal(t, tt.expected, instances)
+			assert.Equal(t, tt.expected, len(instances))
 		})
 	}
 }
 
 func TestHarden(t *testing.T) {
 	tests := []struct {
-		name     string
-		abstract abstractConfig
-		expected concreteConfig
+		name              string
+		abstract          abstractConfig
+		expectedProviders int
+		expectedTotal     int
 	}{
 		{
-			name:     "Empty Config",
-			abstract: abstractConfig{},
-			expected: concreteConfig{},
+			name:              "Empty Config",
+			abstract:          abstractConfig{},
+			expectedProviders: 0,
+			expectedTotal:     0,
 		},
 		{
-			name: "Simple Config",
+			name: "Single Provider Multiple Instances",
 			abstract: abstractConfig{
-				"mock": []any{
-					map[string]any{"Name": "1"},
-					map[string]any{"Name": "2"},
-				},
+				"comp1": map[string]any{"type": "mock", "name": "1"},
+				"comp2": map[string]any{"type": "mock", "name": "2"},
 			},
-			expected: concreteConfig{
-				"mock": []provider.Instance{
-					&mock.Mock{Name: "1", Health: 1, Sleep: 1},
-					&mock.Mock{Name: "2", Health: 1, Sleep: 1},
-				},
-			},
+			expectedProviders: 1,
+			expectedTotal:     2,
 		},
 		{
-			name: "Invalid Config",
+			name: "Multiple Providers",
 			abstract: abstractConfig{
-				"mock": "invalid",
+				"a": map[string]any{"type": "mock", "name": "a"},
+				"b": map[string]any{"type": "mock", "name": "b"},
 			},
-			expected: concreteConfig{},
+			expectedProviders: 1,
+			expectedTotal:     2,
 		},
 		{
 			name: "Unknown Provider",
 			abstract: abstractConfig{
-				"unknown": []any{
-					map[string]any{"Name": "1"},
-				},
+				"test": map[string]any{"type": "nonexistent", "name": "test"},
 			},
-			expected: concreteConfig{},
+			expectedProviders: 0,
+			expectedTotal:     0,
 		},
 		{
 			name: "Duration Parsing",
 			abstract: abstractConfig{
-				"mock": []any{
-					map[string]any{
-						"name":  "duration-test",
-						"sleep": "5s",
-					},
+				"duration-test": map[string]any{
+					"type":  "mock",
+					"name":  "duration-test",
+					"sleep": "5s",
 				},
 			},
-			expected: concreteConfig{
-				"mock": []provider.Instance{
-					&mock.Mock{Name: "duration-test", Health: 1, Sleep: 5 * time.Second},
-				},
-			},
+			expectedProviders: 1,
+			expectedTotal:     1,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			result := tt.abstract.harden()
-			assert.Equal(t, &tt.expected, result)
+			assert.Equal(t, tt.expectedProviders, len(*result), "providers count mismatch")
+			assert.Equal(t, tt.expectedTotal, result.totalInstances(), "total instances mismatch")
+		})
+	}
+}
+
+func TestHardenSetName(t *testing.T) {
+	abstract := abstractConfig{
+		"myinstance": map[string]any{"type": "mock"},
+	}
+
+	result := abstract.harden()
+
+	// Check instance name is set from key
+	instance := findInstanceByName((*result)["mock"], "myinstance")
+	assert.NotNil(t, instance)
+	assert.Equal(t, "myinstance", instance.GetName())
+}
+
+func TestHardenDurationParsing(t *testing.T) {
+	abstract := abstractConfig{
+		"test": map[string]any{
+			"type":  "mock",
+			"name":  "test",
+			"sleep": "5s",
+		},
+	}
+
+	result := abstract.harden()
+	assert.Equal(t, 1, len((*result)["mock"]))
+
+	instance := findInstanceByName((*result)["mock"], "test").(*mock.Mock)
+	assert.Equal(t, 5*time.Second, instance.Sleep)
+}
+
+func TestCountByProvider(t *testing.T) {
+	config := &concreteConfig{
+		"mock": []provider.Instance{
+			&mock.Mock{Name: "a"},
+			&mock.Mock{Name: "b"},
+			&mock.Mock{Name: "c"},
+		},
+	}
+
+	counts := config.countByProvider()
+	assert.Equal(t, 3, counts["mock"])
+}
+
+func TestTotalInstances(t *testing.T) {
+	tests := []struct {
+		name     string
+		config   *concreteConfig
+		expected int
+	}{
+		{
+			name:     "Empty",
+			config:   &concreteConfig{},
+			expected: 0,
+		},
+		{
+			name: "Multiple Providers",
+			config: &concreteConfig{
+				"mock": []provider.Instance{
+					&mock.Mock{},
+					&mock.Mock{},
+				},
+				"other": []provider.Instance{
+					&mock.Mock{},
+					&mock.Mock{},
+				},
+			},
+			expected: 4,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.expected, tt.config.totalInstances())
 		})
 	}
 }

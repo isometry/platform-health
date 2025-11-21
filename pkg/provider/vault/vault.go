@@ -16,7 +16,7 @@ import (
 const TypeVault = "vault"
 
 type Vault struct {
-	Name     string        `mapstructure:"name"`
+	Name     string        `mapstructure:"-"`
 	Address  string        `mapstructure:"address"`
 	Timeout  time.Duration `mapstructure:"timeout" default:"1s"`
 	Insecure bool          `mapstructure:"insecure"`
@@ -48,6 +48,10 @@ func (i *Vault) GetType() string {
 
 func (i *Vault) GetName() string {
 	return i.Name
+}
+
+func (i *Vault) SetName(name string) {
+	i.Name = name
 }
 
 func (i *Vault) GetHealth(ctx context.Context) *ph.HealthCheckResponse {

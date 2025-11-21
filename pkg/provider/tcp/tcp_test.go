@@ -75,6 +75,7 @@ func TestTCP(t *testing.T) {
 				Closed:  tt.closed,
 				Timeout: tt.timeout,
 			}
+			instance.SetName(tt.name)
 			require.NoError(t, instance.Setup())
 
 			result := instance.GetHealth(context.Background())

@@ -23,7 +23,7 @@ import (
 const TypeHTTP = "http"
 
 type HTTP struct {
-	Name     string        `mapstructure:"name"`
+	Name     string        `mapstructure:"-"`
 	URL      string        `mapstructure:"url"`
 	Method   string        `mapstructure:"method" default:"HEAD"`
 	Timeout  time.Duration `mapstructure:"timeout" default:"10s"`
@@ -65,6 +65,10 @@ func (i *HTTP) GetType() string {
 
 func (i *HTTP) GetName() string {
 	return i.Name
+}
+
+func (i *HTTP) SetName(name string) {
+	i.Name = name
 }
 
 func (i *HTTP) GetHealth(ctx context.Context) *ph.HealthCheckResponse {

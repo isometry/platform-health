@@ -16,6 +16,8 @@ type Instance interface {
 	GetType() string
 	// GetName returns the name of the instance
 	GetName() string
+	// SetName sets the name of the instance
+	SetName(string)
 	// GetHealth checks and returns the instance
 	GetHealth(context.Context) *ph.HealthCheckResponse
 	// Setup sets the default values for the instance and validates specification.
@@ -63,5 +65,4 @@ func GetHealthWithDuration(ctx context.Context, instance Instance) *ph.HealthChe
 		response.Duration = durationpb.New(time.Since(start))
 	}
 	return response
-
 }

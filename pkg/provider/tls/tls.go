@@ -24,7 +24,7 @@ import (
 const TypeTLS = "tls"
 
 type TLS struct {
-	Name        string        `mapstructure:"name"`
+	Name        string        `mapstructure:"-"`
 	Host        string        `mapstructure:"host"`
 	Port        int           `mapstructure:"port" default:"443"`
 	Timeout     time.Duration `mapstructure:"timeout" default:"5s"`
@@ -70,6 +70,10 @@ func (i *TLS) GetType() string {
 
 func (i *TLS) GetName() string {
 	return i.Name
+}
+
+func (i *TLS) SetName(name string) {
+	i.Name = name
 }
 
 func (i *TLS) GetHealth(ctx context.Context) *ph.HealthCheckResponse {

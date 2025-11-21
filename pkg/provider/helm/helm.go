@@ -18,8 +18,8 @@ import (
 const TypeHelm = "helm"
 
 type Helm struct {
-	Name      string        `mapstructure:"name"`
-	Chart     string        `mapstructure:"chart"`
+	Name      string        `mapstructure:"-"`
+	Release   string        `mapstructure:"release"`
 	Namespace string        `mapstructure:"namespace"`
 	Timeout   time.Duration `mapstructure:"timeout" default:"5s"`
 }
@@ -31,7 +31,7 @@ func init() {
 func (i *Helm) LogValue() slog.Value {
 	logAttr := []slog.Attr{
 		slog.String("name", i.Name),
-		slog.String("chart", i.Chart),
+		slog.String("release", i.Release),
 		slog.String("namespace", i.Namespace),
 		slog.Any("timeout", i.Timeout),
 	}
@@ -50,6 +50,10 @@ func (i *Helm) GetType() string {
 
 func (i *Helm) GetName() string {
 	return i.Name
+}
+
+func (i *Helm) SetName(name string) {
+	i.Name = name
 }
 
 func (i *Helm) GetHealth(ctx context.Context) *ph.HealthCheckResponse {
@@ -74,7 +78,7 @@ func (i *Helm) GetHealth(ctx context.Context) *ph.HealthCheckResponse {
 
 	resultChan := make(chan error)
 	go func() {
-		status, err := statusAction.Run(i.Name)
+		status, err := statusAction.Run(i.Release)
 		if err != nil {
 			resultChan <- err
 			return

@@ -13,6 +13,7 @@ import (
 	_ "github.com/isometry/platform-health/pkg/provider/kubernetes"
 	_ "github.com/isometry/platform-health/pkg/provider/rest"
 	_ "github.com/isometry/platform-health/pkg/provider/satellite"
+	_ "github.com/isometry/platform-health/pkg/provider/system"
 	_ "github.com/isometry/platform-health/pkg/provider/tcp"
 	_ "github.com/isometry/platform-health/pkg/provider/tls"
 	_ "github.com/isometry/platform-health/pkg/provider/vault"

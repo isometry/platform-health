@@ -93,13 +93,14 @@ func TestTLS(t *testing.T) {
 				SANs:        tt.sans,
 				Timeout:     tt.timeout,
 			}
+			instance.SetName("TestTLS")
 			require.NoError(t, instance.Setup())
 
 			result := instance.GetHealth(ctx)
 
 			assert.NotNil(t, result)
 			assert.Equal(t, tls.TypeTLS, result.GetType())
-			assert.Equal(t, instance.Name, result.GetName())
+			assert.Equal(t, "TestTLS", result.GetName())
 			assert.Equal(t, tt.expected, result.GetStatus())
 		})
 	}
