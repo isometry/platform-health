@@ -1,31 +1,43 @@
-# satellite:
-#   - name: remote
-#     address: satellite.example.com
-#     port: 8080
-tcp:
-  - name: self
-    host: localhost
-    port: 8080
-tls:
-  - name: gmail
-    host: smtp.gmail.com
-    port: 465
-    detail: true
-http:
-  - name: google
-    url: https://google.com
-    detail: true
-# grpc:
-#   - name: example
-#     host: grpc.example.com
-#     port: 443
-# kubernetes:
-#   - kind: deployment
-#     name: podinfo
-#     namespace: default
-#     condition:
-#       type: Available
-#       status: "True"
-# helm:
-#   - name: cilium
-#     namespace: kube-system
+# Standalone check
+self:
+  type: tcp
+  host: localhost
+  port: 8080
+
+# Group Google services
+google:
+  type: system
+  components:
+    gmail-smtp:
+      type: tls
+      host: smtp.gmail.com
+      port: 465
+      detail: true
+    google.com:
+      type: http
+      url: https://google.com
+      detail: true
+#
+# remote:
+#   type: satellite
+#   address: satellite.example.com
+#   port: 8080
+
+# example-grpc:
+#   type: grpc
+#   host: grpc.example.com
+#   port: 443
+
+# cluster:
+#   type: system
+#   components:
+#     podinfo:
+#       type: kubernetes
+#       resource:
+#         kind: deployment
+#         name: podinfo
+#         namespace: default
+#     cilium:
+#       type: helm
+#       release: cilium
+#       namespace: kube-system
