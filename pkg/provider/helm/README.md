@@ -10,10 +10,10 @@ Once the Helm Provider is configured, any query to the platform health server wi
 
 The Helm Provider is configured through the platform-health server's configuration file. Each instance is defined with its name as the YAML key.
 
-* `type` (required): Must be `helm`.
-* `release` (required): The name of the Helm release to monitor.
-* `namespace` (required): The namespace of the Helm release to monitor.
-* `timeout` (default: `5s`): The maximum time to wait for a status check to be completed before timing out.
+- `type` (required): Must be `helm`.
+- `release` (required): The name of the Helm release to monitor.
+- `namespace` (required): The namespace of the Helm release to monitor.
+- `timeout` (default: `5s`): The maximum time to wait for a status check to be completed before timing out.
 
 For queries to succeed, the platform-health server must be run in a context with appropriate access privileges to list and get the `Secret` resources that Helm uses internally to track releases. Running "in-cluster", this means an appropriate service account, role and role binding must be configured.
 

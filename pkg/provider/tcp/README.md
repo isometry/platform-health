@@ -10,11 +10,11 @@ Once the TCP Provider is configured, any query to the platform health server wil
 
 The TCP Provider is configured through the platform-health server's configuration file. Each instance is defined with its name as the YAML key.
 
-* `type` (required): Must be `tcp`.
-* `host` (required): The hostname or IP address of the TCP service to monitor.
-* `port` (default: `80`): The port number of the TCP service to monitor.
-* `closed` (default: `false`): Reverse logic to report "healthy" if port is closed and "unhealthy" if it is open.
-* `timeout` (default: `1s`): The maximum time to wait for a connection to be established before timing out.
+- `type` (required): Must be `tcp`.
+- `host` (required): The hostname or IP address of the TCP service to monitor.
+- `port` (default: `80`): The port number of the TCP service to monitor.
+- `closed` (default: `false`): Reverse logic to report "healthy" if port is closed and "unhealthy" if it is open.
+- `timeout` (default: `1s`): The maximum time to wait for a connection to be established before timing out.
 
 ### Example
 

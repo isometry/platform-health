@@ -4,17 +4,17 @@ The Satellite Provider extends the platform-health server to enable delegation o
 
 ## Usage
 
-Once the Satellite Provider is configured, any query to the platform health server will trigger validation of the configured Satellite instances. A instance is reported "healthy" if-and-only-if the satellite instance reports all of *its* instances as "healthy".
+Once the Satellite Provider is configured, any query to the platform health server will trigger validation of the configured Satellite instances. A instance is reported "healthy" if-and-only-if the satellite instance reports all of _its_ instances as "healthy".
 
 ## Configuration
 
 The Satellite Provider is configured through the platform-health server's configuration file. Each instance is defined with its name as the YAML key.
 
-* `type` (required): Must be `satellite`.
-* `host` (required): The hostname or IP address of the Satellite service to monitor.
-* `port` (default: `8080`): The port number of the Satellite service to monitor.
-* `tls` (default: `false`, unless `port` is `443`): Enable TLS for the gRPC dialer.
-* `insecure` (default: `false`): Disable certificate validation when TLS is enabled.
+- `type` (required): Must be `satellite`.
+- `host` (required): The hostname or IP address of the Satellite service to monitor.
+- `port` (default: `8080`): The port number of the Satellite service to monitor.
+- `tls` (default: `false`, unless `port` is `443`): Enable TLS for the gRPC dialer.
+- `insecure` (default: `false`): Disable certificate validation when TLS is enabled.
 
 ### Example
 

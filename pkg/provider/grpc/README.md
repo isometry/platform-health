@@ -10,12 +10,12 @@ Once the gRPC Provider is configured, any query to the platform-health server wi
 
 The gRPC Provider is configured through the platform-health server's configuration file. Each instance is defined with its name as the YAML key.
 
-* `type` (required): Must be `grpc`.
-* `host` (required): The hostname or IP address of the gRPC service to monitor.
-* `port` (default: `8080`): The port number of the gRPC service to monitor.
-* `service` (default: `""`): The service on the target gRPC service to monitor.
-* `tls` (default: `false`, unless `port` is `443`): Enable TLS for the gRPC dialer.
-* `insecure` (default: `false`): Disable certificate validation when TLS is enabled.
+- `type` (required): Must be `grpc`.
+- `host` (required): The hostname or IP address of the gRPC service to monitor.
+- `port` (default: `8080`): The port number of the gRPC service to monitor.
+- `service` (default: `""`): The service on the target gRPC service to monitor.
+- `tls` (default: `false`, unless `port` is `443`): Enable TLS for the gRPC dialer.
+- `insecure` (default: `false`): Disable certificate validation when TLS is enabled.
 
 ### Example
 
