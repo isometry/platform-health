@@ -43,29 +43,27 @@ The following variables are available in CEL expressions:
 #### Release Properties
 - `release.Name` - Release name
 - `release.Namespace` - Release namespace
-- `release.Version` - Release revision number (int)
+- `release.Revision` - Release revision number (int)
+- `release.Status` - Release status (string: "deployed", "failed", etc.)
+- `release.FirstDeployed` - First deployment timestamp
+- `release.LastDeployed` - Last deployment timestamp
+- `release.Deleted` - Deletion timestamp
+- `release.Description` - Release description
+- `release.Notes` - Chart NOTES.txt content
 - `release.Manifest` - Rendered manifest content
 - `release.Labels` - Release labels (map)
 - `release.Config` - User-provided value overrides (map)
-- `release.Values` - Chart default values (map)
 
-#### Release Info
-- `release.Info.Status` - Release status (string: "deployed", "failed", etc.)
-- `release.Info.FirstDeployed` - First deployment timestamp
-- `release.Info.LastDeployed` - Last deployment timestamp
-- `release.Info.Deleted` - Deletion timestamp
-- `release.Info.Description` - Release description
-- `release.Info.Notes` - Chart NOTES.txt content
-
-#### Chart Metadata
-- `release.Chart.Metadata.Name` - Chart name
-- `release.Chart.Metadata.Version` - Chart version
-- `release.Chart.Metadata.AppVersion` - Application version
-- `release.Chart.Metadata.Description` - Chart description
-- `release.Chart.Metadata.Deprecated` - Whether chart is deprecated (bool)
-- `release.Chart.Metadata.KubeVersion` - Required Kubernetes version
-- `release.Chart.Metadata.Type` - Chart type
-- `release.Chart.Metadata.Annotations` - Chart annotations (map)
+#### Chart Properties
+- `chart.Name` - Chart name
+- `chart.Version` - Chart version
+- `chart.AppVersion` - Application version
+- `chart.Description` - Chart description
+- `chart.Deprecated` - Whether chart is deprecated (bool)
+- `chart.KubeVersion` - Required Kubernetes version
+- `chart.Type` - Chart type
+- `chart.Annotations` - Chart annotations (map)
+- `chart.Values` - Chart default values (map)
 
 ### Example with CEL Checks
 
@@ -76,9 +74,9 @@ my-app:
   namespace: production
   timeout: 10s
   checks:
-    - expression: "release.Version >= 2"
+    - expression: "release.Revision >= 2"
       errorMessage: "Release must have at least one upgrade"
-    - expression: "!release.Chart.Metadata.Deprecated"
+    - expression: "!chart.Deprecated"
       errorMessage: "Chart is deprecated"
     - expression: "'team' in release.Labels && 'env' in release.Labels"
       errorMessage: "Release must have team and env labels"

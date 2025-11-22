@@ -22,6 +22,7 @@ const TypeHelm = "helm"
 // CEL configuration for Helm provider
 var celConfig = checks.NewCEL(
 	cel.Variable("release", cel.MapType(cel.StringType, cel.DynType)),
+	cel.Variable("chart", cel.MapType(cel.StringType, cel.DynType)),
 )
 
 type Helm struct {
@@ -130,9 +131,11 @@ func (i *Helm) GetHealth(ctx context.Context) *ph.HealthCheckResponse {
 			i.evaluator = evaluator
 		}
 
-		// Convert release to map for CEL evaluation
+		// Convert release to maps for CEL evaluation
+		releaseMap, chartMap := releaseToMaps(rel)
 		celCtx := map[string]any{
-			"release": releaseToMap(rel),
+			"release": releaseMap,
+			"chart":   chartMap,
 		}
 
 		if err := i.evaluator.Evaluate(celCtx); err != nil {
@@ -143,41 +146,33 @@ func (i *Helm) GetHealth(ctx context.Context) *ph.HealthCheckResponse {
 	return component.Healthy()
 }
 
-// releaseToMap converts a release.Release to a map for CEL evaluation
-func releaseToMap(rel *release.Release) map[string]any {
-	// Get chart default values
-	var chartValues map[string]any
-	if rel.Chart != nil {
-		chartValues = rel.Chart.Values
-	}
-
-	result := map[string]any{
+// releaseToMaps converts a release.Release to separate release and chart maps for CEL evaluation
+func releaseToMaps(rel *release.Release) (releaseMap map[string]any, chartMap map[string]any) {
+	releaseMap = map[string]any{
 		"Name":      rel.Name,
 		"Namespace": rel.Namespace,
-		"Version":   rel.Version,
+		"Revision":  rel.Version,   // Renamed from Version for Helm idiom
 		"Config":    rel.Config,    // User overrides
-		"Values":    chartValues,   // Chart default values
 		"Manifest":  rel.Manifest,
 		"Labels":    rel.Labels,
 	}
 
-	// Add Info
+	// Add Info fields directly to release (flattened for cleaner access)
 	if rel.Info != nil {
-		result["Info"] = map[string]any{
-			"Status":        string(rel.Info.Status),
-			"FirstDeployed": rel.Info.FirstDeployed,
-			"LastDeployed":  rel.Info.LastDeployed,
-			"Deleted":       rel.Info.Deleted,
-			"Description":   rel.Info.Description,
-			"Notes":         rel.Info.Notes,
-		}
+		releaseMap["Status"] = string(rel.Info.Status)
+		releaseMap["FirstDeployed"] = rel.Info.FirstDeployed
+		releaseMap["LastDeployed"] = rel.Info.LastDeployed
+		releaseMap["Deleted"] = rel.Info.Deleted
+		releaseMap["Description"] = rel.Info.Description
+		releaseMap["Notes"] = rel.Info.Notes
 	}
 
-	// Add Chart metadata
-	if rel.Chart != nil && rel.Chart.Metadata != nil {
-		meta := rel.Chart.Metadata
-		result["Chart"] = map[string]any{
-			"Metadata": map[string]any{
+	// Build chart map with flattened metadata and default values (Helm-idiomatic)
+	chartMap = map[string]any{}
+	if rel.Chart != nil {
+		if rel.Chart.Metadata != nil {
+			meta := rel.Chart.Metadata
+			chartMap = map[string]any{
 				"Name":        meta.Name,
 				"Version":     meta.Version,
 				"AppVersion":  meta.AppVersion,
@@ -186,9 +181,10 @@ func releaseToMap(rel *release.Release) map[string]any {
 				"KubeVersion": meta.KubeVersion,
 				"Type":        meta.Type,
 				"Annotations": meta.Annotations,
-			},
+			}
 		}
+		chartMap["Values"] = rel.Chart.Values // Chart default values
 	}
 
-	return result
+	return releaseMap, chartMap
 }

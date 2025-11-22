@@ -204,7 +204,7 @@ func TestCEL_VersionCheck(t *testing.T) {
 		Release:   "my-release",
 		Namespace: "default",
 		Checks: []checks.Expression{
-			{Expression: "release.Version >= 2", ErrorMessage: "Need at least one upgrade"},
+			{Expression: "release.Revision >= 2", ErrorMessage: "Need at least one upgrade"},
 		},
 	}
 	require.NoError(t, provider.Setup())
@@ -223,7 +223,7 @@ func TestCEL_VersionCheckFails(t *testing.T) {
 		Release:   "my-release",
 		Namespace: "default",
 		Checks: []checks.Expression{
-			{Expression: "release.Version >= 2", ErrorMessage: "Need at least one upgrade"},
+			{Expression: "release.Revision >= 2", ErrorMessage: "Need at least one upgrade"},
 		},
 	}
 	require.NoError(t, provider.Setup())
@@ -241,7 +241,7 @@ func TestCEL_ChartVersion(t *testing.T) {
 		Release:   "my-release",
 		Namespace: "default",
 		Checks: []checks.Expression{
-			{Expression: "release.Chart.Metadata.Version == '1.0.0'"},
+			{Expression: "chart.Version == '1.0.0'"},
 		},
 	}
 	require.NoError(t, provider.Setup())
@@ -295,7 +295,7 @@ func TestCEL_NotDeprecated(t *testing.T) {
 		Release:   "my-release",
 		Namespace: "default",
 		Checks: []checks.Expression{
-			{Expression: "!release.Chart.Metadata.Deprecated", ErrorMessage: "Chart is deprecated"},
+			{Expression: "!chart.Deprecated", ErrorMessage: "Chart is deprecated"},
 		},
 	}
 	require.NoError(t, provider.Setup())
@@ -332,9 +332,9 @@ func TestCEL_ChartValues(t *testing.T) {
 		Namespace: "default",
 		Checks: []checks.Expression{
 			// Check chart default value
-			{Expression: "release.Values['replicas'] == 1"},
+			{Expression: "chart.Values['replicas'] == 1"},
 			// Check nested default value
-			{Expression: "'image' in release.Values && release.Values['image']['tag'] == 'latest'"},
+			{Expression: "'image' in chart.Values && chart.Values['image']['tag'] == 'latest'"},
 			// Check Config has overrides
 			{Expression: "release.Config['replicas'] == 3"},
 		},
