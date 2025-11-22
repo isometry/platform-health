@@ -30,6 +30,9 @@ import (
 
 const TypeKubernetes = "kubernetes"
 
+// AllNamespaces is the special value for namespace to query all namespaces
+const AllNamespaces = "*"
+
 // CEL configuration for Kubernetes provider
 var celConfig = checks.NewCEL(
 	cel.Variable("resource", cel.MapType(cel.StringType, cel.DynType)),
@@ -90,6 +93,11 @@ func (i *Kubernetes) Setup() error {
 	// Validate mutually exclusive Name/LabelSelector
 	if i.Resource.Name != "" && i.Resource.LabelSelector != "" {
 		return fmt.Errorf("resource.name and resource.labelSelector are mutually exclusive")
+	}
+
+	// Validate that name + all-namespaces is invalid
+	if i.Resource.Name != "" && i.Resource.Namespace == AllNamespaces {
+		return fmt.Errorf("cannot get resource by name across all namespaces; use labelSelector instead")
 	}
 
 	// Default kstatus to true if not set
@@ -221,8 +229,13 @@ func (i *Kubernetes) checkBySelector(ctx context.Context, client dynamic.Interfa
 	var list *unstructured.UnstructuredList
 	var err error
 	if mapping.Scope.Name() == meta.RESTScopeNameRoot {
+		// Cluster-scoped resources (e.g., nodes, namespaces)
+		list, err = client.Resource(gvr).List(ctx, listOpts)
+	} else if i.Resource.Namespace == AllNamespaces {
+		// All namespaces mode
 		list, err = client.Resource(gvr).List(ctx, listOpts)
 	} else {
+		// Specific namespace
 		list, err = client.Resource(gvr).Namespace(i.Resource.Namespace).List(ctx, listOpts)
 	}
 	if err != nil {

@@ -15,7 +15,7 @@ The Kubernetes Provider is configured through the platform-health server's confi
   - `group` (required): The API group of the Kubernetes resource.
   - `version` (optional): The API version of the Kubernetes resource. If not specified, the API server's preferred version is used automatically.
   - `kind` (required): The kind of the Kubernetes resource.
-  - `namespace`: The namespace of the Kubernetes resource.
+  - `namespace`: The namespace of the Kubernetes resource. Use `"*"` to select resources across all namespaces (only valid with `labelSelector`, not `name`).
   - `name` (optional): The name of a specific Kubernetes resource. Mutually exclusive with `labelSelector`.
   - `labelSelector` (optional): Select resources by label selector using Kubernetes native syntax (e.g., `app=nginx,env=prod`). Supports equality (`=`, `==`, `!=`) and set-based (`in`, `notin`) operators. When multiple resources match, each is checked and results are aggregated. Mutually exclusive with `name`. If neither `name` nor `labelSelector` is specified, all resources of the kind in the namespace are selected.
 - `checks`: A list of CEL expressions to validate the resource. Each check has:
@@ -216,6 +216,24 @@ require-deployments:
     - expression: "items.size() >= 1"
       errorMessage: "No deployments found"
 ```
+
+### All Resources Across All Namespaces
+
+Use `namespace: "*"` to select resources across all namespaces:
+
+```yaml
+cluster-wide-pods:
+  type: kubernetes
+  resource:
+    kind: Pod
+    namespace: "*"
+    labelSelector: "app.kubernetes.io/part-of=myapp"
+  checks:
+    - expression: "items.size() >= 1"
+      errorMessage: "No pods found cluster-wide"
+```
+
+**Note:** All-namespaces mode requires `labelSelector`; it cannot be used with `name`.
 
 ### Label Selector - Multiple Resources
 
