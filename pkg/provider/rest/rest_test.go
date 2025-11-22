@@ -150,7 +150,10 @@ func TestRESTProvider_JSONValidation(t *testing.T) {
 				w.WriteHeader(http.StatusOK)
 				_ = json.NewEncoder(w).Encode(tt.responseBody)
 			}))
-			defer server.Close()
+
+			t.Cleanup(func() {
+				server.Close()
+			})
 
 			// Create REST provider instance
 			instance := &restProvider.REST{
@@ -231,7 +234,10 @@ func TestRESTProvider_POSTWithBody(t *testing.T) {
 				w.WriteHeader(http.StatusOK)
 				_ = json.NewEncoder(w).Encode(tt.responseBody)
 			}))
-			defer server.Close()
+
+			t.Cleanup(func() {
+				server.Close()
+			})
 
 			// Create REST provider instance
 			instance := &restProvider.REST{
@@ -310,7 +316,10 @@ func TestRESTProvider_StatusCodeValidation(t *testing.T) {
 				w.WriteHeader(tt.serverStatus)
 				_, _ = w.Write([]byte("{}"))
 			}))
-			defer server.Close()
+
+			t.Cleanup(func() {
+				server.Close()
+			})
 
 			// Create REST provider instance
 			instance := &restProvider.REST{
@@ -353,7 +362,10 @@ func TestRESTProvider_CombinedValidation(t *testing.T) {
 		}
 		_ = json.NewEncoder(w).Encode(response)
 	}))
-	defer server.Close()
+
+	t.Cleanup(func() {
+		server.Close()
+	})
 
 	// Create REST provider with CEL validation
 	instance := &restProvider.REST{
@@ -453,7 +465,10 @@ func TestRESTProvider_ContentTypeValidation(t *testing.T) {
 				w.WriteHeader(http.StatusOK)
 				_, _ = w.Write([]byte(`{"status":"ok"}`))
 			}))
-			defer server.Close()
+
+			t.Cleanup(func() {
+				server.Close()
+			})
 
 			// Create REST provider instance
 			instance := &restProvider.REST{
@@ -517,7 +532,10 @@ func TestRESTProvider_RequestContextValidation(t *testing.T) {
 		}
 		_ = json.NewEncoder(w).Encode(response)
 	}))
-	defer server.Close()
+
+	t.Cleanup(func() {
+		server.Close()
+	})
 
 	// Create REST provider with request context validation
 	instance := &restProvider.REST{

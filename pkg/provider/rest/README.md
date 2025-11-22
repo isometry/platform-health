@@ -27,6 +27,7 @@ The REST Provider is configured through the platform-health server's configurati
 The REST Provider validates responses using CEL expressions. All checks are evaluated in order, and validation stops at the first failure, making the process efficient.
 
 **Note**: Status code validation is now done through CEL expressions. For example:
+
 - Single status: `response.status == 200`
 - Multiple statuses: `response.status >= 200 && response.status < 300`
 - Specific codes: `response.status == 200 || response.status == 201`
@@ -36,12 +37,14 @@ The REST Provider validates responses using CEL expressions. All checks are eval
 CEL expressions have access to both `request` and `response` objects:
 
 **Request Context:**
+
 - `request.method`: HTTP method (string)
 - `request.body`: Request body as text (string)
 - `request.headers`: Request headers (map[string]string, lowercase keys)
 - `request.url`: Target URL (string)
 
 **Response Context:**
+
 - `response.json`: Parsed JSON response (null if response is not valid JSON)
 - `response.body`: Raw response body as a string
 - `response.status`: HTTP status code (int)
@@ -59,7 +62,7 @@ api-health:
     method: GET
   timeout: 10s
   checks:
-    - expression: 'response.status == 200'
+    - expression: "response.status == 200"
       errorMessage: "Expected HTTP 200 status"
     - expression: 'response.json.status == "healthy"'
       errorMessage: "API reports unhealthy status"
@@ -99,9 +102,9 @@ authenticated-api:
       Authorization: "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
       X-API-Key: "my-secret-key-123"
   checks:
-    - expression: 'response.status == 200'
+    - expression: "response.status == 200"
       errorMessage: "API authentication failed"
-    - expression: 'response.json.authenticated == true'
+    - expression: "response.json.authenticated == true"
       errorMessage: "Not authenticated"
 ```
 
@@ -116,7 +119,7 @@ status-page:
     url: https://status.example.com
     method: GET
   checks:
-    - expression: 'response.status == 200'
+    - expression: "response.status == 200"
       errorMessage: "Expected HTTP 200 status"
     - expression: 'response.body.matches("(?i)all systems (operational|normal|healthy)")'
       errorMessage: "Status page doesn't show operational state"
@@ -133,7 +136,7 @@ error-detection:
     url: https://monitor.example.com/status
     method: GET
   checks:
-    - expression: 'response.status == 200'
+    - expression: "response.status == 200"
       errorMessage: "Expected HTTP 200 status"
     - expression: '!response.body.matches("(?i)(error|critical|down|failed)")'
       errorMessage: "Error keywords detected in response"
@@ -150,11 +153,11 @@ json-api:
     url: https://api.example.com/v1/health
     method: GET
   checks:
-    - expression: 'response.status == 200'
+    - expression: "response.status == 200"
       errorMessage: "Expected HTTP 200 status"
     - expression: 'response.headers["content-type"].contains("application/json")'
       errorMessage: "Expected JSON response"
-    - expression: 'response.json.ready == true'
+    - expression: "response.json.ready == true"
       errorMessage: "Service not ready"
 ```
 

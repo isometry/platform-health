@@ -10,14 +10,14 @@ Once the TLS Provider is configured, any query to the platform health server wil
 
 The TLS Provider is configured through the platform-health server's configuration file. Each instance is defined with its name as the YAML key.
 
-* `type` (required): Must be `tls`.
-* `host` (required): The hostname or IP address of the TLS service to monitor.
-* `port` (default: 443): The port number of the TLS service to monitor.
-* `timeout` (default: 1s): The maximum time to wait for a connection to be established before timing out.
-* `insecure` (default: false): If set to true, allows the TLS provider to establish connections even if the TLS certificate of the service is invalid or untrusted. This is useful for testing or in environments where services use self-signed certificates. Note that using this option in a production environment is not recommended, as it disables important security checks.
-* `minValidity` (default: 24h): The minimum validity period for the TLS certificate of the service being monitored. If the remaining validity of the certificate is less than this value, the service will be reported as "unhealthy". The value is specified in hours.
-* `subjectAltNames` (default: `[]`): Subject Alternate Names which must be present on the presented certificate.
-* `detail` (default: false): If set to true, the provider will return detailed information about the TLS connection, such as the common name, subject alternative names, validity period, signature algorithm, public key algorithm, version, cipher suite, and protocol.
+- `type` (required): Must be `tls`.
+- `host` (required): The hostname or IP address of the TLS service to monitor.
+- `port` (default: 443): The port number of the TLS service to monitor.
+- `timeout` (default: 1s): The maximum time to wait for a connection to be established before timing out.
+- `insecure` (default: false): If set to true, allows the TLS provider to establish connections even if the TLS certificate of the service is invalid or untrusted. This is useful for testing or in environments where services use self-signed certificates. Note that using this option in a production environment is not recommended, as it disables important security checks.
+- `minValidity` (default: 24h): The minimum validity period for the TLS certificate of the service being monitored. If the remaining validity of the certificate is less than this value, the service will be reported as "unhealthy". The value is specified in hours.
+- `subjectAltNames` (default: `[]`): Subject Alternate Names which must be present on the presented certificate.
+- `detail` (default: false): If set to true, the provider will return detailed information about the TLS connection, such as the common name, subject alternative names, validity period, signature algorithm, public key algorithm, version, cipher suite, and protocol.
 
 ### Example
 

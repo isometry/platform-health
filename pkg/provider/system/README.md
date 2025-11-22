@@ -12,8 +12,8 @@ Child instances appear as nested components in the system's response, making it 
 
 The System Provider is configured through the platform-health server's configuration file. Each instance is defined with its name as the YAML key.
 
-* `type` (required): Must be `system`.
-* `components`: A map of child instances. Each child is defined with its name as the key and must include a `type` field specifying its provider type.
+- `type` (required): Must be `system`.
+- `components`: A map of child instances. Each child is defined with its name as the key and must include a `type` field specifying its provider type.
 
 ### Example
 

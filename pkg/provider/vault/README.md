@@ -10,10 +10,10 @@ Once the Vault Provider is configured, any query to the platform-health server w
 
 The Vault Provider is configured through the platform-health server's configuration file. Each instance is defined with its name as the YAML key.
 
-* `type` (required): Must be `vault`.
-* `address` (required): The address of the Vault instance in standard `VAULT_ADDR` format.
-* `timeout` (default: `1s`): The maximum time to wait for a response before timing out.
-* `insecure` (default: `false`): If set to true, allows the Vault provider to establish connections even if the TLS certificate of the service is invalid or untrusted. This is useful for testing or in environments where services use self-signed certificates. Note that using this option in a production environment is not recommended, as it disables important security checks.
+- `type` (required): Must be `vault`.
+- `address` (required): The address of the Vault instance in standard `VAULT_ADDR` format.
+- `timeout` (default: `1s`): The maximum time to wait for a response before timing out.
+- `insecure` (default: `false`): If set to true, allows the Vault provider to establish connections even if the TLS certificate of the service is invalid or untrusted. This is useful for testing or in environments where services use self-signed certificates. Note that using this option in a production environment is not recommended, as it disables important security checks.
 
 ### Example
 

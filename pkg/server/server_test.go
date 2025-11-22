@@ -99,8 +99,8 @@ func TestPlatformHealthServer_Check(t *testing.T) {
 			name:     "All Healthy Providers",
 			serverId: "server-1",
 			providerConfig: mockConfig{
-				&mock.Mock{Name: "m1", Health: ph.Status_HEALTHY},
-				&mock.Mock{Name: "m2", Health: ph.Status_HEALTHY},
+				mock.Healthy("m1"),
+				mock.Healthy("m2"),
 			},
 			expectedStatus:     ph.Status_HEALTHY,
 			expectedComponents: 2,
@@ -109,8 +109,8 @@ func TestPlatformHealthServer_Check(t *testing.T) {
 			name:     "Unhealthy Provider First",
 			serverId: "server-1",
 			providerConfig: mockConfig{
-				&mock.Mock{Name: "m1", Health: ph.Status_UNHEALTHY},
-				&mock.Mock{Name: "m2", Health: ph.Status_HEALTHY},
+				mock.Unhealthy("m1"),
+				mock.Healthy("m2"),
 			},
 			expectedStatus:     ph.Status_UNHEALTHY,
 			expectedComponents: 2,
@@ -119,8 +119,8 @@ func TestPlatformHealthServer_Check(t *testing.T) {
 			name:     "Unhealthy Provider Last",
 			serverId: "server-1",
 			providerConfig: mockConfig{
-				&mock.Mock{Name: "m1", Health: ph.Status_HEALTHY},
-				&mock.Mock{Name: "m2", Health: ph.Status_UNHEALTHY},
+				mock.Healthy("m1"),
+				mock.Unhealthy("m2"),
 			},
 			expectedStatus:     ph.Status_UNHEALTHY,
 			expectedComponents: 2,
@@ -130,7 +130,7 @@ func TestPlatformHealthServer_Check(t *testing.T) {
 			serverId: "server-1",
 			hops:     []string{"server-1"},
 			providerConfig: mockConfig{
-				&mock.Mock{Name: "m1", Health: ph.Status_HEALTHY},
+				mock.Healthy("m1"),
 			},
 			expectedStatus:     ph.Status_LOOP_DETECTED,
 			expectedComponents: 0,
@@ -141,7 +141,7 @@ func TestPlatformHealthServer_Check(t *testing.T) {
 			serverId: "server-1",
 			hops:     []string{"server-1", "server-2", "server-3"},
 			providerConfig: mockConfig{
-				&mock.Mock{Name: "m1", Health: ph.Status_HEALTHY},
+				mock.Healthy("m1"),
 			},
 			expectedStatus:     ph.Status_LOOP_DETECTED,
 			expectedComponents: 0,

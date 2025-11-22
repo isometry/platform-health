@@ -28,27 +28,35 @@ func (c *testConfig) GetInstances() []provider.Instance {
 	return *c
 }
 
+// setupTestServer creates a test gRPC server and returns the port.
+// The server is automatically stopped when the test completes.
+func setupTestServer(t *testing.T, serverId string, config *testConfig) int {
+	t.Helper()
+
+	listener, err := net.Listen("tcp", "localhost:0")
+	require.NoError(t, err)
+
+	port := listener.Addr().(*net.TCPAddr).Port
+
+	testServer, err := server.NewPlatformHealthServer(&serverId, config)
+	require.NoError(t, err)
+
+	go func() { _ = testServer.Serve(listener) }()
+
+	t.Cleanup(func() {
+		testServer.Stop()
+	})
+
+	return port
+}
+
 func TestSatelliteGetHealth(t *testing.T) {
 	// workaround for grpc resolver with Zscaler
 	resolver.SetDefaultScheme("passthrough")
 
-	// Start listener for the main server
-	listener, err := net.Listen("tcp", "localhost:0")
-	if err != nil {
-		t.Fatalf("Failed to set up test listener: %v", err)
-	}
-
-	port := listener.Addr().(*net.TCPAddr).Port
-
 	serverId := "root"
 	config := &testConfig{}
-	testServer, err := server.NewPlatformHealthServer(&serverId, config)
-	if err != nil {
-		t.Fatalf("Failed to set up test server: %v", err)
-	}
-
-	go func() { _ = testServer.Serve(listener) }()
-	defer testServer.Stop()
+	port := setupTestServer(t, serverId, config)
 
 	tests := []struct {
 		name     string
@@ -67,10 +75,7 @@ func TestSatelliteGetHealth(t *testing.T) {
 			name: "HealthyComponent",
 			port: port,
 			config: []provider.Instance{
-				&mock.Mock{
-					Name:   "Test",
-					Health: ph.Status_HEALTHY,
-				},
+				mock.Healthy("Test"),
 			},
 			expected: ph.Status_HEALTHY,
 		},
@@ -78,10 +83,7 @@ func TestSatelliteGetHealth(t *testing.T) {
 			name: "UnhealthyComponent",
 			port: port,
 			config: []provider.Instance{
-				&mock.Mock{
-					Name:   "Test",
-					Health: ph.Status_UNHEALTHY,
-				},
+				mock.Unhealthy("Test"),
 			},
 			expected: ph.Status_UNHEALTHY,
 		},
@@ -120,6 +122,129 @@ func TestSatelliteGetHealth(t *testing.T) {
 			assert.Equal(t, satellite.TypeSatellite, result.GetType())
 			assert.Equal(t, "TestSatellite", result.GetName())
 			assert.Equal(t, tt.expected, result.GetStatus())
+		})
+	}
+}
+
+func TestSatelliteComponents(t *testing.T) {
+	resolver.SetDefaultScheme("passthrough")
+
+	serverId := "test"
+	config := &testConfig{
+		mock.Healthy("allowed"),
+		mock.Healthy("other"),
+	}
+	port := setupTestServer(t, serverId, config)
+
+	tests := []struct {
+		name           string
+		components     []string              // configured allowlist
+		contextPaths   server.ComponentPaths // incoming request
+		expectedStatus ph.Status
+		expectMessage  string
+	}{
+		{
+			name:           "NoConfigNoContext",
+			components:     nil,
+			contextPaths:   nil,
+			expectedStatus: ph.Status_HEALTHY,
+		},
+		{
+			name:           "ConfiguredAsDefault",
+			components:     []string{"allowed"},
+			contextPaths:   nil,
+			expectedStatus: ph.Status_HEALTHY,
+		},
+		{
+			name:           "ValidContextComponent",
+			components:     []string{"allowed", "other"},
+			contextPaths:   server.ComponentPaths{{"allowed"}},
+			expectedStatus: ph.Status_HEALTHY,
+		},
+		{
+			name:           "InvalidContextComponent",
+			components:     []string{"allowed"},
+			contextPaths:   server.ComponentPaths{{"forbidden"}},
+			expectedStatus: ph.Status_UNHEALTHY,
+			expectMessage:  "not allowed",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			sat := &satellite.Satellite{
+				Name:       "test",
+				Host:       "localhost",
+				Port:       port,
+				Timeout:    time.Second,
+				Components: tt.components,
+			}
+			require.NoError(t, sat.Setup())
+
+			ctx := context.Background()
+			if tt.contextPaths != nil {
+				ctx = server.ContextWithComponentPaths(ctx, tt.contextPaths)
+			}
+
+			result := sat.GetHealth(ctx)
+			assert.Equal(t, tt.expectedStatus, result.Status)
+			if tt.expectMessage != "" {
+				assert.Contains(t, result.Message, tt.expectMessage)
+			}
+		})
+	}
+}
+
+func TestSatelliteComponentFiltering(t *testing.T) {
+	resolver.SetDefaultScheme("passthrough")
+
+	serverId := "test"
+	config := &testConfig{
+		mock.Healthy("healthy"),
+		mock.Unhealthy("unhealthy"),
+	}
+	port := setupTestServer(t, serverId, config)
+
+	tests := []struct {
+		name           string
+		components     []string
+		expectedStatus ph.Status
+	}{
+		{
+			name:           "AllComponents",
+			components:     nil,
+			expectedStatus: ph.Status_UNHEALTHY,
+		},
+		{
+			name:           "OnlyHealthy",
+			components:     []string{"healthy"},
+			expectedStatus: ph.Status_HEALTHY,
+		},
+		{
+			name:           "OnlyUnhealthy",
+			components:     []string{"unhealthy"},
+			expectedStatus: ph.Status_UNHEALTHY,
+		},
+		{
+			name:           "BothComponents",
+			components:     []string{"healthy", "unhealthy"},
+			expectedStatus: ph.Status_UNHEALTHY,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			sat := &satellite.Satellite{
+				Name:       "test",
+				Host:       "localhost",
+				Port:       port,
+				Timeout:    time.Second,
+				Components: tt.components,
+			}
+			require.NoError(t, sat.Setup())
+
+			result := sat.GetHealth(context.Background())
+			assert.Equal(t, tt.expectedStatus, result.Status)
 		})
 	}
 }

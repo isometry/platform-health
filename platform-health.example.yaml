@@ -41,3 +41,11 @@ google:
 #       type: helm
 #       release: cilium
 #       namespace: kube-system
+
+# Label selector example (discovers resources dynamically)
+# app-pods:
+#   type: kubernetes
+#   resource:
+#     kind: pod
+#     namespace: default
+#     labelSelector: "app=myapp"
