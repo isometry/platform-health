@@ -123,3 +123,141 @@ func TestSatelliteGetHealth(t *testing.T) {
 		})
 	}
 }
+
+func TestSatelliteComponents(t *testing.T) {
+	resolver.SetDefaultScheme("passthrough")
+
+	// Start test server with two mock components
+	listener, err := net.Listen("tcp", "localhost:0")
+	require.NoError(t, err)
+	port := listener.Addr().(*net.TCPAddr).Port
+
+	serverId := "test"
+	config := &testConfig{
+		&mock.Mock{Name: "allowed", Health: ph.Status_HEALTHY},
+		&mock.Mock{Name: "other", Health: ph.Status_HEALTHY},
+	}
+	testServer, err := server.NewPlatformHealthServer(&serverId, config)
+	require.NoError(t, err)
+	go func() { _ = testServer.Serve(listener) }()
+	defer testServer.Stop()
+
+	tests := []struct {
+		name           string
+		components     []string              // configured allowlist
+		contextPaths   server.ComponentPaths // incoming request
+		expectedStatus ph.Status
+		expectMessage  string
+	}{
+		{
+			name:           "NoConfigNoContext",
+			components:     nil,
+			contextPaths:   nil,
+			expectedStatus: ph.Status_HEALTHY,
+		},
+		{
+			name:           "ConfiguredAsDefault",
+			components:     []string{"allowed"},
+			contextPaths:   nil,
+			expectedStatus: ph.Status_HEALTHY,
+		},
+		{
+			name:           "ValidContextComponent",
+			components:     []string{"allowed", "other"},
+			contextPaths:   server.ComponentPaths{{"allowed"}},
+			expectedStatus: ph.Status_HEALTHY,
+		},
+		{
+			name:           "InvalidContextComponent",
+			components:     []string{"allowed"},
+			contextPaths:   server.ComponentPaths{{"forbidden"}},
+			expectedStatus: ph.Status_UNHEALTHY,
+			expectMessage:  "not allowed",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			sat := &satellite.Satellite{
+				Name:       "test",
+				Host:       "localhost",
+				Port:       port,
+				Timeout:    time.Second,
+				Components: tt.components,
+			}
+			require.NoError(t, sat.Setup())
+
+			ctx := context.Background()
+			if tt.contextPaths != nil {
+				ctx = server.ContextWithComponentPaths(ctx, tt.contextPaths)
+			}
+
+			result := sat.GetHealth(ctx)
+			assert.Equal(t, tt.expectedStatus, result.Status)
+			if tt.expectMessage != "" {
+				assert.Contains(t, result.Message, tt.expectMessage)
+			}
+		})
+	}
+}
+
+func TestSatelliteComponentFiltering(t *testing.T) {
+	resolver.SetDefaultScheme("passthrough")
+
+	listener, err := net.Listen("tcp", "localhost:0")
+	require.NoError(t, err)
+	port := listener.Addr().(*net.TCPAddr).Port
+
+	serverId := "test"
+	config := &testConfig{
+		&mock.Mock{Name: "healthy", Health: ph.Status_HEALTHY},
+		&mock.Mock{Name: "unhealthy", Health: ph.Status_UNHEALTHY},
+	}
+	testServer, err := server.NewPlatformHealthServer(&serverId, config)
+	require.NoError(t, err)
+	go func() { _ = testServer.Serve(listener) }()
+	defer testServer.Stop()
+
+	tests := []struct {
+		name           string
+		components     []string
+		expectedStatus ph.Status
+	}{
+		{
+			name:           "AllComponents",
+			components:     nil,
+			expectedStatus: ph.Status_UNHEALTHY,
+		},
+		{
+			name:           "OnlyHealthy",
+			components:     []string{"healthy"},
+			expectedStatus: ph.Status_HEALTHY,
+		},
+		{
+			name:           "OnlyUnhealthy",
+			components:     []string{"unhealthy"},
+			expectedStatus: ph.Status_UNHEALTHY,
+		},
+		{
+			name:           "BothComponents",
+			components:     []string{"healthy", "unhealthy"},
+			expectedStatus: ph.Status_UNHEALTHY,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			sat := &satellite.Satellite{
+				Name:       "test",
+				Host:       "localhost",
+				Port:       port,
+				Timeout:    time.Second,
+				Components: tt.components,
+			}
+			require.NoError(t, sat.Setup())
+
+			result := sat.GetHealth(context.Background())
+			assert.Equal(t, tt.expectedStatus, result.Status)
+		})
+	}
+}

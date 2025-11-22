@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net"
+	"slices"
 	"strings"
 	"time"
 
@@ -23,12 +24,13 @@ import (
 const TypeSatellite = "satellite"
 
 type Satellite struct {
-	Name     string        `mapstructure:"-"`
-	Host     string        `mapstructure:"host"`
-	Port     int           `mapstructure:"port"`
-	TLS      bool          `mapstructure:"tls"`
-	Insecure bool          `mapstructure:"insecure"`
-	Timeout  time.Duration `mapstructure:"timeout" default:"30s"`
+	Name       string        `mapstructure:"-"`
+	Host       string        `mapstructure:"host"`
+	Port       int           `mapstructure:"port"`
+	TLS        bool          `mapstructure:"tls"`
+	Insecure   bool          `mapstructure:"insecure"`
+	Timeout    time.Duration `mapstructure:"timeout" default:"30s"`
+	Components []string      `mapstructure:"components"`
 }
 
 func init() {
@@ -41,6 +43,9 @@ func (i *Satellite) LogValue() slog.Value {
 		slog.String("host", i.Host),
 		slog.Int("port", i.Port),
 		slog.Any("timeout", i.Timeout),
+	}
+	if len(i.Components) > 0 {
+		logAttr = append(logAttr, slog.Int("components", len(i.Components)))
 	}
 	return slog.GroupValue(logAttr...)
 }
@@ -105,10 +110,26 @@ func (i *Satellite) GetHealth(ctx context.Context) *ph.HealthCheckResponse {
 		Hops: server.HopsFromContext(ctx),
 	}
 
-	// Forward any component filtering to the remote server
-	if componentPaths := server.ComponentPathsFromContext(ctx); len(componentPaths) > 0 {
-		// Convert path slices back to strings for the remote server
-		for _, path := range componentPaths {
+	// Handle component filtering
+	contextPaths := server.ComponentPathsFromContext(ctx)
+
+	if len(i.Components) > 0 {
+		if len(contextPaths) > 0 {
+			// Validate context components against configured components
+			for _, path := range contextPaths {
+				c := strings.Join(path, "/")
+				if !slices.Contains(i.Components, c) {
+					return component.Unhealthy(fmt.Sprintf("component %q not allowed", c))
+				}
+				request.Components = append(request.Components, c)
+			}
+		} else {
+			// No context - use configured as default
+			request.Components = i.Components
+		}
+	} else if len(contextPaths) > 0 {
+		// No static component filtering - forward context as-is
+		for _, path := range contextPaths {
 			request.Components = append(request.Components, strings.Join(path, "/"))
 		}
 	}
