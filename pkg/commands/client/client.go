@@ -6,9 +6,9 @@ import (
 	"fmt"
 	"log/slog"
 	"net"
-	"time"
 
 	"github.com/spf13/cobra"
+	"github.com/spf13/viper"
 	slogctx "github.com/veqryn/slog-context"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
@@ -19,18 +19,7 @@ import (
 	_ "github.com/isometry/platform-health/pkg/platform_health/details"
 )
 
-var (
-	targetHost         string
-	targetPort         int
-	tlsClient          bool
-	insecureSkipVerify bool
-	clientTimeout      time.Duration
-	components         []string
-	flatOutput         bool
-	quietLevel         int
-
-	log *slog.Logger
-)
+var log *slog.Logger
 
 func New() *cobra.Command {
 	cmd := &cobra.Command{
@@ -47,38 +36,43 @@ func New() *cobra.Command {
 	return cmd
 }
 
-func setup(_ *cobra.Command, args []string) (err error) {
+func setup(cmd *cobra.Command, args []string) (err error) {
+	flags.BindFlags(cmd, "client")
+
 	log = slog.Default()
 
+	// Override with positional argument if provided
 	if len(args) == 1 {
-		targetHost, targetPort, err = flags.ParseHostPort(args[0])
+		host, port, err := flags.ParseHostPort(args[0])
 		if err != nil {
 			return err
 		}
+		viper.Set("client.server", host)
+		viper.Set("client.port", port)
 	}
 
 	return nil
 }
 
 func query(cmd *cobra.Command, _ []string) (err error) {
+	targetHost := viper.GetString("client.server")
+	targetPort := viper.GetInt("client.port")
 	address := net.JoinHostPort(targetHost, fmt.Sprint(targetPort))
 
-	ctx, cancel := context.WithTimeout(context.Background(), clientTimeout)
+	ctx, cancel := context.WithTimeout(context.Background(), viper.GetDuration("client.timeout"))
 	defer cancel()
 
 	ctx = slogctx.NewCtx(ctx, log)
 	cmd.SetContext(ctx)
 
-	if targetPort == 443 || targetPort == 8443 {
-		tlsClient = true
-	}
+	tlsEnabled := viper.GetBool("client.tls") || targetPort == 443 || targetPort == 8443
 
 	dialOptions := []grpc.DialOption{}
-	if tlsClient {
+	if tlsEnabled {
 		tlsConf := &tls.Config{
 			ServerName: targetHost,
 		}
-		if insecureSkipVerify {
+		if viper.GetBool("client.insecure") {
 			tlsConf.InsecureSkipVerify = true
 		}
 		dialOptions = append(dialOptions, grpc.WithTransportCredentials(credentials.NewTLS(tlsConf)))
@@ -95,12 +89,16 @@ func query(cmd *cobra.Command, _ []string) (err error) {
 	health := ph.NewHealthClient(conn)
 
 	status, err := health.Check(ctx, &ph.HealthCheckRequest{
-		Components: components,
+		Components: viper.GetStringSlice("client.component"),
 	})
 	if err != nil {
 		log.Info("failed to check", slog.Any("error", err))
 		return err
 	}
 
-	return flags.FormatAndPrintStatus(status, flatOutput, quietLevel)
+	return flags.FormatAndPrintStatus(status, flags.OutputConfig{
+		Flat:       viper.GetBool("client.flat"),
+		Quiet:      viper.GetInt("client.quiet"),
+		Components: viper.GetStringSlice("client.component"),
+	})
 }

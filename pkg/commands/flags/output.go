@@ -4,25 +4,36 @@ import (
 	"fmt"
 	"net"
 	"strconv"
+	"strings"
 
 	"google.golang.org/protobuf/encoding/protojson"
 
 	ph "github.com/isometry/platform-health/pkg/platform_health"
 )
 
+// OutputConfig holds configuration for formatting health check output
+type OutputConfig struct {
+	Flat       bool
+	Quiet      int
+	Components []string // requested components for filtering flat output
+}
+
 // FormatAndPrintStatus handles common output formatting for health check responses
-func FormatAndPrintStatus(status *ph.HealthCheckResponse, flat bool, quiet int) error {
+func FormatAndPrintStatus(status *ph.HealthCheckResponse, cfg OutputConfig) error {
 	switch {
-	case quiet > 2:
+	case cfg.Quiet > 2:
 		return status.IsHealthy()
-	case quiet > 1:
+	case cfg.Quiet > 1:
 		status.Components = nil
-	case quiet > 0:
+	case cfg.Quiet > 0:
 		status.Components = filterUnhealthy(status.Components)
 	}
 
-	if flat {
+	if cfg.Flat {
 		status.Components = status.Flatten(status.Name)
+		if len(cfg.Components) > 0 {
+			status.Components = filterToRequested(status.Components, cfg.Components)
+		}
 	}
 
 	pjson, err := protojson.Marshal(status)
@@ -33,6 +44,32 @@ func FormatAndPrintStatus(status *ph.HealthCheckResponse, flat bool, quiet int) 
 	fmt.Println(string(pjson))
 
 	return status.IsHealthy()
+}
+
+// filterToRequested filters flattened components to only show explicitly requested ones
+func filterToRequested(components []*ph.HealthCheckResponse, requested []string) []*ph.HealthCheckResponse {
+	var filtered []*ph.HealthCheckResponse
+	for _, c := range components {
+		if isRequestedComponent(c.Name, requested) {
+			filtered = append(filtered, c)
+		}
+	}
+	return filtered
+}
+
+// isRequestedComponent checks if a component name matches any requested path
+func isRequestedComponent(name string, requested []string) bool {
+	for _, req := range requested {
+		// Exact match
+		if name == req {
+			return true
+		}
+		// Component is a child of requested (e.g., "foo/bar" matches request for "foo")
+		if strings.HasPrefix(name, req+"/") {
+			return true
+		}
+	}
+	return false
 }
 
 // ParseHostPort parses a host:port string into separate host and port values

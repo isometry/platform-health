@@ -4,6 +4,7 @@ import (
 	"log/slog"
 
 	"github.com/spf13/cobra"
+	"github.com/spf13/viper"
 	slogctx "github.com/veqryn/slog-context"
 
 	"github.com/isometry/platform-health/pkg/commands/flags"
@@ -14,12 +15,6 @@ import (
 )
 
 var (
-	configPaths []string
-	configName  string
-	components  []string
-	flatOutput  bool
-	quietLevel  int
-
 	log  *slog.Logger
 	conf provider.Config
 )
@@ -40,13 +35,16 @@ func New() *cobra.Command {
 }
 
 func setup(cmd *cobra.Command, _ []string) (err error) {
-	log = slog.Default()
+	flags.BindFlags(cmd, "check")
 
+	log = slog.Default()
 	cmd.SetContext(slogctx.NewCtx(cmd.Context(), log))
 
 	log.Info("providers registered", slog.Any("providers", provider.ProviderList()))
 
-	conf, err = config.Load(cmd.Context(), configPaths, configName)
+	conf, err = config.Load(cmd.Context(),
+		viper.GetStringSlice("check.config-path"),
+		viper.GetString("check.config-name"))
 	return err
 }
 
@@ -61,12 +59,16 @@ func run(cmd *cobra.Command, _ []string) error {
 	}
 
 	status, err := srv.Check(cmd.Context(), &ph.HealthCheckRequest{
-		Components: components,
+		Components: viper.GetStringSlice("check.component"),
 	})
 	if err != nil {
 		slog.Info("failed to check", slog.Any("error", err))
 		return err
 	}
 
-	return flags.FormatAndPrintStatus(status, flatOutput, quietLevel)
+	return flags.FormatAndPrintStatus(status, flags.OutputConfig{
+		Flat:       viper.GetBool("check.flat"),
+		Quiet:      viper.GetInt("check.quiet"),
+		Components: viper.GetStringSlice("check.component"),
+	})
 }

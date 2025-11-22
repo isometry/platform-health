@@ -43,9 +43,6 @@ func (s *HealthCheckResponse) Flatten(parent string) (components []*HealthCheckR
 
 	pathName := s.Name
 	if s.Type != "" {
-		if s.Type != "satellite" {
-			pathName = fmt.Sprintf("%s/%s", s.Type, pathName)
-		}
 		if parent != "" {
 			pathName = fmt.Sprintf("%s/%s", strings.TrimSuffix(parent, "/"), pathName)
 		}

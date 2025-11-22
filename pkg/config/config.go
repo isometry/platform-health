@@ -2,7 +2,6 @@ package config
 
 import (
 	"context"
-	"fmt"
 	"log/slog"
 
 	"github.com/fsnotify/fsnotify"
@@ -20,14 +19,6 @@ type abstractConfig map[string]any
 // concreteConfig holds resolved provider instances
 // Structure: map[providerType][]provider.Instance
 type concreteConfig map[string][]provider.Instance
-
-type flagPrefix string
-
-func (f flagPrefix) ViperKey(flag string) string {
-	return fmt.Sprintf("%s.%s", f, flag)
-}
-
-var FlagPrefix = flagPrefix("server")
 
 var log *slog.Logger
 

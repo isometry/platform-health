@@ -7,6 +7,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/spf13/cobra"
+	"github.com/spf13/viper"
 	slogctx "github.com/veqryn/slog-context"
 
 	"github.com/isometry/platform-health/pkg/commands/flags"
@@ -16,13 +17,6 @@ import (
 )
 
 var (
-	listenHost     string
-	listenPort     int
-	configPaths    []string
-	configName     string
-	noGrpcHealthV1 bool
-	grpcReflection bool
-
 	log  *slog.Logger
 	conf provider.Config
 )
@@ -43,25 +37,33 @@ func New() *cobra.Command {
 }
 
 func setup(cmd *cobra.Command, args []string) (err error) {
-	log = slog.Default()
+	flags.BindFlags(cmd, "server")
 
+	log = slog.Default()
 	cmd.SetContext(slogctx.NewCtx(cmd.Context(), log))
 
 	log.Info("providers registered", slog.Any("providers", provider.ProviderList()))
 
+	// Override with positional argument if provided
 	if len(args) == 1 {
-		listenHost, listenPort, err = flags.ParseHostPort(args[0])
+		host, port, err := flags.ParseHostPort(args[0])
 		if err != nil {
 			return err
 		}
+		viper.Set("server.listen", host)
+		viper.Set("server.port", port)
 	}
 
-	conf, err = config.Load(cmd.Context(), configPaths, configName)
+	conf, err = config.Load(cmd.Context(),
+		viper.GetStringSlice("server.config-path"),
+		viper.GetString("server.config-name"))
 	return err
 }
 
 func serve(_ *cobra.Command, _ []string) (err error) {
-	address := net.JoinHostPort(listenHost, fmt.Sprint(listenPort))
+	address := net.JoinHostPort(
+		viper.GetString("server.listen"),
+		fmt.Sprint(viper.GetInt("server.port")))
 	listener, err := net.Listen("tcp", address)
 	if err != nil {
 		log.Error("failed to open listener", slog.Any("error", err))
@@ -73,10 +75,10 @@ func serve(_ *cobra.Command, _ []string) (err error) {
 	serverId := uuid.New().String()
 
 	opts := []server.Option{}
-	if !noGrpcHealthV1 {
+	if !viper.GetBool("server.no-grpc-health-v1") {
 		opts = append(opts, server.WithHealthService())
 	}
-	if grpcReflection {
+	if viper.GetBool("server.grpc-reflection") {
 		opts = append(opts, server.WithReflection())
 	}
 
