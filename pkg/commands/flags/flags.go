@@ -123,7 +123,7 @@ func OutputFlags(flat *bool, quiet *int) FlagValues {
 			Kind:         "count",
 			Variable:     quiet,
 			DefaultValue: 0,
-			Usage:        "quiet output",
+			Usage:        "quiet output (-q: hide healthy, -qq: summary only, -qqq: exit code only)",
 		},
 	}
 }
