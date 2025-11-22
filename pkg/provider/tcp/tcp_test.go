@@ -24,9 +24,11 @@ func TestTCP(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to set up test server: %v", err)
 	}
-	defer func() { _ = listener.Close() }()
-
 	port := listener.Addr().(*net.TCPAddr).Port
+
+	t.Cleanup(func() {
+		_ = listener.Close()
+	})
 
 	tests := []struct {
 		name     string

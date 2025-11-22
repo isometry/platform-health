@@ -83,8 +83,11 @@ func TestLocalHTTP(t *testing.T) {
 							return
 						}
 					}))
-			defer server.CloseClientConnections()
-			defer server.Close()
+
+			t.Cleanup(func() {
+				server.CloseClientConnections()
+				server.Close()
+			})
 
 			instance := &httpProvider.HTTP{
 				Name:    "TestService",

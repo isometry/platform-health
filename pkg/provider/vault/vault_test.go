@@ -71,8 +71,11 @@ func TestVaultGetHealth(t *testing.T) {
 							return
 						}
 					}))
-			defer server.CloseClientConnections()
-			defer server.Close()
+
+			t.Cleanup(func() {
+				server.CloseClientConnections()
+				server.Close()
+			})
 
 			instance := &vaultProvider.Vault{
 				Name:    "TestService",

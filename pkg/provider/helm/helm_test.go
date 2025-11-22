@@ -19,7 +19,8 @@ import (
 )
 
 // setupMockFactory sets up a mock factory with the given release and error
-func setupMockFactory(rel *release.Release, err error) func() {
+func setupMockFactory(t *testing.T, rel *release.Release, err error) {
+	t.Helper()
 	client.ClientFactory = &client.MockHelmFactory{
 		Runner: &client.MockStatusRunner{
 			Release: rel,
@@ -27,9 +28,9 @@ func setupMockFactory(rel *release.Release, err error) func() {
 		},
 	}
 
-	return func() {
+	t.Cleanup(func() {
 		client.ClientFactory = &client.DefaultHelmFactory{}
-	}
+	})
 }
 
 // testRelease creates a test release with the given status
@@ -90,8 +91,7 @@ func TestHelm_StatusVariants(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			cleanup := setupMockFactory(testRelease("my-release", tt.status), nil)
-			defer cleanup()
+			setupMockFactory(t, testRelease("my-release", tt.status), nil)
 
 			provider := &helm.Helm{
 				Name:      "test-helm",
@@ -111,8 +111,7 @@ func TestHelm_StatusVariants(t *testing.T) {
 }
 
 func TestHelm_ReleaseNotFound(t *testing.T) {
-	cleanup := setupMockFactory(nil, errors.New("release: not found"))
-	defer cleanup()
+	setupMockFactory(t, nil, errors.New("release: not found"))
 
 	provider := &helm.Helm{
 		Name:      "test-helm",
@@ -131,9 +130,9 @@ func TestHelm_FactoryError(t *testing.T) {
 		Runner: nil,
 		Err:    errors.New("failed to initialize helm"),
 	}
-	defer func() {
+	t.Cleanup(func() {
 		client.ClientFactory = &client.DefaultHelmFactory{}
-	}()
+	})
 
 	provider := &helm.Helm{
 		Name:      "test-helm",
@@ -155,9 +154,9 @@ func TestHelm_Timeout(t *testing.T) {
 	client.ClientFactory = &client.MockHelmFactory{
 		Runner: slowRunner,
 	}
-	defer func() {
+	t.Cleanup(func() {
 		client.ClientFactory = &client.DefaultHelmFactory{}
-	}()
+	})
 
 	provider := &helm.Helm{
 		Name:      "test-helm",
@@ -198,8 +197,7 @@ func TestGetSetName(t *testing.T) {
 func TestCEL_VersionCheck(t *testing.T) {
 	rel := testRelease("my-release", common.StatusDeployed)
 	rel.Version = 3
-	cleanup := setupMockFactory(rel, nil)
-	defer cleanup()
+	setupMockFactory(t, rel, nil)
 
 	provider := &helm.Helm{
 		Name:      "test-helm",
@@ -218,8 +216,7 @@ func TestCEL_VersionCheck(t *testing.T) {
 func TestCEL_VersionCheckFails(t *testing.T) {
 	rel := testRelease("my-release", common.StatusDeployed)
 	rel.Version = 1
-	cleanup := setupMockFactory(rel, nil)
-	defer cleanup()
+	setupMockFactory(t, rel, nil)
 
 	provider := &helm.Helm{
 		Name:      "test-helm",
@@ -237,8 +234,7 @@ func TestCEL_VersionCheckFails(t *testing.T) {
 }
 
 func TestCEL_ChartVersion(t *testing.T) {
-	cleanup := setupMockFactory(testRelease("my-release", common.StatusDeployed), nil)
-	defer cleanup()
+	setupMockFactory(t, testRelease("my-release", common.StatusDeployed), nil)
 
 	provider := &helm.Helm{
 		Name:      "test-helm",
@@ -255,8 +251,7 @@ func TestCEL_ChartVersion(t *testing.T) {
 }
 
 func TestCEL_ConfigValidation(t *testing.T) {
-	cleanup := setupMockFactory(testRelease("my-release", common.StatusDeployed), nil)
-	defer cleanup()
+	setupMockFactory(t, testRelease("my-release", common.StatusDeployed), nil)
 
 	provider := &helm.Helm{
 		Name:      "test-helm",
@@ -275,8 +270,7 @@ func TestCEL_ConfigValidation(t *testing.T) {
 func TestCEL_ConfigValidationFails(t *testing.T) {
 	rel := testRelease("my-release", common.StatusDeployed)
 	rel.Config["replicas"] = 1
-	cleanup := setupMockFactory(rel, nil)
-	defer cleanup()
+	setupMockFactory(t, rel, nil)
 
 	provider := &helm.Helm{
 		Name:      "test-helm",
@@ -294,8 +288,7 @@ func TestCEL_ConfigValidationFails(t *testing.T) {
 }
 
 func TestCEL_NotDeprecated(t *testing.T) {
-	cleanup := setupMockFactory(testRelease("my-release", common.StatusDeployed), nil)
-	defer cleanup()
+	setupMockFactory(t, testRelease("my-release", common.StatusDeployed), nil)
 
 	provider := &helm.Helm{
 		Name:      "test-helm",
@@ -312,8 +305,7 @@ func TestCEL_NotDeprecated(t *testing.T) {
 }
 
 func TestCEL_LabelCheck(t *testing.T) {
-	cleanup := setupMockFactory(testRelease("my-release", common.StatusDeployed), nil)
-	defer cleanup()
+	setupMockFactory(t, testRelease("my-release", common.StatusDeployed), nil)
 
 	provider := &helm.Helm{
 		Name:      "test-helm",
@@ -330,8 +322,7 @@ func TestCEL_LabelCheck(t *testing.T) {
 }
 
 func TestCEL_ChartValues(t *testing.T) {
-	cleanup := setupMockFactory(testRelease("my-release", common.StatusDeployed), nil)
-	defer cleanup()
+	setupMockFactory(t, testRelease("my-release", common.StatusDeployed), nil)
 
 	// Test that Values contains chart defaults (not merged with Config)
 	// Config has overrides, Values has chart defaults

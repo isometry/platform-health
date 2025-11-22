@@ -101,7 +101,8 @@ func testDeployment(name, namespace string, ready bool) *unstructured.Unstructur
 }
 
 // setupMockFactory sets up a mock factory with the given resources
-func setupMockFactory(t *testing.T, objects ...runtime.Object) func() {
+func setupMockFactory(t *testing.T, objects ...runtime.Object) {
+	t.Helper()
 	scheme := runtime.NewScheme()
 
 	// Register list kinds for the fake client
@@ -120,14 +121,13 @@ func setupMockFactory(t *testing.T, objects ...runtime.Object) func() {
 		},
 	}
 
-	return func() {
+	t.Cleanup(func() {
 		client.ClientFactory = &client.DefaultFactory{}
-	}
+	})
 }
 
 func TestCheckByName_Healthy(t *testing.T) {
-	cleanup := setupMockFactory(t, testDeployment("my-app", "default", true))
-	defer cleanup()
+	setupMockFactory(t, testDeployment("my-app", "default", true))
 
 	provider := &kubernetes.Kubernetes{
 		Name: "test-provider",
@@ -145,8 +145,7 @@ func TestCheckByName_Healthy(t *testing.T) {
 }
 
 func TestCheckByName_NotFound(t *testing.T) {
-	cleanup := setupMockFactory(t)
-	defer cleanup()
+	setupMockFactory(t)
 
 	provider := &kubernetes.Kubernetes{
 		Resource: kubernetes.Resource{
@@ -162,12 +161,11 @@ func TestCheckByName_NotFound(t *testing.T) {
 }
 
 func TestCheckBySelector_MultipleResources(t *testing.T) {
-	cleanup := setupMockFactory(t,
+	setupMockFactory(t,
 		testDeployment("app-1", "default", true),
 		testDeployment("app-2", "default", true),
 		testDeployment("app-3", "default", true),
 	)
-	defer cleanup()
 
 	// Empty selector = all resources (fake client returns all objects anyway)
 	provider := &kubernetes.Kubernetes{
@@ -185,8 +183,7 @@ func TestCheckBySelector_MultipleResources(t *testing.T) {
 }
 
 func TestCheckBySelector_EmptyResult(t *testing.T) {
-	cleanup := setupMockFactory(t)
-	defer cleanup()
+	setupMockFactory(t)
 
 	// Empty result is HEALTHY by default (use CEL checks to require resources)
 	provider := &kubernetes.Kubernetes{
@@ -204,8 +201,7 @@ func TestCheckBySelector_EmptyResult(t *testing.T) {
 }
 
 func TestCheckBySelector_RequireAtLeastOne(t *testing.T) {
-	cleanup := setupMockFactory(t)
-	defer cleanup()
+	setupMockFactory(t)
 
 	// Use CEL check to require at least one resource
 	provider := &kubernetes.Kubernetes{
@@ -226,11 +222,10 @@ func TestCheckBySelector_RequireAtLeastOne(t *testing.T) {
 }
 
 func TestCheckBySelector_EmptySelector(t *testing.T) {
-	cleanup := setupMockFactory(t,
+	setupMockFactory(t,
 		testDeployment("app-1", "default", true),
 		testDeployment("app-2", "default", true),
 	)
-	defer cleanup()
 
 	// Empty selector = all resources
 	provider := &kubernetes.Kubernetes{
@@ -247,8 +242,7 @@ func TestCheckBySelector_EmptySelector(t *testing.T) {
 }
 
 func TestCELChecks_SingleResource(t *testing.T) {
-	cleanup := setupMockFactory(t, testDeployment("my-app", "default", true))
-	defer cleanup()
+	setupMockFactory(t, testDeployment("my-app", "default", true))
 
 	provider := &kubernetes.Kubernetes{
 		Resource: kubernetes.Resource{
@@ -267,12 +261,11 @@ func TestCELChecks_SingleResource(t *testing.T) {
 }
 
 func TestCELChecks_ItemsList(t *testing.T) {
-	cleanup := setupMockFactory(t,
+	setupMockFactory(t,
 		testDeployment("app-1", "default", true),
 		testDeployment("app-2", "default", true),
 		testDeployment("app-3", "default", true),
 	)
-	defer cleanup()
 
 	provider := &kubernetes.Kubernetes{
 		Resource: kubernetes.Resource{
@@ -290,10 +283,9 @@ func TestCELChecks_ItemsList(t *testing.T) {
 }
 
 func TestCELChecks_ItemsListFails(t *testing.T) {
-	cleanup := setupMockFactory(t,
+	setupMockFactory(t,
 		testDeployment("app-1", "default", true),
 	)
-	defer cleanup()
 
 	provider := &kubernetes.Kubernetes{
 		Resource: kubernetes.Resource{

@@ -28,27 +28,35 @@ func (c *testConfig) GetInstances() []provider.Instance {
 	return *c
 }
 
+// setupTestServer creates a test gRPC server and returns the port.
+// The server is automatically stopped when the test completes.
+func setupTestServer(t *testing.T, serverId string, config *testConfig) int {
+	t.Helper()
+
+	listener, err := net.Listen("tcp", "localhost:0")
+	require.NoError(t, err)
+
+	port := listener.Addr().(*net.TCPAddr).Port
+
+	testServer, err := server.NewPlatformHealthServer(&serverId, config)
+	require.NoError(t, err)
+
+	go func() { _ = testServer.Serve(listener) }()
+
+	t.Cleanup(func() {
+		testServer.Stop()
+	})
+
+	return port
+}
+
 func TestSatelliteGetHealth(t *testing.T) {
 	// workaround for grpc resolver with Zscaler
 	resolver.SetDefaultScheme("passthrough")
 
-	// Start listener for the main server
-	listener, err := net.Listen("tcp", "localhost:0")
-	if err != nil {
-		t.Fatalf("Failed to set up test listener: %v", err)
-	}
-
-	port := listener.Addr().(*net.TCPAddr).Port
-
 	serverId := "root"
 	config := &testConfig{}
-	testServer, err := server.NewPlatformHealthServer(&serverId, config)
-	if err != nil {
-		t.Fatalf("Failed to set up test server: %v", err)
-	}
-
-	go func() { _ = testServer.Serve(listener) }()
-	defer testServer.Stop()
+	port := setupTestServer(t, serverId, config)
 
 	tests := []struct {
 		name     string
@@ -67,10 +75,7 @@ func TestSatelliteGetHealth(t *testing.T) {
 			name: "HealthyComponent",
 			port: port,
 			config: []provider.Instance{
-				&mock.Mock{
-					Name:   "Test",
-					Health: ph.Status_HEALTHY,
-				},
+				mock.Healthy("Test"),
 			},
 			expected: ph.Status_HEALTHY,
 		},
@@ -78,10 +83,7 @@ func TestSatelliteGetHealth(t *testing.T) {
 			name: "UnhealthyComponent",
 			port: port,
 			config: []provider.Instance{
-				&mock.Mock{
-					Name:   "Test",
-					Health: ph.Status_UNHEALTHY,
-				},
+				mock.Unhealthy("Test"),
 			},
 			expected: ph.Status_UNHEALTHY,
 		},
@@ -127,20 +129,12 @@ func TestSatelliteGetHealth(t *testing.T) {
 func TestSatelliteComponents(t *testing.T) {
 	resolver.SetDefaultScheme("passthrough")
 
-	// Start test server with two mock components
-	listener, err := net.Listen("tcp", "localhost:0")
-	require.NoError(t, err)
-	port := listener.Addr().(*net.TCPAddr).Port
-
 	serverId := "test"
 	config := &testConfig{
-		&mock.Mock{Name: "allowed", Health: ph.Status_HEALTHY},
-		&mock.Mock{Name: "other", Health: ph.Status_HEALTHY},
+		mock.Healthy("allowed"),
+		mock.Healthy("other"),
 	}
-	testServer, err := server.NewPlatformHealthServer(&serverId, config)
-	require.NoError(t, err)
-	go func() { _ = testServer.Serve(listener) }()
-	defer testServer.Stop()
+	port := setupTestServer(t, serverId, config)
 
 	tests := []struct {
 		name           string
@@ -204,19 +198,12 @@ func TestSatelliteComponents(t *testing.T) {
 func TestSatelliteComponentFiltering(t *testing.T) {
 	resolver.SetDefaultScheme("passthrough")
 
-	listener, err := net.Listen("tcp", "localhost:0")
-	require.NoError(t, err)
-	port := listener.Addr().(*net.TCPAddr).Port
-
 	serverId := "test"
 	config := &testConfig{
-		&mock.Mock{Name: "healthy", Health: ph.Status_HEALTHY},
-		&mock.Mock{Name: "unhealthy", Health: ph.Status_UNHEALTHY},
+		mock.Healthy("healthy"),
+		mock.Unhealthy("unhealthy"),
 	}
-	testServer, err := server.NewPlatformHealthServer(&serverId, config)
-	require.NoError(t, err)
-	go func() { _ = testServer.Serve(listener) }()
-	defer testServer.Stop()
+	port := setupTestServer(t, serverId, config)
 
 	tests := []struct {
 		name           string
