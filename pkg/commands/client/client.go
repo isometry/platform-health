@@ -6,9 +6,6 @@ import (
 	"fmt"
 	"log/slog"
 	"net"
-	"os"
-	"path/filepath"
-	"strconv"
 	"time"
 
 	"github.com/spf13/cobra"
@@ -16,8 +13,8 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/credentials/insecure"
-	"google.golang.org/protobuf/encoding/protojson"
 
+	"github.com/isometry/platform-health/pkg/commands/flags"
 	ph "github.com/isometry/platform-health/pkg/platform_health"
 	_ "github.com/isometry/platform-health/pkg/platform_health/details"
 )
@@ -28,49 +25,33 @@ var (
 	tlsClient          bool
 	insecureSkipVerify bool
 	clientTimeout      time.Duration
+	components         []string
 	flatOutput         bool
 	quietLevel         int
-	components         []string
 
 	log *slog.Logger
 )
 
 func New() *cobra.Command {
 	cmd := &cobra.Command{
-		Args:          cobra.MaximumNArgs(1),
-		Use:           fmt.Sprintf("%s [flags] [host:port]", filepath.Base(os.Args[0])),
-		PreRunE:       setup,
-		RunE:          query,
-		SilenceErrors: true,
-		SilenceUsage:  true,
+		Use:     "client [host:port]",
+		Short:   "Query health check server",
+		Long:    "Connect to a Platform Health gRPC server and query its health status.",
+		Args:    cobra.MaximumNArgs(1),
+		PreRunE: setup,
+		RunE:    query,
 	}
 
-	flagSet := cmd.Flags()
-	flagSet.StringVarP(&targetHost, "server", "s", "localhost", "server host")
-	flagSet.IntVarP(&targetPort, "port", "p", 8080, "server port")
-	flagSet.BoolVar(&tlsClient, "tls", false, "enable tls")
-	flagSet.BoolVarP(&insecureSkipVerify, "insecure", "k", false, "disable certificate verification")
-	flagSet.DurationVarP(&clientTimeout, "timeout", "t", 10*time.Second, "timeout")
-	flagSet.StringSliceVarP(&components, "component", "c", nil, "component(s) to check")
-	flagSet.BoolVarP(&flatOutput, "flat", "f", false, "flat output")
-	flagSet.CountVarP(&quietLevel, "quiet", "q", "quiet output")
-	flagSet.SortFlags = false
+	clientFlags.Register(cmd.Flags(), false)
 
 	return cmd
 }
 
-func setup(cmd *cobra.Command, args []string) (err error) {
-	handler := slog.NewTextHandler(os.Stderr, nil)
-	slog.SetDefault(slog.New(handler))
+func setup(_ *cobra.Command, args []string) (err error) {
 	log = slog.Default()
 
 	if len(args) == 1 {
-		var targetPortStr string
-		targetHost, targetPortStr, err = net.SplitHostPort(args[0])
-		if err != nil {
-			return err
-		}
-		targetPort, err = strconv.Atoi(targetPortStr)
+		targetHost, targetPort, err = flags.ParseHostPort(args[0])
 		if err != nil {
 			return err
 		}
@@ -121,23 +102,5 @@ func query(cmd *cobra.Command, _ []string) (err error) {
 		return err
 	}
 
-	switch {
-	case quietLevel > 1:
-		return status.IsHealthy()
-	case quietLevel > 0:
-		status.Components = nil
-	}
-
-	if flatOutput {
-		status.Components = status.Flatten(status.Name)
-	}
-
-	pjson, err := protojson.Marshal(status)
-	if err != nil {
-		return err
-	}
-
-	fmt.Println(string(pjson))
-
-	return status.IsHealthy()
+	return flags.FormatAndPrintStatus(status, flatOutput, quietLevel)
 }
