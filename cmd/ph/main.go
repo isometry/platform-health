@@ -29,9 +29,6 @@ var (
 )
 
 func main() {
-	// Inject "server" subcommand for backward compatibility
-	os.Args = append([]string{os.Args[0], "server"}, os.Args[1:]...)
-
 	cmd := root.New()
 	cmd.Version = fmt.Sprintf("%s-%s (built %s)", version, commit, date)
 	err := cmd.Execute()
