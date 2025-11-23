@@ -2,13 +2,14 @@ package vault
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"time"
 
 	vault "github.com/hashicorp/vault/api"
 	"github.com/mcuadros/go-defaults"
-	"github.com/spf13/viper"
+	"github.com/spf13/pflag"
 
 	"github.com/isometry/platform-health/pkg/commands/flags"
 	ph "github.com/isometry/platform-health/pkg/platform_health"
@@ -52,11 +53,24 @@ func (i *Vault) GetProviderFlags() flags.FlagValues {
 	}
 }
 
-// ConfigureFromFlags applies Viper values to the provider.
-func (i *Vault) ConfigureFromFlags(v *viper.Viper) error {
-	i.Address = v.GetString(TypeVault + ".address")
-	i.Timeout = v.GetDuration(TypeVault + ".timeout")
-	i.Insecure = v.GetBool(TypeVault + ".insecure")
+// ConfigureFromFlags applies flag values to the provider.
+func (i *Vault) ConfigureFromFlags(fs *pflag.FlagSet) error {
+	var errs []error
+	var err error
+
+	if i.Address, err = fs.GetString("address"); err != nil {
+		errs = append(errs, err)
+	}
+	if i.Timeout, err = fs.GetDuration("timeout"); err != nil {
+		errs = append(errs, err)
+	}
+	if i.Insecure, err = fs.GetBool("insecure"); err != nil {
+		errs = append(errs, err)
+	}
+
+	if len(errs) > 0 {
+		return fmt.Errorf("flag errors: %w", errors.Join(errs...))
+	}
 
 	if i.Address == "" {
 		return fmt.Errorf("address is required")

@@ -13,6 +13,7 @@ import (
 	"go.yaml.in/yaml/v3"
 
 	"github.com/isometry/platform-health/pkg/commands/flags"
+	"github.com/isometry/platform-health/pkg/commands/shared"
 	"github.com/isometry/platform-health/pkg/config"
 	"github.com/isometry/platform-health/pkg/provider"
 	"github.com/isometry/platform-health/pkg/provider/system"
@@ -45,46 +46,14 @@ Use a provider subcommand for ad-hoc context inspection.`,
 	contextFlags.Register(cmd.PersistentFlags(), false)
 
 	// Add dynamic provider subcommands
-	addProviderSubcommands(cmd)
-
-	return cmd
-}
-
-// addProviderSubcommands creates a subcommand for each CEL-capable and flag-configurable provider.
-func addProviderSubcommands(parent *cobra.Command) {
-	for _, providerType := range provider.ProviderList() {
-		instance := provider.NewInstance(providerType)
-		if instance == nil {
-			continue
-		}
-
-		// Only add subcommand if provider is both CEL-capable and flag-configurable
-		celCapable := provider.AsCELCapable(instance)
-		flagConfigurable := provider.AsFlagConfigurable(instance)
-		if celCapable == nil || flagConfigurable == nil {
-			continue
-		}
-
-		// Create subcommand
-		providerCmd := createProviderSubcommand(providerType, flagConfigurable)
-		parent.AddCommand(providerCmd)
-	}
-}
-
-// createProviderSubcommand creates a subcommand for a specific provider type.
-func createProviderSubcommand(providerType string, flagConfigurable provider.FlagConfigurable) *cobra.Command {
-	cmd := &cobra.Command{
-		Use:   providerType,
-		Short: fmt.Sprintf("Get CEL context for %s provider", providerType),
-		Long:  fmt.Sprintf("Create an ad-hoc %s provider instance and display its CEL evaluation context.", providerType),
-		RunE: func(cmd *cobra.Command, args []string) error {
-			return runProviderContext(cmd, providerType)
+	shared.AddProviderSubcommands(cmd, shared.ProviderSubcommandOptions{
+		RequireCEL: true,
+		SetupFlags: func(cmd *cobra.Command, _ provider.CELCapable) {
+			cmd.Short = fmt.Sprintf("Get CEL context for %s provider", cmd.Use)
+			cmd.Long = fmt.Sprintf("Create an ad-hoc %s provider instance and display its CEL evaluation context.", cmd.Use)
 		},
-	}
-
-	// Register provider-specific flags
-	providerFlags := flagConfigurable.GetProviderFlags()
-	providerFlags.Register(cmd.Flags(), true)
+		RunFunc: runProviderContext,
+	})
 
 	return cmd
 }
@@ -166,34 +135,19 @@ func resolveInstancePath(instances []provider.Instance, path string) (provider.I
 
 // runProviderContext creates an ad-hoc provider instance and displays its context.
 func runProviderContext(cmd *cobra.Command, providerType string) error {
-	// Create new provider instance
-	instance := provider.NewInstance(providerType)
-	if instance == nil {
-		return fmt.Errorf("provider type %q not registered", providerType)
+	// Create and configure provider from flags
+	instance, celCapable, err := shared.CreateAndConfigureProvider(cmd, providerType)
+	if err != nil {
+		return err
 	}
 
-	// Configure from flags
-	flagConfigurable := provider.AsFlagConfigurable(instance)
-	if flagConfigurable == nil {
-		return fmt.Errorf("provider type %q is not flag-configurable", providerType)
-	}
-
-	// Bind provider-specific flags with namespace
-	flags.BindProviderFlags(cmd, providerType)
-
-	if err := flagConfigurable.ConfigureFromFlags(viper.GetViper()); err != nil {
-		return fmt.Errorf("failed to configure provider from flags: %w", err)
+	if celCapable == nil {
+		return fmt.Errorf("provider type %q does not support CEL", providerType)
 	}
 
 	// Setup the provider
 	if err := instance.Setup(); err != nil {
 		return fmt.Errorf("failed to setup provider: %w", err)
-	}
-
-	// Get CEL context
-	celCapable := provider.AsCELCapable(instance)
-	if celCapable == nil {
-		return fmt.Errorf("provider type %q does not support CEL", providerType)
 	}
 
 	return displayContext(cmd, celCapable)

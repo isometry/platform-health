@@ -19,7 +19,7 @@ Use `ph context` to inspect the evaluation context available to your expressions
 ph context my-app
 
 # View context for ad-hoc provider
-ph context http --url https://api.example.com/health
+ph context kubernetes --kind deployment --namespace default --name my-app
 
 # Output as YAML for readability
 ph context my-app -o yaml

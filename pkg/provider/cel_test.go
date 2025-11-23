@@ -5,7 +5,7 @@ import (
 	"testing"
 
 	"github.com/google/cel-go/cel"
-	"github.com/spf13/viper"
+	"github.com/spf13/pflag"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -77,7 +77,7 @@ func (m *mockCELProvider) GetProviderFlags() flags.FlagValues {
 	}
 }
 
-func (m *mockCELProvider) ConfigureFromFlags(v *viper.Viper) error {
+func (m *mockCELProvider) ConfigureFromFlags(fs *pflag.FlagSet) error {
 	return nil
 }
 

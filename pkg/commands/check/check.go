@@ -10,6 +10,7 @@ import (
 
 	"github.com/isometry/platform-health/pkg/checks"
 	"github.com/isometry/platform-health/pkg/commands/flags"
+	"github.com/isometry/platform-health/pkg/commands/shared"
 	"github.com/isometry/platform-health/pkg/config"
 	ph "github.com/isometry/platform-health/pkg/platform_health"
 	"github.com/isometry/platform-health/pkg/provider"
@@ -38,88 +39,43 @@ Use a provider subcommand for ad-hoc checks without config.`,
 	checkFlags.Register(cmd.Flags(), false)
 
 	// Add dynamic provider subcommands for ad-hoc checks
-	addProviderSubcommands(cmd)
+	shared.AddProviderSubcommands(cmd, shared.ProviderSubcommandOptions{
+		RequireCEL: false,
+		SetupFlags: func(cmd *cobra.Command, celCapable provider.CELCapable) {
+			// Set up logging in PreRun
+			cmd.PreRun = func(cmd *cobra.Command, args []string) {
+				log = slog.Default()
+				cmd.SetContext(slogctx.NewCtx(cmd.Context(), log))
+			}
+			cmd.Short = fmt.Sprintf("Perform ad-hoc health check for %s provider", cmd.Use)
+			cmd.Long = fmt.Sprintf("Create an ad-hoc %s provider instance and perform a health check.", cmd.Use)
 
-	return cmd
-}
+			// Add --check flag for inline CEL expressions only if provider supports CEL
+			if celCapable != nil {
+				cmd.Flags().StringSlice("check", nil, "CEL expression to evaluate (can be specified multiple times)")
+			}
 
-// addProviderSubcommands creates a subcommand for each flag-configurable provider.
-func addProviderSubcommands(parent *cobra.Command) {
-	for _, providerType := range provider.ProviderList() {
-		instance := provider.NewInstance(providerType)
-		if instance == nil {
-			continue
-		}
-
-		// Only add subcommand if provider is flag-configurable
-		flagConfigurable := provider.AsFlagConfigurable(instance)
-		if flagConfigurable == nil {
-			continue
-		}
-
-		// CEL capability is optional
-		celCapable := provider.AsCELCapable(instance)
-
-		// Create subcommand
-		providerCmd := createProviderSubcommand(providerType, celCapable, flagConfigurable)
-		parent.AddCommand(providerCmd)
-	}
-}
-
-// createProviderSubcommand creates a subcommand for a specific provider type.
-func createProviderSubcommand(providerType string, celCapable provider.CELCapable, flagConfigurable provider.FlagConfigurable) *cobra.Command {
-	cmd := &cobra.Command{
-		Use:   providerType,
-		Short: fmt.Sprintf("Perform ad-hoc health check for %s provider", providerType),
-		Long:  fmt.Sprintf("Create an ad-hoc %s provider instance and perform a health check.", providerType),
-		PreRun: func(cmd *cobra.Command, args []string) {
-			log = slog.Default()
-			cmd.SetContext(slogctx.NewCtx(cmd.Context(), log))
+			// Add output flags for formatting
+			flags.OutputFlags().Register(cmd.Flags(), true)
 		},
-		RunE: func(cmd *cobra.Command, args []string) error {
-			return runProviderCheck(cmd, providerType)
-		},
-	}
-
-	// Register provider-specific flags
-	providerFlags := flagConfigurable.GetProviderFlags()
-	providerFlags.Register(cmd.Flags(), true)
-
-	// Add --check flag for inline CEL expressions only if provider supports CEL
-	if celCapable != nil {
-		cmd.Flags().StringSlice("check", nil, "CEL expression to evaluate (can be specified multiple times)")
-	}
-
-	// Add output flags for formatting
-	flags.OutputFlags().Register(cmd.Flags(), true)
+		RunFunc: runProviderCheck,
+	})
 
 	return cmd
 }
 
 // runProviderCheck creates an ad-hoc provider instance and performs a health check.
 func runProviderCheck(cmd *cobra.Command, providerType string) error {
-	// Create new provider instance
-	instance := provider.NewInstance(providerType)
-	if instance == nil {
-		return fmt.Errorf("provider type %q not registered", providerType)
-	}
-
-	// Configure from flags
-	flagConfigurable := provider.AsFlagConfigurable(instance)
-	if flagConfigurable == nil {
-		return fmt.Errorf("provider type %q is not flag-configurable", providerType)
-	}
-
-	// Bind common flags without namespace, provider flags with namespace
+	// Bind common flags without namespace
 	flags.BindFlags(cmd)
-	flags.BindProviderFlags(cmd, providerType)
 
-	if err := flagConfigurable.ConfigureFromFlags(viper.GetViper()); err != nil {
-		return fmt.Errorf("failed to configure provider from flags: %w", err)
+	// Create and configure provider from flags
+	instance, celCapable, err := shared.CreateAndConfigureProvider(cmd, providerType)
+	if err != nil {
+		return err
 	}
 
 	// Handle inline --check expressions for CEL-capable providers
-	celCapable := provider.AsCELCapable(instance)
 	if celCapable != nil {
 		checkExprs, err := cmd.Flags().GetStringSlice("check")
 		if err != nil {

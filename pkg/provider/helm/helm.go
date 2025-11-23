@@ -3,6 +3,7 @@ package helm
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -10,7 +11,7 @@ import (
 
 	"github.com/google/cel-go/cel"
 	"github.com/mcuadros/go-defaults"
-	"github.com/spf13/viper"
+	"github.com/spf13/pflag"
 	"go.yaml.in/yaml/v3"
 	release "helm.sh/helm/v4/pkg/release/v1"
 
@@ -125,11 +126,24 @@ func (i *Helm) GetProviderFlags() flags.FlagValues {
 	}
 }
 
-// ConfigureFromFlags applies Viper values to the provider.
-func (i *Helm) ConfigureFromFlags(v *viper.Viper) error {
-	i.Release = v.GetString(TypeHelm + ".release")
-	i.Namespace = v.GetString(TypeHelm + ".namespace")
-	i.Timeout = v.GetDuration(TypeHelm + ".timeout")
+// ConfigureFromFlags applies flag values to the provider.
+func (i *Helm) ConfigureFromFlags(fs *pflag.FlagSet) error {
+	var errs []error
+	var err error
+
+	if i.Release, err = fs.GetString("release"); err != nil {
+		errs = append(errs, err)
+	}
+	if i.Namespace, err = fs.GetString("namespace"); err != nil {
+		errs = append(errs, err)
+	}
+	if i.Timeout, err = fs.GetDuration("timeout"); err != nil {
+		errs = append(errs, err)
+	}
+
+	if len(errs) > 0 {
+		return fmt.Errorf("flag errors: %w", errors.Join(errs...))
+	}
 
 	if i.Release == "" {
 		return fmt.Errorf("release is required")

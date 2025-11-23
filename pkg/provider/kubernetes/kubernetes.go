@@ -4,6 +4,7 @@ package kubernetes
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"strings"
@@ -11,7 +12,7 @@ import (
 
 	"github.com/google/cel-go/cel"
 	"github.com/mcuadros/go-defaults"
-	"github.com/spf13/viper"
+	"github.com/spf13/pflag"
 	"google.golang.org/protobuf/types/known/anypb"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -250,18 +251,45 @@ func (i *Kubernetes) GetProviderFlags() flags.FlagValues {
 	}
 }
 
-// ConfigureFromFlags applies Viper values to the provider.
-func (i *Kubernetes) ConfigureFromFlags(v *viper.Viper) error {
-	i.Resource.Kind = v.GetString(TypeKubernetes + ".kind")
-	i.Resource.Namespace = v.GetString(TypeKubernetes + ".namespace")
-	i.Resource.Name = v.GetString(TypeKubernetes + ".name")
-	i.Resource.LabelSelector = v.GetString(TypeKubernetes + ".label-selector")
-	i.Resource.Group = v.GetString(TypeKubernetes + ".group")
-	i.Resource.Version = v.GetString(TypeKubernetes + ".version")
-	i.Timeout = v.GetDuration(TypeKubernetes + ".timeout")
-	kstatus := v.GetBool(TypeKubernetes + ".kstatus")
+// ConfigureFromFlags applies flag values to the provider.
+func (i *Kubernetes) ConfigureFromFlags(fs *pflag.FlagSet) error {
+	var errs []error
+	var err error
+
+	if i.Resource.Kind, err = fs.GetString("kind"); err != nil {
+		errs = append(errs, err)
+	}
+	if i.Resource.Namespace, err = fs.GetString("namespace"); err != nil {
+		errs = append(errs, err)
+	}
+	if i.Resource.Name, err = fs.GetString("name"); err != nil {
+		errs = append(errs, err)
+	}
+	if i.Resource.LabelSelector, err = fs.GetString("label-selector"); err != nil {
+		errs = append(errs, err)
+	}
+	if i.Resource.Group, err = fs.GetString("group"); err != nil {
+		errs = append(errs, err)
+	}
+	if i.Resource.Version, err = fs.GetString("version"); err != nil {
+		errs = append(errs, err)
+	}
+	if i.Timeout, err = fs.GetDuration("timeout"); err != nil {
+		errs = append(errs, err)
+	}
+	var kstatus bool
+	if kstatus, err = fs.GetBool("kstatus"); err != nil {
+		errs = append(errs, err)
+	}
 	i.KStatus = &kstatus
-	i.Detail = v.GetBool(TypeKubernetes + ".detail")
+	if i.Detail, err = fs.GetBool("detail"); err != nil {
+		errs = append(errs, err)
+	}
+
+	if len(errs) > 0 {
+		return fmt.Errorf("flag errors: %w", errors.Join(errs...))
+	}
+
 	return nil
 }
 

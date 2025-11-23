@@ -3,7 +3,7 @@ package provider
 import (
 	"reflect"
 
-	"github.com/spf13/viper"
+	"github.com/spf13/pflag"
 
 	"github.com/isometry/platform-health/pkg/commands/flags"
 )
@@ -16,9 +16,9 @@ type FlagConfigurable interface {
 	// The returned flags are used to dynamically build subcommands.
 	GetProviderFlags() flags.FlagValues
 
-	// ConfigureFromFlags applies Viper values to the provider.
+	// ConfigureFromFlags applies flag values to the provider.
 	// Called after flags are parsed to configure the provider instance.
-	ConfigureFromFlags(v *viper.Viper) error
+	ConfigureFromFlags(fs *pflag.FlagSet) error
 }
 
 // GetFlagConfigurableProviders returns a list of provider types that implement FlagConfigurable.

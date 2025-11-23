@@ -106,16 +106,6 @@ func BindFlags(cmd *cobra.Command) {
 	})
 }
 
-// BindProviderFlags binds provider-specific flags with a namespace prefix.
-// For example, providerType "tcp" makes flag "host" accessible as "tcp.host".
-// This is used for ad-hoc provider subcommands where flags may clash.
-func BindProviderFlags(cmd *cobra.Command, providerType string) {
-	cmd.LocalFlags().VisitAll(func(f *pflag.Flag) {
-		key := providerType + "." + f.Name
-		_ = viper.BindPFlag(key, f)
-	})
-}
-
 // ConfigPaths returns the config-path and config-name values from viper.
 // Use this to call config.Load with consistent settings.
 func ConfigPaths() (paths []string, name string) {

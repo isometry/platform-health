@@ -12,7 +12,7 @@ import (
 	"time"
 
 	"github.com/mcuadros/go-defaults"
-	"github.com/spf13/viper"
+	"github.com/spf13/pflag"
 	"google.golang.org/protobuf/types/known/anypb"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
@@ -90,15 +90,36 @@ func (i *TLS) GetProviderFlags() flags.FlagValues {
 	}
 }
 
-// ConfigureFromFlags applies Viper values to the provider.
-func (i *TLS) ConfigureFromFlags(v *viper.Viper) error {
-	i.Host = v.GetString(TypeTLS + ".host")
-	i.Port = v.GetInt(TypeTLS + ".port")
-	i.Timeout = v.GetDuration(TypeTLS + ".timeout")
-	i.Insecure = v.GetBool(TypeTLS + ".insecure")
-	i.MinValidity = v.GetDuration(TypeTLS + ".min-validity")
-	i.SANs = v.GetStringSlice(TypeTLS + ".sans")
-	i.Detail = v.GetBool(TypeTLS + ".detail")
+// ConfigureFromFlags applies flag values to the provider.
+func (i *TLS) ConfigureFromFlags(fs *pflag.FlagSet) error {
+	var errs []error
+	var err error
+
+	if i.Host, err = fs.GetString("host"); err != nil {
+		errs = append(errs, err)
+	}
+	if i.Port, err = fs.GetInt("port"); err != nil {
+		errs = append(errs, err)
+	}
+	if i.Timeout, err = fs.GetDuration("timeout"); err != nil {
+		errs = append(errs, err)
+	}
+	if i.Insecure, err = fs.GetBool("insecure"); err != nil {
+		errs = append(errs, err)
+	}
+	if i.MinValidity, err = fs.GetDuration("min-validity"); err != nil {
+		errs = append(errs, err)
+	}
+	if i.SANs, err = fs.GetStringSlice("sans"); err != nil {
+		errs = append(errs, err)
+	}
+	if i.Detail, err = fs.GetBool("detail"); err != nil {
+		errs = append(errs, err)
+	}
+
+	if len(errs) > 0 {
+		return fmt.Errorf("flag errors: %w", errors.Join(errs...))
+	}
 
 	if i.Host == "" {
 		return fmt.Errorf("host is required")

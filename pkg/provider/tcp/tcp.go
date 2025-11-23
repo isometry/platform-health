@@ -2,13 +2,14 @@ package tcp
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"net"
 	"time"
 
 	"github.com/mcuadros/go-defaults"
-	"github.com/spf13/viper"
+	"github.com/spf13/pflag"
 
 	"github.com/isometry/platform-health/pkg/commands/flags"
 	ph "github.com/isometry/platform-health/pkg/platform_health"
@@ -57,12 +58,27 @@ func (i *TCP) GetProviderFlags() flags.FlagValues {
 	}
 }
 
-// ConfigureFromFlags applies Viper values to the provider.
-func (i *TCP) ConfigureFromFlags(v *viper.Viper) error {
-	i.Host = v.GetString(TypeTCP + ".host")
-	i.Port = v.GetInt(TypeTCP + ".port")
-	i.Closed = v.GetBool(TypeTCP + ".closed")
-	i.Timeout = v.GetDuration(TypeTCP + ".timeout")
+// ConfigureFromFlags applies flag values to the provider.
+func (i *TCP) ConfigureFromFlags(fs *pflag.FlagSet) error {
+	var errs []error
+	var err error
+
+	if i.Host, err = fs.GetString("host"); err != nil {
+		errs = append(errs, err)
+	}
+	if i.Port, err = fs.GetInt("port"); err != nil {
+		errs = append(errs, err)
+	}
+	if i.Closed, err = fs.GetBool("closed"); err != nil {
+		errs = append(errs, err)
+	}
+	if i.Timeout, err = fs.GetDuration("timeout"); err != nil {
+		errs = append(errs, err)
+	}
+
+	if len(errs) > 0 {
+		return fmt.Errorf("flag errors: %w", errors.Join(errs...))
+	}
 
 	if i.Host == "" {
 		return fmt.Errorf("host is required")

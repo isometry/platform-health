@@ -3,13 +3,14 @@ package grpc
 import (
 	"context"
 	"crypto/tls"
+	"errors"
 	"fmt"
 	"log/slog"
 	"net"
 	"time"
 
 	"github.com/mcuadros/go-defaults"
-	"github.com/spf13/viper"
+	"github.com/spf13/pflag"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/credentials/insecure"
@@ -73,14 +74,33 @@ func (i *GRPC) GetProviderFlags() flags.FlagValues {
 	}
 }
 
-// ConfigureFromFlags applies Viper values to the provider.
-func (i *GRPC) ConfigureFromFlags(v *viper.Viper) error {
-	i.Host = v.GetString(TypeGRPC + ".host")
-	i.Port = v.GetInt(TypeGRPC + ".port")
-	i.Service = v.GetString(TypeGRPC + ".service")
-	i.TLS = v.GetBool(TypeGRPC + ".tls")
-	i.Insecure = v.GetBool(TypeGRPC + ".insecure")
-	i.Timeout = v.GetDuration(TypeGRPC + ".timeout")
+// ConfigureFromFlags applies flag values to the provider.
+func (i *GRPC) ConfigureFromFlags(fs *pflag.FlagSet) error {
+	var errs []error
+	var err error
+
+	if i.Host, err = fs.GetString("host"); err != nil {
+		errs = append(errs, err)
+	}
+	if i.Port, err = fs.GetInt("port"); err != nil {
+		errs = append(errs, err)
+	}
+	if i.Service, err = fs.GetString("service"); err != nil {
+		errs = append(errs, err)
+	}
+	if i.TLS, err = fs.GetBool("tls"); err != nil {
+		errs = append(errs, err)
+	}
+	if i.Insecure, err = fs.GetBool("insecure"); err != nil {
+		errs = append(errs, err)
+	}
+	if i.Timeout, err = fs.GetDuration("timeout"); err != nil {
+		errs = append(errs, err)
+	}
+
+	if len(errs) > 0 {
+		return fmt.Errorf("flag errors: %w", errors.Join(errs...))
+	}
 
 	if i.Host == "" {
 		return fmt.Errorf("host is required")

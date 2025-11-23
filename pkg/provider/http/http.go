@@ -12,7 +12,7 @@ import (
 	"time"
 
 	"github.com/mcuadros/go-defaults"
-	"github.com/spf13/viper"
+	"github.com/spf13/pflag"
 	"google.golang.org/protobuf/types/known/anypb"
 
 	"github.com/isometry/platform-health/pkg/commands/flags"
@@ -79,14 +79,33 @@ func (i *HTTP) GetProviderFlags() flags.FlagValues {
 	}
 }
 
-// ConfigureFromFlags applies Viper values to the provider.
-func (i *HTTP) ConfigureFromFlags(v *viper.Viper) error {
-	i.URL = v.GetString(TypeHTTP + ".url")
-	i.Method = v.GetString(TypeHTTP + ".method")
-	i.Timeout = v.GetDuration(TypeHTTP + ".timeout")
-	i.Insecure = v.GetBool(TypeHTTP + ".insecure")
-	i.Status = v.GetIntSlice(TypeHTTP + ".status")
-	i.Detail = v.GetBool(TypeHTTP + ".detail")
+// ConfigureFromFlags applies flag values to the provider.
+func (i *HTTP) ConfigureFromFlags(fs *pflag.FlagSet) error {
+	var errs []error
+	var err error
+
+	if i.URL, err = fs.GetString("url"); err != nil {
+		errs = append(errs, err)
+	}
+	if i.Method, err = fs.GetString("method"); err != nil {
+		errs = append(errs, err)
+	}
+	if i.Timeout, err = fs.GetDuration("timeout"); err != nil {
+		errs = append(errs, err)
+	}
+	if i.Insecure, err = fs.GetBool("insecure"); err != nil {
+		errs = append(errs, err)
+	}
+	if i.Status, err = fs.GetIntSlice("status"); err != nil {
+		errs = append(errs, err)
+	}
+	if i.Detail, err = fs.GetBool("detail"); err != nil {
+		errs = append(errs, err)
+	}
+
+	if len(errs) > 0 {
+		return fmt.Errorf("flag errors: %w", errors.Join(errs...))
+	}
 
 	if i.URL == "" {
 		return fmt.Errorf("url is required")

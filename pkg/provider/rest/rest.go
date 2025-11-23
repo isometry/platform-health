@@ -49,7 +49,7 @@ import (
 
 	"github.com/google/cel-go/cel"
 	"github.com/mcuadros/go-defaults"
-	"github.com/spf13/viper"
+	"github.com/spf13/pflag"
 
 	"github.com/isometry/platform-health/pkg/checks"
 	"github.com/isometry/platform-health/pkg/commands/flags"
@@ -171,13 +171,30 @@ func (i *REST) GetProviderFlags() flags.FlagValues {
 	}
 }
 
-// ConfigureFromFlags applies Viper values to the provider.
-func (i *REST) ConfigureFromFlags(v *viper.Viper) error {
-	i.Request.URL = v.GetString(TypeREST + ".url")
-	i.Request.Method = v.GetString(TypeREST + ".method")
-	i.Request.Body = v.GetString(TypeREST + ".body")
-	i.Insecure = v.GetBool(TypeREST + ".insecure")
-	i.Timeout = v.GetDuration(TypeREST + ".timeout")
+// ConfigureFromFlags applies flag values to the provider.
+func (i *REST) ConfigureFromFlags(fs *pflag.FlagSet) error {
+	var errs []error
+	var err error
+
+	if i.Request.URL, err = fs.GetString("url"); err != nil {
+		errs = append(errs, err)
+	}
+	if i.Request.Method, err = fs.GetString("method"); err != nil {
+		errs = append(errs, err)
+	}
+	if i.Request.Body, err = fs.GetString("body"); err != nil {
+		errs = append(errs, err)
+	}
+	if i.Insecure, err = fs.GetBool("insecure"); err != nil {
+		errs = append(errs, err)
+	}
+	if i.Timeout, err = fs.GetDuration("timeout"); err != nil {
+		errs = append(errs, err)
+	}
+
+	if len(errs) > 0 {
+		return fmt.Errorf("flag errors: %w", errors.Join(errs...))
+	}
 
 	if i.Request.URL == "" {
 		return fmt.Errorf("url is required")
