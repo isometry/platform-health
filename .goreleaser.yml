@@ -70,10 +70,10 @@ brews:
       bin.install "phs"
 
 kos:
-  - id: server
+  - id: unified
     repositories:
       - ghcr.io/isometry/platform-health
-    main: ./cmd/phs
+    main: ./cmd/ph
     platforms:
       - linux/amd64
       - linux/arm64
