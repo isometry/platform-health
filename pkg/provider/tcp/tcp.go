@@ -8,7 +8,9 @@ import (
 	"time"
 
 	"github.com/mcuadros/go-defaults"
+	"github.com/spf13/viper"
 
+	"github.com/isometry/platform-health/pkg/commands/flags"
 	ph "github.com/isometry/platform-health/pkg/platform_health"
 	"github.com/isometry/platform-health/pkg/provider"
 	"github.com/isometry/platform-health/pkg/utils"
@@ -24,8 +26,48 @@ type TCP struct {
 	Timeout time.Duration `mapstructure:"timeout" default:"1s"`
 }
 
+// Compile-time interface check
+var _ provider.FlagConfigurable = (*TCP)(nil)
+
 func init() {
 	provider.Register(TypeTCP, new(TCP))
+}
+
+// GetProviderFlags returns flag definitions for CLI configuration.
+func (i *TCP) GetProviderFlags() flags.FlagValues {
+	return flags.FlagValues{
+		"host": {
+			Kind:  "string",
+			Usage: "target hostname",
+		},
+		"port": {
+			Kind:         "int",
+			DefaultValue: 80,
+			Usage:        "target port",
+		},
+		"closed": {
+			Kind:  "bool",
+			Usage: "expect port to be closed",
+		},
+		"timeout": {
+			Kind:         "duration",
+			DefaultValue: "1s",
+			Usage:        "connection timeout",
+		},
+	}
+}
+
+// ConfigureFromFlags applies Viper values to the provider.
+func (i *TCP) ConfigureFromFlags(v *viper.Viper) error {
+	i.Host = v.GetString(TypeTCP + ".host")
+	i.Port = v.GetInt(TypeTCP + ".port")
+	i.Closed = v.GetBool(TypeTCP + ".closed")
+	i.Timeout = v.GetDuration(TypeTCP + ".timeout")
+
+	if i.Host == "" {
+		return fmt.Errorf("host is required")
+	}
+	return nil
 }
 
 func (i *TCP) LogValue() slog.Value {

@@ -12,9 +12,11 @@ import (
 	"time"
 
 	"github.com/mcuadros/go-defaults"
+	"github.com/spf13/viper"
 	"google.golang.org/protobuf/types/known/anypb"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
+	"github.com/isometry/platform-health/pkg/commands/flags"
 	ph "github.com/isometry/platform-health/pkg/platform_health"
 	"github.com/isometry/platform-health/pkg/platform_health/details"
 	"github.com/isometry/platform-health/pkg/provider"
@@ -34,6 +36,9 @@ type TLS struct {
 	Detail      bool          `mapstructure:"detail"`
 }
 
+// Compile-time interface check
+var _ provider.FlagConfigurable = (*TLS)(nil)
+
 type VerificationStatus struct {
 	UnknownAuthority bool
 	HostnameMismatch bool
@@ -46,6 +51,59 @@ func init() {
 	if systemCertPool, err := x509.SystemCertPool(); err == nil {
 		certPool = systemCertPool
 	}
+}
+
+// GetProviderFlags returns flag definitions for CLI configuration.
+func (i *TLS) GetProviderFlags() flags.FlagValues {
+	return flags.FlagValues{
+		"host": {
+			Kind:  "string",
+			Usage: "target hostname",
+		},
+		"port": {
+			Kind:         "int",
+			DefaultValue: 443,
+			Usage:        "target port",
+		},
+		"timeout": {
+			Kind:         "duration",
+			DefaultValue: "5s",
+			Usage:        "connection timeout",
+		},
+		"insecure": {
+			Kind:  "bool",
+			Usage: "skip certificate verification",
+		},
+		"min-validity": {
+			Kind:         "duration",
+			DefaultValue: "24h",
+			Usage:        "minimum certificate validity",
+		},
+		"sans": {
+			Kind:  "stringSlice",
+			Usage: "expected Subject Alternative Names",
+		},
+		"detail": {
+			Kind:  "bool",
+			Usage: "include TLS connection details",
+		},
+	}
+}
+
+// ConfigureFromFlags applies Viper values to the provider.
+func (i *TLS) ConfigureFromFlags(v *viper.Viper) error {
+	i.Host = v.GetString(TypeTLS + ".host")
+	i.Port = v.GetInt(TypeTLS + ".port")
+	i.Timeout = v.GetDuration(TypeTLS + ".timeout")
+	i.Insecure = v.GetBool(TypeTLS + ".insecure")
+	i.MinValidity = v.GetDuration(TypeTLS + ".min-validity")
+	i.SANs = v.GetStringSlice(TypeTLS + ".sans")
+	i.Detail = v.GetBool(TypeTLS + ".detail")
+
+	if i.Host == "" {
+		return fmt.Errorf("host is required")
+	}
+	return nil
 }
 
 func (i *TLS) LogValue() slog.Value {

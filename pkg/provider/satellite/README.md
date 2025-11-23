@@ -8,7 +8,7 @@ Once the Satellite Provider is configured, any query to the platform health serv
 
 ## Configuration
 
-The Satellite Provider is configured through the platform-health server's configuration file. Each instance is defined with its name as the YAML key.
+The Satellite Provider is configured through the platform-health server's configuration file. Each instance is defined with its name as the YAML key under `components`.
 
 - `type` (required): Must be `satellite`.
 - `host` (required): The hostname or IP address of the Satellite service to monitor.
@@ -20,10 +20,11 @@ The Satellite Provider is configured through the platform-health server's config
 ### Example
 
 ```yaml
-example:
-  type: satellite
-  host: satellite.example.com
-  port: 8080
+components:
+  example:
+    type: satellite
+    host: satellite.example.com
+    port: 8080
 ```
 
 In this example, the Satellite Provider will return the health of the platform-health server and its instances running on `satellite.example.com:8080`.

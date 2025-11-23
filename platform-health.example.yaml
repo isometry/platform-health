@@ -1,22 +1,23 @@
-# Standalone check
-self:
-  type: tcp
-  host: localhost
-  port: 8080
+components:
+  # Standalone check
+  self:
+    type: tcp
+    host: localhost
+    port: 8080
 
-# Group Google services
-google:
-  type: system
-  components:
-    gmail-smtp:
-      type: tls
-      host: smtp.gmail.com
-      port: 465
-      detail: true
-    google.com:
-      type: http
-      url: https://google.com
-      detail: true
+  # Group Google services
+  google:
+    type: system
+    components:
+      gmail-smtp:
+        type: tls
+        host: smtp.gmail.com
+        port: 465
+        detail: true
+      google.com:
+        type: http
+        url: https://google.com
+        detail: true
 #
 # remote:
 #   type: satellite

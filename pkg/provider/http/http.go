@@ -12,8 +12,10 @@ import (
 	"time"
 
 	"github.com/mcuadros/go-defaults"
+	"github.com/spf13/viper"
 	"google.golang.org/protobuf/types/known/anypb"
 
+	"github.com/isometry/platform-health/pkg/commands/flags"
 	ph "github.com/isometry/platform-health/pkg/platform_health"
 	"github.com/isometry/platform-health/pkg/provider"
 	tlsProvider "github.com/isometry/platform-health/pkg/provider/tls"
@@ -32,6 +34,9 @@ type HTTP struct {
 	Detail   bool          `mapstructure:"detail"`
 }
 
+// Compile-time interface check
+var _ provider.FlagConfigurable = (*HTTP)(nil)
+
 var certPool *x509.CertPool = nil
 
 func init() {
@@ -39,6 +44,54 @@ func init() {
 	if systemCertPool, err := x509.SystemCertPool(); err == nil {
 		certPool = systemCertPool
 	}
+}
+
+// GetProviderFlags returns flag definitions for CLI configuration.
+func (i *HTTP) GetProviderFlags() flags.FlagValues {
+	return flags.FlagValues{
+		"url": {
+			Kind:  "string",
+			Usage: "target URL",
+		},
+		"method": {
+			Kind:         "string",
+			DefaultValue: "HEAD",
+			Usage:        "HTTP method",
+		},
+		"timeout": {
+			Kind:         "duration",
+			DefaultValue: "10s",
+			Usage:        "request timeout",
+		},
+		"insecure": {
+			Kind:  "bool",
+			Usage: "skip TLS verification",
+		},
+		"status": {
+			Kind:         "intSlice",
+			DefaultValue: []int{200},
+			Usage:        "expected HTTP status codes",
+		},
+		"detail": {
+			Kind:  "bool",
+			Usage: "include TLS connection details",
+		},
+	}
+}
+
+// ConfigureFromFlags applies Viper values to the provider.
+func (i *HTTP) ConfigureFromFlags(v *viper.Viper) error {
+	i.URL = v.GetString(TypeHTTP + ".url")
+	i.Method = v.GetString(TypeHTTP + ".method")
+	i.Timeout = v.GetDuration(TypeHTTP + ".timeout")
+	i.Insecure = v.GetBool(TypeHTTP + ".insecure")
+	i.Status = v.GetIntSlice(TypeHTTP + ".status")
+	i.Detail = v.GetBool(TypeHTTP + ".detail")
+
+	if i.URL == "" {
+		return fmt.Errorf("url is required")
+	}
+	return nil
 }
 
 func (i *HTTP) LogValue() slog.Value {

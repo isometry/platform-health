@@ -2,6 +2,7 @@ package config
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 
 	"github.com/fsnotify/fsnotify"
@@ -92,13 +93,20 @@ func (c *concreteConfig) initialize(configPaths []string, configName string) (er
 }
 
 func (c *concreteConfig) update() error {
-	abstract := make(abstractConfig)
+	raw := make(map[string]any)
 
-	if err := viper.Unmarshal(&abstract); err != nil {
+	if err := viper.Unmarshal(&raw); err != nil {
 		log.Error("failed to unmarshal config", "error", err)
 		return err
 	}
 
+	// Extract components from top-level key
+	components, ok := raw["components"].(map[string]any)
+	if !ok {
+		return fmt.Errorf("config must have a 'components' key containing all component definitions")
+	}
+
+	abstract := abstractConfig(components)
 	*c = *abstract.harden()
 
 	return nil

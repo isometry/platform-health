@@ -80,6 +80,11 @@ func (s *System) SetName(name string) {
 	s.Name = name
 }
 
+// GetResolved returns the resolved child instances.
+func (s *System) GetResolved() []provider.Instance {
+	return s.resolved
+}
+
 func (s *System) GetHealth(ctx context.Context) *ph.HealthCheckResponse {
 	log := utils.ContextLogger(ctx, slog.String("provider", TypeSystem), slog.Any("instance", s))
 	log.Debug("checking")

@@ -14,6 +14,7 @@ import (
 
 	"github.com/isometry/platform-health/pkg/checks"
 	ph "github.com/isometry/platform-health/pkg/platform_health"
+	"github.com/isometry/platform-health/pkg/provider"
 	"github.com/isometry/platform-health/pkg/provider/helm"
 	"github.com/isometry/platform-health/pkg/provider/helm/client"
 )
@@ -203,9 +204,9 @@ func TestCEL_VersionCheck(t *testing.T) {
 		Name:      "test-helm",
 		Release:   "my-release",
 		Namespace: "default",
-		Checks: []checks.Expression{
+		BaseCELProvider: provider.BaseCELProvider{Checks: []checks.Expression{
 			{Expression: "release.Revision >= 2", ErrorMessage: "Need at least one upgrade"},
-		},
+		}},
 	}
 	require.NoError(t, provider.Setup())
 
@@ -222,9 +223,9 @@ func TestCEL_VersionCheckFails(t *testing.T) {
 		Name:      "test-helm",
 		Release:   "my-release",
 		Namespace: "default",
-		Checks: []checks.Expression{
+		BaseCELProvider: provider.BaseCELProvider{Checks: []checks.Expression{
 			{Expression: "release.Revision >= 2", ErrorMessage: "Need at least one upgrade"},
-		},
+		}},
 	}
 	require.NoError(t, provider.Setup())
 
@@ -240,9 +241,9 @@ func TestCEL_ChartVersion(t *testing.T) {
 		Name:      "test-helm",
 		Release:   "my-release",
 		Namespace: "default",
-		Checks: []checks.Expression{
+		BaseCELProvider: provider.BaseCELProvider{Checks: []checks.Expression{
 			{Expression: "chart.Version == '1.0.0'"},
-		},
+		}},
 	}
 	require.NoError(t, provider.Setup())
 
@@ -257,9 +258,9 @@ func TestCEL_ConfigValidation(t *testing.T) {
 		Name:      "test-helm",
 		Release:   "my-release",
 		Namespace: "default",
-		Checks: []checks.Expression{
+		BaseCELProvider: provider.BaseCELProvider{Checks: []checks.Expression{
 			{Expression: "'replicas' in release.Config && release.Config['replicas'] >= 3"},
-		},
+		}},
 	}
 	require.NoError(t, provider.Setup())
 
@@ -276,9 +277,9 @@ func TestCEL_ConfigValidationFails(t *testing.T) {
 		Name:      "test-helm",
 		Release:   "my-release",
 		Namespace: "default",
-		Checks: []checks.Expression{
+		BaseCELProvider: provider.BaseCELProvider{Checks: []checks.Expression{
 			{Expression: "release.Config['replicas'] >= 3", ErrorMessage: "Need at least 3 replicas"},
-		},
+		}},
 	}
 	require.NoError(t, provider.Setup())
 
@@ -294,9 +295,9 @@ func TestCEL_NotDeprecated(t *testing.T) {
 		Name:      "test-helm",
 		Release:   "my-release",
 		Namespace: "default",
-		Checks: []checks.Expression{
+		BaseCELProvider: provider.BaseCELProvider{Checks: []checks.Expression{
 			{Expression: "!chart.Deprecated", ErrorMessage: "Chart is deprecated"},
-		},
+		}},
 	}
 	require.NoError(t, provider.Setup())
 
@@ -311,9 +312,9 @@ func TestCEL_LabelCheck(t *testing.T) {
 		Name:      "test-helm",
 		Release:   "my-release",
 		Namespace: "default",
-		Checks: []checks.Expression{
+		BaseCELProvider: provider.BaseCELProvider{Checks: []checks.Expression{
 			{Expression: "'team' in release.Labels && 'env' in release.Labels"},
-		},
+		}},
 	}
 	require.NoError(t, provider.Setup())
 
@@ -330,14 +331,14 @@ func TestCEL_ChartValues(t *testing.T) {
 		Name:      "test-helm",
 		Release:   "my-release",
 		Namespace: "default",
-		Checks: []checks.Expression{
+		BaseCELProvider: provider.BaseCELProvider{Checks: []checks.Expression{
 			// Check chart default value
 			{Expression: "chart.Values['replicas'] == 1"},
 			// Check nested default value
 			{Expression: "'image' in chart.Values && chart.Values['image']['tag'] == 'latest'"},
 			// Check Config has overrides
 			{Expression: "release.Config['replicas'] == 3"},
-		},
+		}},
 	}
 	require.NoError(t, provider.Setup())
 
@@ -349,13 +350,102 @@ func TestSetup_InvalidCEL(t *testing.T) {
 	provider := &helm.Helm{
 		Release:   "my-release",
 		Namespace: "default",
-		Checks: []checks.Expression{
+		BaseCELProvider: provider.BaseCELProvider{Checks: []checks.Expression{
 			{Expression: "invalid cel syntax [[["},
-		},
+		}},
 	}
 	err := provider.Setup()
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "invalid CEL expression")
+}
+
+func TestCEL_Manifests(t *testing.T) {
+	rel := testRelease("my-release", common.StatusDeployed)
+	rel.Manifest = `---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: my-config
+data:
+  key: value
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: my-app
+spec:
+  replicas: 3
+`
+	setupMockFactory(t, rel, nil)
+
+	provider := &helm.Helm{
+		Name:      "test-helm",
+		Release:   "my-release",
+		Namespace: "default",
+		BaseCELProvider: provider.BaseCELProvider{Checks: []checks.Expression{
+			{Expression: "size(release.Manifest) == 2"},
+			{Expression: "release.Manifest[0].kind == 'ConfigMap'"},
+			{Expression: "release.Manifest[1].kind == 'Deployment'"},
+		}},
+	}
+	require.NoError(t, provider.Setup())
+
+	result := provider.GetHealth(context.Background())
+	assert.Equal(t, ph.Status_HEALTHY, result.Status)
+}
+
+func TestCEL_ManifestsEmpty(t *testing.T) {
+	rel := testRelease("my-release", common.StatusDeployed)
+	rel.Manifest = ""
+	setupMockFactory(t, rel, nil)
+
+	provider := &helm.Helm{
+		Name:      "test-helm",
+		Release:   "my-release",
+		Namespace: "default",
+		BaseCELProvider: provider.BaseCELProvider{Checks: []checks.Expression{
+			{Expression: "size(release.Manifest) == 0"},
+		}},
+	}
+	require.NoError(t, provider.Setup())
+
+	result := provider.GetHealth(context.Background())
+	assert.Equal(t, ph.Status_HEALTHY, result.Status)
+}
+
+func TestCEL_ManifestsFilter(t *testing.T) {
+	rel := testRelease("my-release", common.StatusDeployed)
+	rel.Manifest = `---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: config-1
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: config-2
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: my-app
+`
+	setupMockFactory(t, rel, nil)
+
+	provider := &helm.Helm{
+		Name:      "test-helm",
+		Release:   "my-release",
+		Namespace: "default",
+		BaseCELProvider: provider.BaseCELProvider{Checks: []checks.Expression{
+			{Expression: "release.Manifest.filter(m, m.kind == 'ConfigMap').size() == 2"},
+			{Expression: "release.Manifest.filter(m, m.kind == 'Deployment').size() == 1"},
+		}},
+	}
+	require.NoError(t, provider.Setup())
+
+	result := provider.GetHealth(context.Background())
+	assert.Equal(t, ph.Status_HEALTHY, result.Status)
 }
 
 // slowStatusRunner is a mock that delays before returning

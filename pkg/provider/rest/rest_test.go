@@ -14,6 +14,7 @@ import (
 
 	"github.com/isometry/platform-health/pkg/checks"
 	ph "github.com/isometry/platform-health/pkg/platform_health"
+	"github.com/isometry/platform-health/pkg/provider"
 	restProvider "github.com/isometry/platform-health/pkg/provider/rest"
 )
 
@@ -157,12 +158,14 @@ func TestRESTProvider_JSONValidation(t *testing.T) {
 
 			// Create REST provider instance
 			instance := &restProvider.REST{
+				BaseCELProvider: provider.BaseCELProvider{
+					Checks: tt.checks,
+				},
 				Name: "test-service",
 				Request: restProvider.Request{
 					URL:    server.URL,
 					Method: "GET",
 				},
-				Checks:  tt.checks,
 				Timeout: 5 * time.Second,
 			}
 			require.NoError(t, instance.Setup())
@@ -241,13 +244,15 @@ func TestRESTProvider_POSTWithBody(t *testing.T) {
 
 			// Create REST provider instance
 			instance := &restProvider.REST{
+				BaseCELProvider: provider.BaseCELProvider{
+					Checks: tt.checks,
+				},
 				Name: "test-service",
 				Request: restProvider.Request{
 					URL:    server.URL,
 					Method: "POST",
 					Body:   tt.requestBody,
 				},
-				Checks:  tt.checks,
 				Timeout: 5 * time.Second,
 			}
 			require.NoError(t, instance.Setup())
@@ -323,12 +328,14 @@ func TestRESTProvider_StatusCodeValidation(t *testing.T) {
 
 			// Create REST provider instance
 			instance := &restProvider.REST{
+				BaseCELProvider: provider.BaseCELProvider{
+					Checks: tt.checks,
+				},
 				Name: "test-service",
 				Request: restProvider.Request{
 					URL:    server.URL,
 					Method: "GET",
 				},
-				Checks:  tt.checks,
 				Timeout: 5 * time.Second,
 			}
 			require.NoError(t, instance.Setup())
@@ -374,7 +381,7 @@ func TestRESTProvider_CombinedValidation(t *testing.T) {
 			URL:    server.URL,
 			Method: "GET",
 		},
-		Checks: []checks.Expression{
+		BaseCELProvider: provider.BaseCELProvider{Checks: []checks.Expression{
 			{
 				Expression:   `response.status == 200`,
 				ErrorMessage: "expected status 200",
@@ -399,7 +406,7 @@ func TestRESTProvider_CombinedValidation(t *testing.T) {
 				Expression:   `response.headers["content-type"] == "application/json"`,
 				ErrorMessage: "wrong content type",
 			},
-		},
+		}},
 		Timeout: 5 * time.Second,
 	}
 	require.NoError(t, instance.Setup())
@@ -472,12 +479,14 @@ func TestRESTProvider_ContentTypeValidation(t *testing.T) {
 
 			// Create REST provider instance
 			instance := &restProvider.REST{
+				BaseCELProvider: provider.BaseCELProvider{
+					Checks: tt.checks,
+				},
 				Name: "test-service",
 				Request: restProvider.Request{
 					URL:    server.URL,
 					Method: "GET",
 				},
-				Checks:  tt.checks,
 				Timeout: 5 * time.Second,
 			}
 			require.NoError(t, instance.Setup())
@@ -500,12 +509,12 @@ func TestRESTProvider_ErrorCases(t *testing.T) {
 				URL:    "http://localhost",
 				Method: "GET",
 			},
-			Checks: []checks.Expression{
+			BaseCELProvider: provider.BaseCELProvider{Checks: []checks.Expression{
 				{
 					Expression:   `invalid syntax here!!!`,
 					ErrorMessage: "validation failed",
 				},
-			},
+			}},
 			Timeout: 5 * time.Second,
 		}
 		err := instance.Setup()
@@ -539,6 +548,34 @@ func TestRESTProvider_RequestContextValidation(t *testing.T) {
 
 	// Create REST provider with request context validation
 	instance := &restProvider.REST{
+		BaseCELProvider: provider.BaseCELProvider{
+			Checks: []checks.Expression{
+				{
+					Expression:   `request.method == "POST"`,
+					ErrorMessage: "request method validation failed",
+				},
+				{
+					Expression:   `request.body.contains("test")`,
+					ErrorMessage: "request body validation failed",
+				},
+				{
+					Expression:   `request.headers["accept"] == "application/json"`,
+					ErrorMessage: "request accept header missing",
+				},
+				{
+					Expression:   `response.headers["content-type"] == request.headers["accept"]`,
+					ErrorMessage: "content negotiation failed",
+				},
+				{
+					Expression:   `response.json.echo_method == request.method`,
+					ErrorMessage: "echoed method doesn't match request",
+				},
+				{
+					Expression:   `request.url == "` + server.URL + `"`,
+					ErrorMessage: "request URL validation failed",
+				},
+			},
+		},
 		Name: "test-service",
 		Request: restProvider.Request{
 			URL:    server.URL,
@@ -547,32 +584,6 @@ func TestRESTProvider_RequestContextValidation(t *testing.T) {
 			Headers: map[string]string{
 				"Accept":        "application/json",
 				"Authorization": "Bearer token123",
-			},
-		},
-		Checks: []checks.Expression{
-			{
-				Expression:   `request.method == "POST"`,
-				ErrorMessage: "request method validation failed",
-			},
-			{
-				Expression:   `request.body.contains("test")`,
-				ErrorMessage: "request body validation failed",
-			},
-			{
-				Expression:   `request.headers["accept"] == "application/json"`,
-				ErrorMessage: "request accept header missing",
-			},
-			{
-				Expression:   `response.headers["content-type"] == request.headers["accept"]`,
-				ErrorMessage: "content negotiation failed",
-			},
-			{
-				Expression:   `response.json.echo_method == request.method`,
-				ErrorMessage: "echoed method doesn't match request",
-			},
-			{
-				Expression:   `request.url == "` + server.URL + `"`,
-				ErrorMessage: "request URL validation failed",
 			},
 		},
 		Timeout: 5 * time.Second,

@@ -8,7 +8,7 @@ Once the Kubernetes Provider is configured, any query to the platform health ser
 
 ## Configuration
 
-The Kubernetes Provider is configured through the platform-health server's configuration file. Each instance is defined with its name as the YAML key.
+The Kubernetes Provider is configured through the platform-health server's configuration file. Each instance is defined with its name as the YAML key under `components`.
 
 - `type` (required): Must be `kubernetes`.
 - `resource`: The Kubernetes resource to check:
@@ -86,55 +86,59 @@ items.map(r, r.status.readyReplicas).sum() >= 10
 ### Basic Deployment Health Check
 
 ```yaml
-my-app:
-  type: kubernetes
-  resource:
-    kind: Deployment
-    name: my-app
-    namespace: production
-  checks:
-    - expression: "resource.status.readyReplicas >= resource.spec.replicas"
-      errorMessage: "Not all replicas are ready"
+components:
+  my-app:
+    type: kubernetes
+    resource:
+      kind: Deployment
+      name: my-app
+      namespace: production
+    checks:
+      - expression: "resource.status.readyReplicas >= resource.spec.replicas"
+        errorMessage: "Not all replicas are ready"
 ```
 
 ### Condition-Based Check
 
 ```yaml
-my-app:
-  type: kubernetes
-  kind: Deployment
-  resource: my-app
-  checks:
-    - expression: "resource.status.conditions.exists(c, c.type == 'Available' && c.status == 'True')"
-      errorMessage: "Deployment is not available"
+components:
+  my-app:
+    type: kubernetes
+    kind: Deployment
+    resource: my-app
+    checks:
+      - expression: "resource.status.conditions.exists(c, c.type == 'Available' && c.status == 'True')"
+        errorMessage: "Deployment is not available"
 ```
 
 ### Multiple Validation Checks
 
 ```yaml
-my-app:
-  type: kubernetes
-  kind: Deployment
-  resource: my-app
-  checks:
-    - expression: "resource.status.readyReplicas >= 1"
-      errorMessage: "No replicas ready"
-    - expression: "resource.status.updatedReplicas == resource.spec.replicas"
-      errorMessage: "Rolling update in progress"
-    - expression: "resource.metadata.labels['version'] == 'v2'"
-      errorMessage: "Expected version v2"
+components:
+  my-app:
+    type: kubernetes
+    kind: Deployment
+    resource: my-app
+    checks:
+      - expression: "resource.status.readyReplicas >= 1"
+        errorMessage: "No replicas ready"
+      - expression: "resource.status.updatedReplicas == resource.spec.replicas"
+        errorMessage: "Rolling update in progress"
+      - expression: "resource.metadata.labels['version'] == 'v2'"
+        errorMessage: "Expected version v2"
 ```
 
 ### StatefulSet Check
 
 ```yaml
-my-database:
-  type: kubernetes
-  kind: StatefulSet
-  resource: my-database
-  checks:
-    - expression: "resource.status.readyReplicas == resource.spec.replicas"
-      errorMessage: "StatefulSet not fully ready"
+components:
+  my-database:
+    type: kubernetes
+    kind: StatefulSet
+    resource: my-database
+    checks:
+      - expression: "resource.status.readyReplicas == resource.spec.replicas"
+        errorMessage: "StatefulSet not fully ready"
 ```
 
 ### Service Existence Check
@@ -142,35 +146,38 @@ my-database:
 For resources without status conditions, simply omit the `checks` field to verify existence only:
 
 ```yaml
-my-service:
-  type: kubernetes
-  kind: Service
-  resource: my-service
-  namespace: default
+components:
+  my-service:
+    type: kubernetes
+    kind: Service
+    resource: my-service
+    namespace: default
 ```
 
 ### Pod Phase Check
 
 ```yaml
-my-pod:
-  type: kubernetes
-  kind: Pod
-  resource: my-pod
-  checks:
-    - expression: "resource.status.phase == 'Running'"
-      errorMessage: "Pod is not running"
+components:
+  my-pod:
+    type: kubernetes
+    kind: Pod
+    resource: my-pod
+    checks:
+      - expression: "resource.status.phase == 'Running'"
+        errorMessage: "Pod is not running"
 ```
 
 ### ConfigMap Content Validation
 
 ```yaml
-app-config:
-  type: kubernetes
-  kind: ConfigMap
-  resource: app-config
-  checks:
-    - expression: "'database_url' in resource.data"
-      errorMessage: "Missing database_url in ConfigMap"
+components:
+  app-config:
+    type: kubernetes
+    kind: ConfigMap
+    resource: app-config
+    checks:
+      - expression: "'database_url' in resource.data"
+        errorMessage: "Missing database_url in ConfigMap"
 ```
 
 ### Disable kstatus Evaluation
@@ -178,17 +185,18 @@ app-config:
 For resources where kstatus evaluation is not appropriate (e.g., custom resources without standard status conditions), disable it:
 
 ```yaml
-my-custom-resource:
-  type: kubernetes
-  resource:
-    group: example.com
-    version: v1
-    kind: MyCustomResource
-    name: my-custom-resource
-  kstatus: false
-  checks:
-    - expression: "resource.status.ready == true"
-      errorMessage: "Custom resource is not ready"
+components:
+  my-custom-resource:
+    type: kubernetes
+    resource:
+      group: example.com
+      version: v1
+      kind: MyCustomResource
+      name: my-custom-resource
+    kstatus: false
+    checks:
+      - expression: "resource.status.ready == true"
+        errorMessage: "Custom resource is not ready"
 ```
 
 ### All Resources in Scope
@@ -196,25 +204,27 @@ my-custom-resource:
 Select all resources of a kind in a namespace by omitting both `name` and `labelSelector`. Each resource is checked individually and results are aggregated (worst status wins):
 
 ```yaml
-all-system-deployments:
-  type: kubernetes
-  resource:
-    kind: Deployment
-    namespace: kube-system
+components:
+  all-system-deployments:
+    type: kubernetes
+    resource:
+      kind: Deployment
+      namespace: kube-system
 ```
 
 **Note:** Empty results (no matching resources) are considered HEALTHY by default. Use CEL checks to require resources:
 
 ```yaml
-require-deployments:
-  type: kubernetes
-  resource:
-    kind: Deployment
-    namespace: production
-    labelSelector: "app=myapp"
-  checks:
-    - expression: "items.size() >= 1"
-      errorMessage: "No deployments found"
+components:
+  require-deployments:
+    type: kubernetes
+    resource:
+      kind: Deployment
+      namespace: production
+      labelSelector: "app=myapp"
+    checks:
+      - expression: "items.size() >= 1"
+        errorMessage: "No deployments found"
 ```
 
 ### All Resources Across All Namespaces
@@ -222,15 +232,16 @@ require-deployments:
 Use `namespace: "*"` to select resources across all namespaces:
 
 ```yaml
-cluster-wide-pods:
-  type: kubernetes
-  resource:
-    kind: Pod
-    namespace: "*"
-    labelSelector: "app.kubernetes.io/part-of=myapp"
-  checks:
-    - expression: "items.size() >= 1"
-      errorMessage: "No pods found cluster-wide"
+components:
+  cluster-wide-pods:
+    type: kubernetes
+    resource:
+      kind: Pod
+      namespace: "*"
+      labelSelector: "app.kubernetes.io/part-of=myapp"
+    checks:
+      - expression: "items.size() >= 1"
+        errorMessage: "No pods found cluster-wide"
 ```
 
 **Note:** All-namespaces mode requires `labelSelector`; it cannot be used with `name`.
@@ -240,17 +251,18 @@ cluster-wide-pods:
 Select resources matching a label selector. CEL checks use `items` for cardinality and collection-based validation:
 
 ```yaml
-vault-pods:
-  type: kubernetes
-  resource:
-    kind: Pod
-    namespace: vault
-    labelSelector: "app.kubernetes.io/name=vault"
-  checks:
-    - expression: "items.size() >= 3"
-      errorMessage: "Less than 3 vault pods found"
-    - expression: "items.all(r, r.status.phase == 'Running')"
-      errorMessage: "Not all pods are running"
+components:
+  vault-pods:
+    type: kubernetes
+    resource:
+      kind: Pod
+      namespace: vault
+      labelSelector: "app.kubernetes.io/name=vault"
+    checks:
+      - expression: "items.size() >= 3"
+        errorMessage: "Less than 3 vault pods found"
+      - expression: "items.all(r, r.status.phase == 'Running')"
+        errorMessage: "Not all pods are running"
 ```
 
 ### Label Selector with Multiple Conditions
@@ -258,15 +270,16 @@ vault-pods:
 Use comma-separated conditions for AND logic, or set-based operators for OR logic on values:
 
 ```yaml
-app-deployments:
-  type: kubernetes
-  resource:
-    kind: Deployment
-    namespace: production
-    labelSelector: "app.kubernetes.io/part-of=myapp,tier in (frontend,backend)"
-  checks:
-    - expression: "items.all(r, r.status.readyReplicas >= r.spec.replicas)"
-      errorMessage: "Not all deployments are fully ready"
+components:
+  app-deployments:
+    type: kubernetes
+    resource:
+      kind: Deployment
+      namespace: production
+      labelSelector: "app.kubernetes.io/part-of=myapp,tier in (frontend,backend)"
+    checks:
+      - expression: "items.all(r, r.status.readyReplicas >= r.spec.replicas)"
+        errorMessage: "Not all deployments are fully ready"
 ```
 
 ### Component Selection with Label Selector
@@ -275,13 +288,13 @@ When using `--component` (`-c`) flag, you can select individual discovered resou
 
 ```bash
 # Check all matched resources
-phc -c vault-pods
+ph check -c vault-pods
 
 # Check specific discovered resource
-phc -c vault-pods/vault-0
+ph check -c vault-pods/vault-0
 
 # Check multiple specific resources
-phc -c vault-pods/vault-0 -c vault-pods/vault-1
+ph check -c vault-pods/vault-0 -c vault-pods/vault-1
 ```
 
 ## Response Details

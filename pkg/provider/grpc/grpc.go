@@ -9,11 +9,13 @@ import (
 	"time"
 
 	"github.com/mcuadros/go-defaults"
+	"github.com/spf13/viper"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/health/grpc_health_v1"
 
+	"github.com/isometry/platform-health/pkg/commands/flags"
 	ph "github.com/isometry/platform-health/pkg/platform_health"
 	"github.com/isometry/platform-health/pkg/provider"
 	"github.com/isometry/platform-health/pkg/utils"
@@ -31,8 +33,62 @@ type GRPC struct {
 	Timeout  time.Duration `mapstructure:"timeout" default:"1s"`
 }
 
+// Compile-time interface check
+var _ provider.FlagConfigurable = (*GRPC)(nil)
+
 func init() {
 	provider.Register(TypeGRPC, new(GRPC))
+}
+
+// GetProviderFlags returns flag definitions for CLI configuration.
+func (i *GRPC) GetProviderFlags() flags.FlagValues {
+	return flags.FlagValues{
+		"host": {
+			Kind:  "string",
+			Usage: "target hostname",
+		},
+		"port": {
+			Kind:  "int",
+			Usage: "target port",
+		},
+		"service": {
+			Kind:  "string",
+			Usage: "gRPC service name to check",
+		},
+		"tls": {
+			Kind:         "bool",
+			DefaultValue: false,
+			Usage:        "use TLS",
+		},
+		"insecure": {
+			Kind:         "bool",
+			DefaultValue: false,
+			Usage:        "skip certificate verification",
+		},
+		"timeout": {
+			Kind:         "duration",
+			DefaultValue: "1s",
+			Usage:        "request timeout",
+		},
+	}
+}
+
+// ConfigureFromFlags applies Viper values to the provider.
+func (i *GRPC) ConfigureFromFlags(v *viper.Viper) error {
+	i.Host = v.GetString(TypeGRPC + ".host")
+	i.Port = v.GetInt(TypeGRPC + ".port")
+	i.Service = v.GetString(TypeGRPC + ".service")
+	i.TLS = v.GetBool(TypeGRPC + ".tls")
+	i.Insecure = v.GetBool(TypeGRPC + ".insecure")
+	i.Timeout = v.GetDuration(TypeGRPC + ".timeout")
+
+	if i.Host == "" {
+		return fmt.Errorf("host is required")
+	}
+	if i.Port == 0 {
+		return fmt.Errorf("port is required")
+	}
+	return nil
 }
 
 func (i *GRPC) LogValue() slog.Value {

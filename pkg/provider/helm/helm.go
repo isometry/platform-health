@@ -1,16 +1,21 @@
 package helm
 
 import (
+	"bytes"
 	"context"
 	"fmt"
+	"io"
 	"log/slog"
 	"time"
 
 	"github.com/google/cel-go/cel"
 	"github.com/mcuadros/go-defaults"
+	"github.com/spf13/viper"
+	"go.yaml.in/yaml/v3"
 	release "helm.sh/helm/v4/pkg/release/v1"
 
 	"github.com/isometry/platform-health/pkg/checks"
+	"github.com/isometry/platform-health/pkg/commands/flags"
 	ph "github.com/isometry/platform-health/pkg/platform_health"
 	"github.com/isometry/platform-health/pkg/provider"
 	"github.com/isometry/platform-health/pkg/provider/helm/client"
@@ -26,15 +31,19 @@ var celConfig = checks.NewCEL(
 )
 
 type Helm struct {
-	Name      string              `mapstructure:"-"`
-	Release   string              `mapstructure:"release"`
-	Namespace string              `mapstructure:"namespace"`
-	Timeout   time.Duration       `mapstructure:"timeout" default:"5s"`
-	Checks    []checks.Expression `mapstructure:"checks"`
+	provider.BaseCELProvider `mapstructure:",squash"`
 
-	// Compiled CEL evaluator (cached after Setup)
-	evaluator *checks.Evaluator
+	Name      string        `mapstructure:"-"`
+	Release   string        `mapstructure:"release"`
+	Namespace string        `mapstructure:"namespace"`
+	Timeout   time.Duration `mapstructure:"timeout" default:"5s"`
 }
+
+// Compile-time interface checks
+var (
+	_ provider.CELCapable       = (*Helm)(nil)
+	_ provider.FlagConfigurable = (*Helm)(nil)
+)
 
 func init() {
 	provider.Register(TypeHelm, new(Helm))
@@ -46,23 +55,85 @@ func (i *Helm) LogValue() slog.Value {
 		slog.String("release", i.Release),
 		slog.String("namespace", i.Namespace),
 		slog.Any("timeout", i.Timeout),
-		slog.Int("checks", len(i.Checks)),
+		slog.Int("checks", len(i.GetChecks())),
 	}
 	return slog.GroupValue(logAttr...)
 }
 
 func (i *Helm) Setup() error {
 	defaults.SetDefaults(i)
+	return i.SetupCEL(celConfig)
+}
 
-	// Pre-compile CEL evaluator if checks exist
-	if len(i.Checks) > 0 {
-		evaluator, err := celConfig.NewEvaluator(i.Checks)
-		if err != nil {
-			return fmt.Errorf("invalid CEL expression: %w", err)
-		}
-		i.evaluator = evaluator
+// GetCELConfig returns the Helm provider's CEL variable declarations.
+func (i *Helm) GetCELConfig() *checks.CEL {
+	return celConfig
+}
+
+// GetCELContext fetches the Helm release and returns the CEL evaluation context.
+func (i *Helm) GetCELContext(ctx context.Context) (map[string]any, error) {
+	log := utils.ContextLogger(ctx, slog.String("provider", TypeHelm), slog.Any("instance", i))
+
+	statusRunner, err := client.ClientFactory.GetStatusRunner(i.Namespace, log)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get status runner: %w", err)
 	}
 
+	resultChan := make(chan releaseResult)
+	go func() {
+		rel, err := statusRunner.Run(i.Release)
+		resultChan <- releaseResult{release: rel, err: err}
+	}()
+
+	var rel *release.Release
+	select {
+	case <-time.After(i.Timeout):
+		return nil, fmt.Errorf("timeout")
+	case result := <-resultChan:
+		if result.err != nil {
+			return nil, result.err
+		}
+		rel = result.release
+	}
+
+	releaseMap, chartMap := releaseToMaps(rel)
+	return map[string]any{
+		"release": releaseMap,
+		"chart":   chartMap,
+	}, nil
+}
+
+// GetProviderFlags returns flag definitions for CLI configuration.
+func (i *Helm) GetProviderFlags() flags.FlagValues {
+	return flags.FlagValues{
+		"release": {
+			Kind:         "string",
+			DefaultValue: "",
+			Usage:        "Helm release name",
+		},
+		"namespace": {
+			Shorthand:    "n",
+			Kind:         "string",
+			DefaultValue: "default",
+			Usage:        "Kubernetes namespace",
+		},
+		"timeout": {
+			Kind:         "duration",
+			DefaultValue: 5 * time.Second,
+			Usage:        "timeout for Helm operations",
+		},
+	}
+}
+
+// ConfigureFromFlags applies Viper values to the provider.
+func (i *Helm) ConfigureFromFlags(v *viper.Viper) error {
+	i.Release = v.GetString(TypeHelm + ".release")
+	i.Namespace = v.GetString(TypeHelm + ".namespace")
+	i.Timeout = v.GetDuration(TypeHelm + ".timeout")
+
+	if i.Release == "" {
+		return fmt.Errorf("release is required")
+	}
 	return nil
 }
 
@@ -94,66 +165,61 @@ func (i *Helm) GetHealth(ctx context.Context) *ph.HealthCheckResponse {
 	}
 	defer component.LogStatus(log)
 
-	statusRunner, err := client.ClientFactory.GetStatusRunner(i.Namespace, log)
+	// Get CEL context (fetches release)
+	celCtx, err := i.GetCELContext(ctx)
 	if err != nil {
 		return component.Unhealthy(err.Error())
 	}
 
-	resultChan := make(chan releaseResult)
-	go func() {
-		rel, err := statusRunner.Run(i.Release)
-		resultChan <- releaseResult{release: rel, err: err}
-	}()
-
-	var rel *release.Release
-	select {
-	case <-time.After(i.Timeout):
-		return component.Unhealthy("timeout")
-	case result := <-resultChan:
-		if result.err != nil {
-			return component.Unhealthy(result.err.Error())
-		}
-		rel = result.release
+	// Check release status from context
+	releaseMap := celCtx["release"].(map[string]any)
+	status := releaseMap["Status"].(string)
+	if status != string(client.StatusDeployed) {
+		return component.Unhealthy(fmt.Sprintf("expected status 'deployed'; actual status '%s'", status))
 	}
 
-	// Check status
-	if rel.Info.Status != client.StatusDeployed {
-		return component.Unhealthy(fmt.Sprintf("expected status 'deployed'; actual status '%s'", rel.Info.Status))
-	}
-
-	// Apply CEL checks with release context
-	if len(i.Checks) > 0 {
-		if i.evaluator == nil {
-			evaluator, err := celConfig.NewEvaluator(i.Checks)
-			if err != nil {
-				return component.Unhealthy(fmt.Sprintf("failed to compile CEL programs: %v", err))
-			}
-			i.evaluator = evaluator
-		}
-
-		// Convert release to maps for CEL evaluation
-		releaseMap, chartMap := releaseToMaps(rel)
-		celCtx := map[string]any{
-			"release": releaseMap,
-			"chart":   chartMap,
-		}
-
-		if err := i.evaluator.Evaluate(celCtx); err != nil {
-			return component.Unhealthy(err.Error())
-		}
+	// Apply CEL checks
+	if err := i.EvaluateCEL(celCtx); err != nil {
+		return component.Unhealthy(err.Error())
 	}
 
 	return component.Healthy()
 }
 
 // releaseToMaps converts a release.Release to separate release and chart maps for CEL evaluation
+// unmarshalManifest parses a multi-document YAML manifest string into structured objects.
+func unmarshalManifest(manifestStr string) []map[string]any {
+	if manifestStr == "" {
+		return []map[string]any{}
+	}
+
+	var result []map[string]any
+	decoder := yaml.NewDecoder(bytes.NewReader([]byte(manifestStr)))
+
+	for {
+		var doc map[string]any
+		if err := decoder.Decode(&doc); err != nil {
+			if err == io.EOF {
+				break
+			}
+			// Skip malformed documents
+			continue
+		}
+		if len(doc) > 0 {
+			result = append(result, doc)
+		}
+	}
+
+	return result
+}
+
 func releaseToMaps(rel *release.Release) (releaseMap map[string]any, chartMap map[string]any) {
 	releaseMap = map[string]any{
 		"Name":      rel.Name,
 		"Namespace": rel.Namespace,
 		"Revision":  rel.Version, // Renamed from Version for Helm idiom
 		"Config":    rel.Config,  // User overrides
-		"Manifest":  rel.Manifest,
+		"Manifest":  unmarshalManifest(rel.Manifest),
 		"Labels":    rel.Labels,
 	}
 

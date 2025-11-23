@@ -8,7 +8,7 @@ Once the Helm Provider is configured, any query to the platform health server wi
 
 ## Configuration
 
-The Helm Provider is configured through the platform-health server's configuration file. Each instance is defined with its name as the YAML key.
+The Helm Provider is configured through the platform-health server's configuration file. Each instance is defined with its name as the YAML key under `components`.
 
 - `type` (required): Must be `helm`.
 - `release` (required): The name of the Helm release to monitor.
@@ -23,11 +23,12 @@ For queries to succeed, the platform-health server must be run in a context with
 ### Example
 
 ```yaml
-example:
-  type: helm
-  release: example-chart
-  namespace: example-namespace
-  timeout: 5s
+components:
+  example:
+    type: helm
+    release: example-chart
+    namespace: example-namespace
+    timeout: 5s
 ```
 
 In this example, the Helm Provider will check the status of the Helm release named "example-chart" in the "example-namespace" namespace, and it will wait for 5s before timing out.
@@ -68,20 +69,21 @@ The following variables are available in CEL expressions:
 ### Example with CEL Checks
 
 ```yaml
-my-app:
-  type: helm
-  release: my-app
-  namespace: production
-  timeout: 10s
-  checks:
-    - expression: "release.Revision >= 2"
-      errorMessage: "Release must have at least one upgrade"
-    - expression: "!chart.Deprecated"
-      errorMessage: "Chart is deprecated"
-    - expression: "'team' in release.Labels && 'env' in release.Labels"
-      errorMessage: "Release must have team and env labels"
-    - expression: "release.Config['replicas'] >= 3"
-      errorMessage: "Production must have at least 3 replicas"
+components:
+  my-app:
+    type: helm
+    release: my-app
+    namespace: production
+    timeout: 10s
+    checks:
+      - expression: "release.Revision >= 2"
+        errorMessage: "Release must have at least one upgrade"
+      - expression: "!chart.Deprecated"
+        errorMessage: "Chart is deprecated"
+      - expression: "'team' in release.Labels && 'env' in release.Labels"
+        errorMessage: "Release must have team and env labels"
+      - expression: "release.Config['replicas'] >= 3"
+        errorMessage: "Production must have at least 3 replicas"
 ```
 
 This example validates that:

@@ -33,6 +33,7 @@ func main() {
 	cmd.Version = fmt.Sprintf("%s-%s (built %s)", version, commit, date)
 	err := cmd.Execute()
 	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
 }

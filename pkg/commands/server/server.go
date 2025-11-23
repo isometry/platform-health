@@ -37,7 +37,7 @@ func New() *cobra.Command {
 }
 
 func setup(cmd *cobra.Command, args []string) (err error) {
-	flags.BindFlags(cmd, "server")
+	flags.BindFlags(cmd)
 
 	log = slog.Default()
 	cmd.SetContext(slogctx.NewCtx(cmd.Context(), log))
@@ -50,20 +50,19 @@ func setup(cmd *cobra.Command, args []string) (err error) {
 		if err != nil {
 			return err
 		}
-		viper.Set("server.listen", host)
-		viper.Set("server.port", port)
+		viper.Set("listen", host)
+		viper.Set("port", port)
 	}
 
-	conf, err = config.Load(cmd.Context(),
-		viper.GetStringSlice("server.config-path"),
-		viper.GetString("server.config-name"))
+	paths, name := flags.ConfigPaths()
+	conf, err = config.Load(cmd.Context(), paths, name)
 	return err
 }
 
 func serve(_ *cobra.Command, _ []string) (err error) {
 	address := net.JoinHostPort(
-		viper.GetString("server.listen"),
-		fmt.Sprint(viper.GetInt("server.port")))
+		viper.GetString("listen"),
+		fmt.Sprint(viper.GetInt("port")))
 	listener, err := net.Listen("tcp", address)
 	if err != nil {
 		log.Error("failed to open listener", slog.Any("error", err))
@@ -75,10 +74,10 @@ func serve(_ *cobra.Command, _ []string) (err error) {
 	serverId := uuid.New().String()
 
 	opts := []server.Option{}
-	if !viper.GetBool("server.no-grpc-health-v1") {
+	if !viper.GetBool("no-grpc-health-v1") {
 		opts = append(opts, server.WithHealthService())
 	}
-	if viper.GetBool("server.grpc-reflection") {
+	if viper.GetBool("grpc-reflection") {
 		opts = append(opts, server.WithReflection())
 	}
 

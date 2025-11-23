@@ -49,8 +49,10 @@ import (
 
 	"github.com/google/cel-go/cel"
 	"github.com/mcuadros/go-defaults"
+	"github.com/spf13/viper"
 
 	"github.com/isometry/platform-health/pkg/checks"
+	"github.com/isometry/platform-health/pkg/commands/flags"
 	ph "github.com/isometry/platform-health/pkg/platform_health"
 	"github.com/isometry/platform-health/pkg/provider"
 	"github.com/isometry/platform-health/pkg/utils"
@@ -71,15 +73,19 @@ type Request struct {
 
 // REST provider extends HTTP provider with response validation capabilities
 type REST struct {
-	Name     string              `mapstructure:"-"`
-	Request  Request             `mapstructure:"request"`
-	Insecure bool                `mapstructure:"insecure"`
-	Checks   []checks.Expression `mapstructure:"checks"`
-	Timeout  time.Duration       `mapstructure:"timeout" default:"10s"`
+	provider.BaseCELProvider `mapstructure:",squash"`
 
-	// Compiled CEL evaluator (cached after Setup)
-	evaluator *checks.Evaluator
+	Name     string        `mapstructure:"-"`
+	Request  Request       `mapstructure:"request"`
+	Insecure bool          `mapstructure:"insecure"`
+	Timeout  time.Duration `mapstructure:"timeout" default:"10s"`
 }
+
+// Compile-time interface checks
+var (
+	_ provider.CELCapable       = (*REST)(nil)
+	_ provider.FlagConfigurable = (*REST)(nil)
+)
 
 var certPool *x509.CertPool
 
@@ -105,21 +111,76 @@ func (i *REST) LogValue() slog.Value {
 		slog.Bool("insecure", i.Insecure),
 		slog.Bool("hasRequestBody", i.Request.Body != ""),
 		slog.Int("requestHeaders", len(i.Request.Headers)),
-		slog.Int("checks", len(i.Checks)),
+		slog.Int("checks", len(i.GetChecks())),
 	}
 	return slog.GroupValue(logAttr...)
 }
 
 func (i *REST) Setup() error {
 	defaults.SetDefaults(i)
+	return i.SetupCEL(celConfig)
+}
 
-	// Pre-compile CEL evaluator if checks exist (using package-level cache)
-	if len(i.Checks) > 0 {
-		evaluator, err := celConfig.NewEvaluator(i.Checks)
-		if err != nil {
-			return fmt.Errorf("invalid CEL expression: %w", err)
-		}
-		i.evaluator = evaluator
+// GetCELConfig returns the REST provider's CEL variable declarations.
+func (i *REST) GetCELConfig() *checks.CEL {
+	return celConfig
+}
+
+// GetCELContext performs the HTTP request and returns the CEL evaluation context.
+func (i *REST) GetCELContext(ctx context.Context) (map[string]any, error) {
+	ctx, cancel := context.WithTimeout(ctx, i.Timeout)
+	defer cancel()
+
+	response, body, err := i.executeHTTPRequest(ctx)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = response.Body.Close() }()
+
+	return i.buildCELContext(response, body), nil
+}
+
+// GetProviderFlags returns flag definitions for CLI configuration.
+func (i *REST) GetProviderFlags() flags.FlagValues {
+	return flags.FlagValues{
+		"url": {
+			Kind:         "string",
+			DefaultValue: "",
+			Usage:        "target URL",
+		},
+		"method": {
+			Kind:         "string",
+			DefaultValue: "GET",
+			Usage:        "HTTP method",
+		},
+		"body": {
+			Kind:         "string",
+			DefaultValue: "",
+			Usage:        "request body",
+		},
+		"insecure": {
+			Kind:         "bool",
+			DefaultValue: false,
+			Usage:        "skip TLS verification",
+		},
+		"timeout": {
+			Kind:         "duration",
+			DefaultValue: 10 * time.Second,
+			Usage:        "request timeout",
+		},
+	}
+}
+
+// ConfigureFromFlags applies Viper values to the provider.
+func (i *REST) ConfigureFromFlags(v *viper.Viper) error {
+	i.Request.URL = v.GetString(TypeREST + ".url")
+	i.Request.Method = v.GetString(TypeREST + ".method")
+	i.Request.Body = v.GetString(TypeREST + ".body")
+	i.Insecure = v.GetBool(TypeREST + ".insecure")
+	i.Timeout = v.GetDuration(TypeREST + ".timeout")
+
+	if i.Request.URL == "" {
+		return fmt.Errorf("url is required")
 	}
 	return nil
 }
@@ -140,27 +201,21 @@ func (i *REST) GetHealth(ctx context.Context) *ph.HealthCheckResponse {
 	log := utils.ContextLogger(ctx, slog.String("provider", TypeREST), slog.Any("instance", i))
 	log.Debug("checking")
 
-	ctx, cancel := context.WithTimeout(ctx, i.Timeout)
-	defer cancel()
-
 	component := &ph.HealthCheckResponse{
 		Type: TypeREST,
 		Name: i.Name,
 	}
 	defer component.LogStatus(log)
 
-	// Execute single HTTP request
-	response, body, err := i.executeHTTPRequest(ctx)
+	// Get CEL context (executes HTTP request)
+	celCtx, err := i.GetCELContext(ctx)
 	if err != nil {
 		return component.Unhealthy(err.Error())
 	}
-	defer func() { _ = response.Body.Close() }()
 
-	// Apply CEL checks if configured
-	if len(i.Checks) > 0 {
-		if err := i.validateCEL(response, body); err != nil {
-			return component.Unhealthy(err.Error())
-		}
+	// Apply CEL checks
+	if err := i.EvaluateCEL(celCtx); err != nil {
+		return component.Unhealthy(err.Error())
 	}
 
 	return component.Healthy()
@@ -226,27 +281,6 @@ func (i *REST) executeHTTPRequest(ctx context.Context) (*http.Response, []byte, 
 	}
 
 	return response, body, nil
-}
-
-// validateCEL evaluates CEL expressions against response using cached evaluator
-func (i *REST) validateCEL(response *http.Response, body []byte) error {
-	if len(i.Checks) == 0 {
-		return nil
-	}
-
-	// Ensure CEL evaluator is compiled
-	if i.evaluator == nil {
-		evaluator, err := celConfig.NewEvaluator(i.Checks)
-		if err != nil {
-			return fmt.Errorf("failed to compile CEL programs: %w", err)
-		}
-		i.evaluator = evaluator
-	}
-
-	// Build CEL context with request and response
-	celCtx := i.buildCELContext(response, body)
-
-	return i.evaluator.Evaluate(celCtx)
 }
 
 // buildCELContext creates CEL evaluation context from HTTP request and response

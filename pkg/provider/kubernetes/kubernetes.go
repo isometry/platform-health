@@ -11,6 +11,7 @@ import (
 
 	"github.com/google/cel-go/cel"
 	"github.com/mcuadros/go-defaults"
+	"github.com/spf13/viper"
 	"google.golang.org/protobuf/types/known/anypb"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -20,6 +21,7 @@ import (
 	"sigs.k8s.io/cli-utils/pkg/kstatus/status"
 
 	"github.com/isometry/platform-health/pkg/checks"
+	"github.com/isometry/platform-health/pkg/commands/flags"
 	ph "github.com/isometry/platform-health/pkg/platform_health"
 	"github.com/isometry/platform-health/pkg/platform_health/details"
 	"github.com/isometry/platform-health/pkg/provider"
@@ -40,16 +42,20 @@ var celConfig = checks.NewCEL(
 )
 
 type Kubernetes struct {
-	Name     string              `mapstructure:"-"`
-	Resource Resource            `mapstructure:"resource"`
-	Checks   []checks.Expression `mapstructure:"checks"`
-	KStatus  *bool               `mapstructure:"kstatus"`
-	Detail   bool                `mapstructure:"detail"`
-	Timeout  time.Duration       `mapstructure:"timeout" default:"10s"`
+	provider.BaseCELProvider `mapstructure:",squash"`
 
-	// Compiled CEL evaluator (cached after Setup)
-	evaluator *checks.Evaluator
+	Name     string        `mapstructure:"-"`
+	Resource Resource      `mapstructure:"resource"`
+	KStatus  *bool         `mapstructure:"kstatus"`
+	Detail   bool          `mapstructure:"detail"`
+	Timeout  time.Duration `mapstructure:"timeout" default:"10s"`
 }
+
+// Compile-time interface checks
+var (
+	_ provider.CELCapable       = (*Kubernetes)(nil)
+	_ provider.FlagConfigurable = (*Kubernetes)(nil)
+)
 
 // Resource represents a Kubernetes resource to check
 type Resource struct {
@@ -72,7 +78,7 @@ func (i *Kubernetes) LogValue() slog.Value {
 		slog.String("kind", i.Resource.Kind),
 		slog.String("namespace", i.Resource.Namespace),
 		slog.Any("timeout", i.Timeout),
-		slog.Int("checks", len(i.Checks)),
+		slog.Int("checks", len(i.GetChecks())),
 		slog.Bool("detail", i.Detail),
 	}
 	if i.Resource.Name != "" {
@@ -106,15 +112,156 @@ func (i *Kubernetes) Setup() error {
 		i.KStatus = &kstatusDefault
 	}
 
-	// Pre-compile CEL evaluator if checks exist (using package-level cache)
-	if len(i.Checks) > 0 {
-		evaluator, err := celConfig.NewEvaluator(i.Checks)
-		if err != nil {
-			return fmt.Errorf("invalid CEL expression: %w", err)
-		}
-		i.evaluator = evaluator
+	return i.SetupCEL(celConfig)
+}
+
+// GetCELConfig returns the Kubernetes provider's CEL variable declarations.
+func (i *Kubernetes) GetCELConfig() *checks.CEL {
+	return celConfig
+}
+
+// GetCELContext fetches the Kubernetes resource(s) and returns the CEL evaluation context.
+// For single resource (by name): returns {"resource": resourceMap}
+// For multiple resources (by selector): returns {"items": []resourceMap}
+func (i *Kubernetes) GetCELContext(ctx context.Context) (map[string]any, error) {
+	clients, err := client.ClientFactory.GetClients()
+	if err != nil {
+		return nil, err
 	}
 
+	clients.Config.Timeout = i.Timeout
+	dynClient := clients.Dynamic
+	mapper := clients.Mapper
+
+	// Default group based on kind for common resources
+	group := i.Resource.Group
+	if group == "" {
+		k := strings.ToLower(i.Resource.Kind)
+		if g, ok := commonKindToGroup[k]; ok {
+			group = g
+		}
+	}
+
+	gk := schema.GroupKind{
+		Group: group,
+		Kind:  i.Resource.Kind,
+	}
+
+	var mapping *meta.RESTMapping
+	if i.Resource.Version != "" {
+		mapping, err = mapper.RESTMapping(gk, i.Resource.Version)
+	} else {
+		mapping, err = mapper.RESTMapping(gk)
+	}
+	if err != nil {
+		return nil, err
+	}
+
+	gvr := mapping.Resource
+
+	// Branch based on Name vs selector mode
+	if i.Resource.Name != "" {
+		blob, err := dynClient.Resource(gvr).Namespace(i.Resource.Namespace).Get(ctx, i.Resource.Name, metav1.GetOptions{})
+		if err != nil {
+			return nil, err
+		}
+		return map[string]any{
+			"resource": blob.Object,
+		}, nil
+	}
+
+	// Selector mode - list resources
+	listOpts := metav1.ListOptions{
+		LabelSelector: i.Resource.LabelSelector,
+	}
+
+	var list *unstructured.UnstructuredList
+	if mapping.Scope.Name() == meta.RESTScopeNameRoot {
+		list, err = dynClient.Resource(gvr).List(ctx, listOpts)
+	} else if i.Resource.Namespace == AllNamespaces {
+		list, err = dynClient.Resource(gvr).List(ctx, listOpts)
+	} else {
+		list, err = dynClient.Resource(gvr).Namespace(i.Resource.Namespace).List(ctx, listOpts)
+	}
+	if err != nil {
+		return nil, err
+	}
+
+	var items []any
+	for idx := range list.Items {
+		items = append(items, list.Items[idx].Object)
+	}
+
+	return map[string]any{
+		"items": items,
+	}, nil
+}
+
+// GetProviderFlags returns flag definitions for CLI configuration.
+func (i *Kubernetes) GetProviderFlags() flags.FlagValues {
+	return flags.FlagValues{
+		"kind": {
+			Kind:         "string",
+			DefaultValue: "",
+			Usage:        "resource kind (e.g., deployment, pod)",
+		},
+		"namespace": {
+			Shorthand:    "n",
+			Kind:         "string",
+			DefaultValue: "default",
+			Usage:        "Kubernetes namespace (use '*' for all)",
+		},
+		"name": {
+			Kind:         "string",
+			DefaultValue: "",
+			Usage:        "resource name (mutually exclusive with label-selector)",
+		},
+		"label-selector": {
+			Shorthand:    "l",
+			Kind:         "string",
+			DefaultValue: "",
+			Usage:        "label selector (mutually exclusive with name)",
+		},
+		"group": {
+			Kind:         "string",
+			DefaultValue: "",
+			Usage:        "API group (auto-detected for common kinds)",
+		},
+		"version": {
+			Kind:         "string",
+			DefaultValue: "",
+			Usage:        "API version (uses preferred if not specified)",
+		},
+		"timeout": {
+			Kind:         "duration",
+			DefaultValue: 10 * time.Second,
+			Usage:        "timeout for Kubernetes operations",
+		},
+		"kstatus": {
+			Kind:         "bool",
+			DefaultValue: true,
+			Usage:        "enable kstatus evaluation",
+		},
+		"detail": {
+			Kind:         "bool",
+			DefaultValue: false,
+			Usage:        "include detailed kstatus in response",
+		},
+	}
+}
+
+// ConfigureFromFlags applies Viper values to the provider.
+func (i *Kubernetes) ConfigureFromFlags(v *viper.Viper) error {
+	i.Resource.Kind = v.GetString(TypeKubernetes + ".kind")
+	i.Resource.Namespace = v.GetString(TypeKubernetes + ".namespace")
+	i.Resource.Name = v.GetString(TypeKubernetes + ".name")
+	i.Resource.LabelSelector = v.GetString(TypeKubernetes + ".label-selector")
+	i.Resource.Group = v.GetString(TypeKubernetes + ".group")
+	i.Resource.Version = v.GetString(TypeKubernetes + ".version")
+	i.Timeout = v.GetDuration(TypeKubernetes + ".timeout")
+	kstatus := v.GetBool(TypeKubernetes + ".kstatus")
+	i.KStatus = &kstatus
+	i.Detail = v.GetBool(TypeKubernetes + ".detail")
 	return nil
 }
 
@@ -198,22 +345,12 @@ func (i *Kubernetes) checkByName(ctx context.Context, client dynamic.Interface, 
 	}
 
 	// Apply CEL checks with resource context
-	if len(i.Checks) > 0 {
-		if i.evaluator == nil {
-			evaluator, err := celConfig.NewEvaluator(i.Checks)
-			if err != nil {
-				return component.Unhealthy(fmt.Sprintf("failed to compile CEL programs: %v", err))
-			}
-			i.evaluator = evaluator
-		}
+	celCtx := map[string]any{
+		"resource": blob.Object,
+	}
 
-		celCtx := map[string]any{
-			"resource": blob.Object,
-		}
-
-		if err := i.evaluator.Evaluate(celCtx); err != nil {
-			return component.Unhealthy(err.Error())
-		}
+	if err := i.EvaluateCEL(celCtx); err != nil {
+		return component.Unhealthy(err.Error())
 	}
 
 	return component
@@ -300,29 +437,17 @@ func (i *Kubernetes) checkBySelector(ctx context.Context, client dynamic.Interfa
 	component.Components = components
 
 	// Apply CEL checks against items list (selector mode)
-	if len(i.Checks) > 0 {
-		// Ensure CEL evaluator is compiled
-		if i.evaluator == nil {
-			evaluator, err := celConfig.NewEvaluator(i.Checks)
-			if err != nil {
-				return component.Unhealthy(fmt.Sprintf("failed to compile CEL programs: %v", err))
-			}
-			i.evaluator = evaluator
-		}
+	var items []any
+	for idx := range list.Items {
+		items = append(items, list.Items[idx].Object)
+	}
 
-		// Build items list from all matched resources
-		var items []any
-		for idx := range list.Items {
-			items = append(items, list.Items[idx].Object)
-		}
+	celCtx := map[string]any{
+		"items": items,
+	}
 
-		celCtx := map[string]any{
-			"items": items,
-		}
-
-		if err := i.evaluator.Evaluate(celCtx); err != nil {
-			return component.Unhealthy(err.Error())
-		}
+	if err := i.EvaluateCEL(celCtx); err != nil {
+		return component.Unhealthy(err.Error())
 	}
 
 	return component

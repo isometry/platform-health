@@ -17,6 +17,7 @@ import (
 
 	"github.com/isometry/platform-health/pkg/checks"
 	ph "github.com/isometry/platform-health/pkg/platform_health"
+	"github.com/isometry/platform-health/pkg/provider"
 	"github.com/isometry/platform-health/pkg/provider/kubernetes"
 	"github.com/isometry/platform-health/pkg/provider/kubernetes/client"
 )
@@ -210,9 +211,9 @@ func TestCheckBySelector_RequireAtLeastOne(t *testing.T) {
 			Namespace:     "default",
 			LabelSelector: "app=nonexistent",
 		},
-		Checks: []checks.Expression{
+		BaseCELProvider: provider.BaseCELProvider{Checks: []checks.Expression{
 			{Expression: "items.size() >= 1", ErrorMessage: "No resources found"},
-		},
+		}},
 	}
 	require.NoError(t, provider.Setup())
 
@@ -250,9 +251,9 @@ func TestCELChecks_SingleResource(t *testing.T) {
 			Namespace: "default",
 			Name:      "my-app",
 		},
-		Checks: []checks.Expression{
+		BaseCELProvider: provider.BaseCELProvider{Checks: []checks.Expression{
 			{Expression: "resource.status.readyReplicas >= resource.spec.replicas"},
-		},
+		}},
 	}
 	require.NoError(t, provider.Setup())
 
@@ -272,9 +273,9 @@ func TestCELChecks_ItemsList(t *testing.T) {
 			Kind:      "Deployment",
 			Namespace: "default",
 		},
-		Checks: []checks.Expression{
+		BaseCELProvider: provider.BaseCELProvider{Checks: []checks.Expression{
 			{Expression: "items.size() >= 3", ErrorMessage: "Need at least 3 deployments"},
-		},
+		}},
 	}
 	require.NoError(t, provider.Setup())
 
@@ -292,9 +293,9 @@ func TestCELChecks_ItemsListFails(t *testing.T) {
 			Kind:      "Deployment",
 			Namespace: "default",
 		},
-		Checks: []checks.Expression{
+		BaseCELProvider: provider.BaseCELProvider{Checks: []checks.Expression{
 			{Expression: "items.size() >= 3", ErrorMessage: "Need at least 3 deployments"},
-		},
+		}},
 	}
 	require.NoError(t, provider.Setup())
 
