@@ -151,8 +151,8 @@ func releaseToMaps(rel *release.Release) (releaseMap map[string]any, chartMap ma
 	releaseMap = map[string]any{
 		"Name":      rel.Name,
 		"Namespace": rel.Namespace,
-		"Revision":  rel.Version,   // Renamed from Version for Helm idiom
-		"Config":    rel.Config,    // User overrides
+		"Revision":  rel.Version, // Renamed from Version for Helm idiom
+		"Config":    rel.Config,  // User overrides
 		"Manifest":  rel.Manifest,
 		"Labels":    rel.Labels,
 	}

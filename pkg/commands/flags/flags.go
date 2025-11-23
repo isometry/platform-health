@@ -1,6 +1,7 @@
 package flags
 
 import (
+	"maps"
 	"time"
 
 	"github.com/spf13/cobra"
@@ -55,9 +56,7 @@ func (f *FlagValue) BuildFlag(flagSet *pflag.FlagSet, flagName string) {
 func Merge(flagSets ...FlagValues) FlagValues {
 	result := make(FlagValues)
 	for _, fs := range flagSets {
-		for k, v := range fs {
-			result[k] = v
-		}
+		maps.Copy(result, fs)
 	}
 	return result
 }
@@ -114,7 +113,6 @@ func ComponentFlags() FlagValues {
 func OutputFlags() FlagValues {
 	return FlagValues{
 		"flat": {
-			Shorthand:    "f",
 			Kind:         "bool",
 			DefaultValue: false,
 			Usage:        "flat output",

@@ -40,10 +40,10 @@ func testRelease(name string, status common.Status) *release.Release {
 		Namespace: "default",
 		Version:   1,
 		Info: &release.Info{
-			Status:       status,
+			Status:        status,
 			FirstDeployed: time.Now().Add(-24 * time.Hour),
 			LastDeployed:  time.Now(),
-			Description:  "Install complete",
+			Description:   "Install complete",
 		},
 		Chart: &chart.Chart{
 			Metadata: &chart.Metadata{
@@ -52,21 +52,21 @@ func testRelease(name string, status common.Status) *release.Release {
 				AppVersion: "2.0.0",
 				Deprecated: false,
 			},
-			Values: map[string]interface{}{
+			Values: map[string]any{
 				"replicas": 1,
-				"image": map[string]interface{}{
+				"image": map[string]any{
 					"repository": "nginx",
 					"tag":        "latest",
 				},
-				"service": map[string]interface{}{
+				"service": map[string]any{
 					"type": "ClusterIP",
 					"port": 80,
 				},
 			},
 		},
-		Config: map[string]interface{}{
+		Config: map[string]any{
 			"replicas": 3,
-			"image": map[string]interface{}{
+			"image": map[string]any{
 				"tag": "v1.0.0",
 			},
 		},
