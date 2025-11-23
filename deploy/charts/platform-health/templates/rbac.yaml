@@ -17,59 +17,70 @@ metadata:
 rules:
   - apiGroups: [""]
     resources: ["pods"]
-    verbs: ["get"]
+    verbs: ["get", "list"]
   {{- if .enableDeployments }}
   - apiGroups: ["apps"]
     resources: ["deployments", "replicasets", "statefulsets", "daemonsets"]
-    verbs: ["get"]
+    verbs: ["get", "list"]
   {{- end }}
   {{- if .enableSecrets }}
   - apiGroups: [""]
     resources: ["secrets"]
-    verbs: ["get"]
+    verbs: ["get", "list"]
   {{- end }}
   {{- if .enableConfigMaps }}
   - apiGroups: [ "" ]
     resources: [ "configmaps" ]
-    verbs: [ "get" ]
+    verbs: ["get", "list"]
   {{- end }}
   {{- if .enableArgoApplications }}
   - apiGroups: ["argoproj.io"]
     resources: ["applications"]
-    verbs: ["get"]
+    verbs: ["get", "list"]
   {{- end }}
   {{- if .enableArgoApplicationSets }}
   - apiGroups: ["argoproj.io"]
     resources: ["applicationsets"]
-    verbs: ["get"]
+    verbs: ["get", "list"]
   {{- end }}
   {{- if .enableJobs }}
   - apiGroups: ["batch"]
     resources: ["jobs", "cronjobs"]
-    verbs: ["get"]
+    verbs: ["get", "list"]
   {{- end }}
   {{- if .enableCertManager }}
   - apiGroups: ["cert-manager.io"]
     resources: ["clusterissuers", "issuers", "certificates"]
-    verbs: ["get"]
+    verbs: ["get", "list"]
   {{- end }}
   {{- if .enableNetworking }}
   - apiGroups: ["networking.k8s.io"]
     resources: ["ingressclasses", "ingresses", "networkpolicies"]
-    verbs: ["get"]
+    verbs: ["get", "list"]
   - apiGroups: [""]
     resources: ["services"]
-    verbs: ["get"]
+    verbs: ["get", "list"]
   {{- end }}
   {{- if .enableStorage }}
   - apiGroups: ["storage.k8s.io"]
     resources: ["storageclasses", "volumeattachments", "csinodes", "csidrivers", "persistentvolumeclaims", "persistentvolumes"]
-    verbs: ["get"]
+    verbs: ["get", "list"]
   {{- end }}
   {{- if .enablePodDisruptionBudgets }}
   - apiGroups: ["policy"]
     resources: ["poddisruptionbudgets", "podsecuritypolicies"]
-    verbs: ["get"]
+    verbs: ["get", "list"]
+  {{- end }}
+  {{ if .enableFluxGitOpsToolkit }}
+  - apiGroups:
+      - "source.toolkit.fluxcd.io"
+      - "kustomize.toolkit.fluxcd.io"
+      - "helm.toolkit.fluxcd.io"
+      - "notification.toolkit.fluxcd.io"
+      - "image.toolkit.fluxcd.io"
+    resources:
+      - "*"
+    verbs: ["get", "list"]
   {{- end }}
 {{- end }}
 ---
@@ -93,4 +104,29 @@ roleRef:
   kind: {{ $roleKind }}
   name: {{ include "chart.fullname" . }}
   apiGroup: rbac.authorization.k8s.io
+{{- if .Values.rbac.extraClusterRoleBindings }}
+{{- range .Values.rbac.extraClusterRoleBindings }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: {{ include "chart.fullname" $ }}-{{ . }}
+  labels:
+    {{- include "labels" $ | nindent 4 }}
+  {{- with $.Values.commonAnnotations }}
+  annotations:
+    {{- range $key, $value := . }}
+    {{ $key }}: {{ $value | quote }}
+    {{- end }}
+  {{- end }}
+subjects:
+  - kind: ServiceAccount
+    name: {{ include "chart.serviceAccountName" $ }}
+    namespace: {{ include "chart.namespace" $ }}
+roleRef:
+  kind: ClusterRole
+  name: {{ . }}
+  apiGroup: rbac.authorization.k8s.io
+{{- end }}
+{{- end }}
 {{- end }}
