@@ -24,7 +24,7 @@ replicaCount: 1
 
 # Arguments to pass to the platform-health server
 serverArgs: &args
-  - -vv
+  - --log-level=2
 
 # Define the health checks for the application
 # config: {provider: [target]}
@@ -33,17 +33,17 @@ serverArgs: &args
 ## Example: basic health checks
 #
 # serverConfig:
-#   tcp:
-#     - name: ssh@localhost
-#       host: localhost
-#       port: 22
-#   tls:
-#     - name: gmail
-#       host: smtp.gmail.com
-#       port: 465
-#   http:
-#     - name: google
-#       url: https://google.com
+#   ssh@localhost:
+#     type: localhost
+#     host: localhost
+#     port: 22
+#   gmail-smtps:
+#     type: tls
+#     host: smtp.gmail.com
+#     port: 465
+#   google:
+#     type: http
+#     url: https://google.com
 #
 # Explicitly passing nil (i.e. `serverConfig: ~`) disables ConfigMap generation,
 # leaving it to the user.
@@ -187,3 +187,11 @@ rbac:
     enablePodDisruptionBudgets: true
     # Allows the application to read ArgoCD ApplicationSets scoped to 'argoproj.io'
     enableArgoApplicationSets: true
+    # Allows the application to read FluxCD GitOps Toolkit resources scoped to `*.toolkit.fluxcd.io`
+    enableFluxGitOpsToolkit: true
+  # Extra ClusterRoleBindings to create (binds ServiceAccount to existing ClusterRoles)
+  # Example:
+  # extraClusterRoleBindings:
+  #   - view
+  #   - custom-monitoring-role
+  extraClusterRoleBindings: []
