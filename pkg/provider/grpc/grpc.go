@@ -3,20 +3,17 @@ package grpc
 import (
 	"context"
 	"crypto/tls"
-	"errors"
 	"fmt"
 	"log/slog"
 	"net"
 	"time"
 
 	"github.com/mcuadros/go-defaults"
-	"github.com/spf13/pflag"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/health/grpc_health_v1"
 
-	"github.com/isometry/platform-health/pkg/commands/flags"
 	ph "github.com/isometry/platform-health/pkg/platform_health"
 	"github.com/isometry/platform-health/pkg/provider"
 	"github.com/isometry/platform-health/pkg/utils"
@@ -34,81 +31,8 @@ type GRPC struct {
 	Timeout  time.Duration `mapstructure:"timeout" default:"1s"`
 }
 
-// Compile-time interface check
-var _ provider.FlagConfigurable = (*GRPC)(nil)
-
 func init() {
 	provider.Register(TypeGRPC, new(GRPC))
-}
-
-// GetProviderFlags returns flag definitions for CLI configuration.
-func (i *GRPC) GetProviderFlags() flags.FlagValues {
-	return flags.FlagValues{
-		"host": {
-			Kind:  "string",
-			Usage: "target hostname",
-		},
-		"port": {
-			Kind:  "int",
-			Usage: "target port",
-		},
-		"service": {
-			Kind:  "string",
-			Usage: "gRPC service name to check",
-		},
-		"tls": {
-			Kind:         "bool",
-			DefaultValue: false,
-			Usage:        "use TLS",
-		},
-		"insecure": {
-			Kind:         "bool",
-			DefaultValue: false,
-			Usage:        "skip certificate verification",
-		},
-		"timeout": {
-			Kind:         "duration",
-			DefaultValue: "1s",
-			Usage:        "request timeout",
-		},
-	}
-}
-
-// ConfigureFromFlags applies flag values to the provider.
-func (i *GRPC) ConfigureFromFlags(fs *pflag.FlagSet) error {
-	var errs []error
-	var err error
-
-	if i.Host, err = fs.GetString("host"); err != nil {
-		errs = append(errs, err)
-	}
-	if i.Port, err = fs.GetInt("port"); err != nil {
-		errs = append(errs, err)
-	}
-	if i.Service, err = fs.GetString("service"); err != nil {
-		errs = append(errs, err)
-	}
-	if i.TLS, err = fs.GetBool("tls"); err != nil {
-		errs = append(errs, err)
-	}
-	if i.Insecure, err = fs.GetBool("insecure"); err != nil {
-		errs = append(errs, err)
-	}
-	if i.Timeout, err = fs.GetDuration("timeout"); err != nil {
-		errs = append(errs, err)
-	}
-
-	if len(errs) > 0 {
-		return fmt.Errorf("flag errors: %w", errors.Join(errs...))
-	}
-
-	if i.Host == "" {
-		return fmt.Errorf("host is required")
-	}
-	if i.Port == 0 {
-		return fmt.Errorf("port is required")
-	}
-	return nil
 }
 
 func (i *GRPC) LogValue() slog.Value {

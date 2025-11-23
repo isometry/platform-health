@@ -19,8 +19,8 @@ The REST Provider is configured through the platform-health server's configurati
 - `timeout` (default: `10s`): The maximum time to wait for a response before timing out.
 - `insecure` (default: `false`): If set to true, allows the REST provider to establish connections even if the TLS certificate of the service is invalid or untrusted. This is useful for testing or in environments where services use self-signed certificates. Note that using this option in a production environment is not recommended, as it disables important security checks.
 - `checks` (optional): List of CEL expressions to validate against the response. Each expression consists of:
-  - `expression`: A CEL expression that must evaluate to a boolean. Has access to `request.method`, `request.body`, `request.headers`, `request.url`, `response.json` (parsed JSON), `response.body` (raw text), `response.status` (HTTP status code), and `response.headers` (response headers).
-  - `errorMessage`: Custom error message to return if the expression fails.
+  - `expr`: A CEL expression that must evaluate to a boolean. Has access to `request.method`, `request.body`, `request.headers`, `request.url`, `response.json` (parsed JSON), `response.body` (raw text), `response.status` (HTTP status code), and `response.headers` (response headers).
+  - `message`: Custom error message to return if the expression fails.
 
 ## Validation Flow
 
@@ -63,14 +63,14 @@ components:
       method: GET
     timeout: 10s
     checks:
-      - expression: "response.status == 200"
-        errorMessage: "Expected HTTP 200 status"
-      - expression: 'response.json.status == "healthy"'
-        errorMessage: "API reports unhealthy status"
-      - expression: "response.json.database.connected == true"
-        errorMessage: "Database connection failed"
-      - expression: "response.json.uptime > 0"
-        errorMessage: "Service uptime is zero"
+      - expr: "response.status == 200"
+        message: "Expected HTTP 200 status"
+      - expr: 'response.json.status == "healthy"'
+        message: "API reports unhealthy status"
+      - expr: "response.json.database.connected == true"
+        message: "Database connection failed"
+      - expr: "response.json.uptime > 0"
+        message: "Service uptime is zero"
 ```
 
 In this example, the platform-health server will send a `GET` request to `https://api.example.com/health`, validating that the HTTP status is `200` and that the JSON response contains a `status` field with value `"healthy"`, a nested `database.connected` field with value `true`, and an `uptime` field greater than zero.
@@ -79,15 +79,15 @@ In this example, the platform-health server will send a `GET` request to `https:
 
 ```yaml
 components:
-  auth-check:
+  auth-expr:
     type: rest
     request:
       url: https://api.example.com/auth/login
       method: POST
       body: '{"username":"healthcheck","password":"test123"}'
     checks:
-      - expression: 'response.status == 200 || (response.status == 401 && response.json.error == "invalid_credentials")'
-        errorMessage: "Unexpected authentication response"
+      - expr: 'response.status == 200 || (response.status == 401 && response.json.error == "invalid_credentials")'
+        message: "Unexpected authentication response"
 ```
 
 In this example, the provider sends a POST request with credentials, accepting either a successful login (200) or a specific authentication failure (401 with expected error message).
@@ -105,10 +105,10 @@ components:
         Authorization: "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
         X-API-Key: "my-secret-key-123"
     checks:
-      - expression: "response.status == 200"
-        errorMessage: "API authentication failed"
-      - expression: "response.json.authenticated == true"
-        errorMessage: "Not authenticated"
+      - expr: "response.status == 200"
+        message: "API authentication failed"
+      - expr: "response.json.authenticated == true"
+        message: "Not authenticated"
 ```
 
 In this example, the provider includes custom headers for API authentication, allowing health checks on protected endpoints.
@@ -123,10 +123,10 @@ components:
       url: https://status.example.com
       method: GET
     checks:
-      - expression: "response.status == 200"
-        errorMessage: "Expected HTTP 200 status"
-      - expression: 'response.body.matches("(?i)all systems (operational|normal|healthy)")'
-        errorMessage: "Status page doesn't show operational state"
+      - expr: "response.status == 200"
+        message: "Expected HTTP 200 status"
+      - expr: 'response.body.matches("(?i)all systems (operational|normal|healthy)")'
+        message: "Status page doesn't show operational state"
 ```
 
 In this example, the provider validates that the HTML response contains the text "all systems operational", "all systems normal", or "all systems healthy" (case-insensitive) using CEL's `matches()` function.
@@ -141,10 +141,10 @@ components:
       url: https://monitor.example.com/status
       method: GET
     checks:
-      - expression: "response.status == 200"
-        errorMessage: "Expected HTTP 200 status"
-      - expression: '!response.body.matches("(?i)(error|critical|down|failed)")'
-        errorMessage: "Error keywords detected in response"
+      - expr: "response.status == 200"
+        message: "Expected HTTP 200 status"
+      - expr: '!response.body.matches("(?i)(error|critical|down|failed)")'
+        message: "Error keywords detected in response"
 ```
 
 In this example, the provider fails if it finds any of the error-related keywords in the response, making it useful for detecting unexpected error states.
@@ -159,12 +159,12 @@ components:
       url: https://api.example.com/v1/health
       method: GET
     checks:
-      - expression: "response.status == 200"
-        errorMessage: "Expected HTTP 200 status"
-      - expression: 'response.headers["content-type"].contains("application/json")'
-        errorMessage: "Expected JSON response"
-      - expression: "response.json.ready == true"
-        errorMessage: "Service not ready"
+      - expr: "response.status == 200"
+        message: "Expected HTTP 200 status"
+      - expr: 'response.headers["content-type"].contains("application/json")'
+        message: "Expected JSON response"
+      - expr: "response.json.ready == true"
+        message: "Service not ready"
 ```
 
 In this example, the provider validates that the Content-Type header contains "application/json" before checking the JSON content.
@@ -173,25 +173,25 @@ In this example, the provider validates that the Content-Type header contains "a
 
 ```yaml
 components:
-  comprehensive-check:
+  comprehensive-expr:
     type: rest
     request:
       url: https://api.example.com/status
       method: GET
     timeout: 15s
     checks:
-      - expression: 'response.headers["content-type"] == "application/json"'
-        errorMessage: "Wrong content type"
-      - expression: 'response.body.matches("\"status\":\\s*\"ok\"")'
-        errorMessage: "Status pattern not found"
-      - expression: 'response.json.status == "ok"'
-        errorMessage: "Service status not ok"
-      - expression: 'response.json.checks.database == "ok"'
-        errorMessage: "Database check failed"
-      - expression: 'response.json.checks.cache == "ok"'
-        errorMessage: "Cache check failed"
-      - expression: 'response.headers["Content-Type"] == "application/json"'
-        errorMessage: "Unexpected content type"
+      - expr: 'response.headers["content-type"] == "application/json"'
+        message: "Wrong content type"
+      - expr: 'response.body.matches("\"status\":\\s*\"ok\"")'
+        message: "Status pattern not found"
+      - expr: 'response.json.status == "ok"'
+        message: "Service status not ok"
+      - expr: 'response.json.checks.database == "ok"'
+        message: "Database check failed"
+      - expr: 'response.json.checks.cache == "ok"'
+        message: "Cache check failed"
+      - expr: 'response.headers["Content-Type"] == "application/json"'
+        message: "Unexpected content type"
 ```
 
 In this example, the provider combines Content-Type validation, regex pattern matching, and multiple JSON field checks to thoroughly verify the service health.

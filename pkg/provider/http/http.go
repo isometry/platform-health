@@ -12,10 +12,8 @@ import (
 	"time"
 
 	"github.com/mcuadros/go-defaults"
-	"github.com/spf13/pflag"
 	"google.golang.org/protobuf/types/known/anypb"
 
-	"github.com/isometry/platform-health/pkg/commands/flags"
 	ph "github.com/isometry/platform-health/pkg/platform_health"
 	"github.com/isometry/platform-health/pkg/provider"
 	tlsProvider "github.com/isometry/platform-health/pkg/provider/tls"
@@ -34,9 +32,6 @@ type HTTP struct {
 	Detail   bool          `mapstructure:"detail"`
 }
 
-// Compile-time interface check
-var _ provider.FlagConfigurable = (*HTTP)(nil)
-
 var certPool *x509.CertPool = nil
 
 func init() {
@@ -44,73 +39,6 @@ func init() {
 	if systemCertPool, err := x509.SystemCertPool(); err == nil {
 		certPool = systemCertPool
 	}
-}
-
-// GetProviderFlags returns flag definitions for CLI configuration.
-func (i *HTTP) GetProviderFlags() flags.FlagValues {
-	return flags.FlagValues{
-		"url": {
-			Kind:  "string",
-			Usage: "target URL",
-		},
-		"method": {
-			Kind:         "string",
-			DefaultValue: "HEAD",
-			Usage:        "HTTP method",
-		},
-		"timeout": {
-			Kind:         "duration",
-			DefaultValue: "10s",
-			Usage:        "request timeout",
-		},
-		"insecure": {
-			Kind:  "bool",
-			Usage: "skip TLS verification",
-		},
-		"status": {
-			Kind:         "intSlice",
-			DefaultValue: []int{200},
-			Usage:        "expected HTTP status codes",
-		},
-		"detail": {
-			Kind:  "bool",
-			Usage: "include TLS connection details",
-		},
-	}
-}
-
-// ConfigureFromFlags applies flag values to the provider.
-func (i *HTTP) ConfigureFromFlags(fs *pflag.FlagSet) error {
-	var errs []error
-	var err error
-
-	if i.URL, err = fs.GetString("url"); err != nil {
-		errs = append(errs, err)
-	}
-	if i.Method, err = fs.GetString("method"); err != nil {
-		errs = append(errs, err)
-	}
-	if i.Timeout, err = fs.GetDuration("timeout"); err != nil {
-		errs = append(errs, err)
-	}
-	if i.Insecure, err = fs.GetBool("insecure"); err != nil {
-		errs = append(errs, err)
-	}
-	if i.Status, err = fs.GetIntSlice("status"); err != nil {
-		errs = append(errs, err)
-	}
-	if i.Detail, err = fs.GetBool("detail"); err != nil {
-		errs = append(errs, err)
-	}
-
-	if len(errs) > 0 {
-		return fmt.Errorf("flag errors: %w", errors.Join(errs...))
-	}
-
-	if i.URL == "" {
-		return fmt.Errorf("url is required")
-	}
-	return nil
 }
 
 func (i *HTTP) LogValue() slog.Value {

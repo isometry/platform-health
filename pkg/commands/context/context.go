@@ -2,6 +2,7 @@
 package context
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"log/slog"
@@ -183,10 +184,12 @@ func outputJSON(ctx map[string]any) error {
 
 // outputYAML prints context as YAML.
 func outputYAML(ctx map[string]any) error {
-	data, err := yaml.Marshal(ctx)
-	if err != nil {
+	var buf bytes.Buffer
+	encoder := yaml.NewEncoder(&buf)
+	encoder.SetIndent(2)
+	if err := encoder.Encode(ctx); err != nil {
 		return fmt.Errorf("failed to marshal YAML: %w", err)
 	}
-	fmt.Print(string(data))
+	fmt.Print(buf.String())
 	return nil
 }

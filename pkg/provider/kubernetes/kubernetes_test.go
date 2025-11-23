@@ -212,7 +212,7 @@ func TestCheckBySelector_RequireAtLeastOne(t *testing.T) {
 			LabelSelector: "app=nonexistent",
 		},
 		BaseCELProvider: provider.BaseCELProvider{Checks: []checks.Expression{
-			{Expression: "items.size() >= 1", ErrorMessage: "No resources found"},
+			{Expression: "items.size() >= 1", Message: "No resources found"},
 		}},
 	}
 	require.NoError(t, provider.Setup())
@@ -274,7 +274,7 @@ func TestCELChecks_ItemsList(t *testing.T) {
 			Namespace: "default",
 		},
 		BaseCELProvider: provider.BaseCELProvider{Checks: []checks.Expression{
-			{Expression: "items.size() >= 3", ErrorMessage: "Need at least 3 deployments"},
+			{Expression: "items.size() >= 3", Message: "Need at least 3 deployments"},
 		}},
 	}
 	require.NoError(t, provider.Setup())
@@ -294,7 +294,7 @@ func TestCELChecks_ItemsListFails(t *testing.T) {
 			Namespace: "default",
 		},
 		BaseCELProvider: provider.BaseCELProvider{Checks: []checks.Expression{
-			{Expression: "items.size() >= 3", ErrorMessage: "Need at least 3 deployments"},
+			{Expression: "items.size() >= 3", Message: "Need at least 3 deployments"},
 		}},
 	}
 	require.NoError(t, provider.Setup())

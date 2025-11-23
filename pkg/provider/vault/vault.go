@@ -2,16 +2,12 @@ package vault
 
 import (
 	"context"
-	"errors"
-	"fmt"
 	"log/slog"
 	"time"
 
 	vault "github.com/hashicorp/vault/api"
 	"github.com/mcuadros/go-defaults"
-	"github.com/spf13/pflag"
 
-	"github.com/isometry/platform-health/pkg/commands/flags"
 	ph "github.com/isometry/platform-health/pkg/platform_health"
 	"github.com/isometry/platform-health/pkg/provider"
 	"github.com/isometry/platform-health/pkg/utils"
@@ -26,56 +22,8 @@ type Vault struct {
 	Insecure bool          `mapstructure:"insecure"`
 }
 
-// Compile-time interface check
-var _ provider.FlagConfigurable = (*Vault)(nil)
-
 func init() {
 	provider.Register(TypeVault, new(Vault))
-}
-
-// GetProviderFlags returns flag definitions for CLI configuration.
-func (i *Vault) GetProviderFlags() flags.FlagValues {
-	return flags.FlagValues{
-		"address": {
-			Kind:  "string",
-			Usage: "Vault server URL",
-		},
-		"timeout": {
-			Kind:         "duration",
-			DefaultValue: "1s",
-			Usage:        "request timeout",
-		},
-		"insecure": {
-			Kind:         "bool",
-			DefaultValue: false,
-			Usage:        "skip TLS verification",
-		},
-	}
-}
-
-// ConfigureFromFlags applies flag values to the provider.
-func (i *Vault) ConfigureFromFlags(fs *pflag.FlagSet) error {
-	var errs []error
-	var err error
-
-	if i.Address, err = fs.GetString("address"); err != nil {
-		errs = append(errs, err)
-	}
-	if i.Timeout, err = fs.GetDuration("timeout"); err != nil {
-		errs = append(errs, err)
-	}
-	if i.Insecure, err = fs.GetBool("insecure"); err != nil {
-		errs = append(errs, err)
-	}
-
-	if len(errs) > 0 {
-		return fmt.Errorf("flag errors: %w", errors.Join(errs...))
-	}
-
-	if i.Address == "" {
-		return fmt.Errorf("address is required")
-	}
-	return nil
 }
 
 func (i *Vault) LogValue() slog.Value {

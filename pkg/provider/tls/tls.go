@@ -12,11 +12,9 @@ import (
 	"time"
 
 	"github.com/mcuadros/go-defaults"
-	"github.com/spf13/pflag"
 	"google.golang.org/protobuf/types/known/anypb"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
-	"github.com/isometry/platform-health/pkg/commands/flags"
 	ph "github.com/isometry/platform-health/pkg/platform_health"
 	"github.com/isometry/platform-health/pkg/platform_health/details"
 	"github.com/isometry/platform-health/pkg/provider"
@@ -36,9 +34,6 @@ type TLS struct {
 	Detail      bool          `mapstructure:"detail"`
 }
 
-// Compile-time interface check
-var _ provider.FlagConfigurable = (*TLS)(nil)
-
 type VerificationStatus struct {
 	UnknownAuthority bool
 	HostnameMismatch bool
@@ -51,80 +46,6 @@ func init() {
 	if systemCertPool, err := x509.SystemCertPool(); err == nil {
 		certPool = systemCertPool
 	}
-}
-
-// GetProviderFlags returns flag definitions for CLI configuration.
-func (i *TLS) GetProviderFlags() flags.FlagValues {
-	return flags.FlagValues{
-		"host": {
-			Kind:  "string",
-			Usage: "target hostname",
-		},
-		"port": {
-			Kind:         "int",
-			DefaultValue: 443,
-			Usage:        "target port",
-		},
-		"timeout": {
-			Kind:         "duration",
-			DefaultValue: "5s",
-			Usage:        "connection timeout",
-		},
-		"insecure": {
-			Kind:  "bool",
-			Usage: "skip certificate verification",
-		},
-		"min-validity": {
-			Kind:         "duration",
-			DefaultValue: "24h",
-			Usage:        "minimum certificate validity",
-		},
-		"sans": {
-			Kind:  "stringSlice",
-			Usage: "expected Subject Alternative Names",
-		},
-		"detail": {
-			Kind:  "bool",
-			Usage: "include TLS connection details",
-		},
-	}
-}
-
-// ConfigureFromFlags applies flag values to the provider.
-func (i *TLS) ConfigureFromFlags(fs *pflag.FlagSet) error {
-	var errs []error
-	var err error
-
-	if i.Host, err = fs.GetString("host"); err != nil {
-		errs = append(errs, err)
-	}
-	if i.Port, err = fs.GetInt("port"); err != nil {
-		errs = append(errs, err)
-	}
-	if i.Timeout, err = fs.GetDuration("timeout"); err != nil {
-		errs = append(errs, err)
-	}
-	if i.Insecure, err = fs.GetBool("insecure"); err != nil {
-		errs = append(errs, err)
-	}
-	if i.MinValidity, err = fs.GetDuration("min-validity"); err != nil {
-		errs = append(errs, err)
-	}
-	if i.SANs, err = fs.GetStringSlice("sans"); err != nil {
-		errs = append(errs, err)
-	}
-	if i.Detail, err = fs.GetBool("detail"); err != nil {
-		errs = append(errs, err)
-	}
-
-	if len(errs) > 0 {
-		return fmt.Errorf("flag errors: %w", errors.Join(errs...))
-	}
-
-	if i.Host == "" {
-		return fmt.Errorf("host is required")
-	}
-	return nil
 }
 
 func (i *TLS) LogValue() slog.Value {

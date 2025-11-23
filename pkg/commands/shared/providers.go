@@ -27,12 +27,6 @@ func AddProviderSubcommands(parent *cobra.Command, opts ProviderSubcommandOption
 			continue
 		}
 
-		// Must be flag-configurable
-		flagConfigurable := provider.AsFlagConfigurable(instance)
-		if flagConfigurable == nil {
-			continue
-		}
-
 		// CEL capability check
 		celCapable := provider.AsCELCapable(instance)
 		if opts.RequireCEL && celCapable == nil {
@@ -40,7 +34,7 @@ func AddProviderSubcommands(parent *cobra.Command, opts ProviderSubcommandOption
 		}
 
 		// Create subcommand
-		providerCmd := createProviderSubcommand(providerType, flagConfigurable, celCapable, opts)
+		providerCmd := createProviderSubcommand(providerType, instance, celCapable, opts)
 		parent.AddCommand(providerCmd)
 	}
 }
@@ -48,7 +42,7 @@ func AddProviderSubcommands(parent *cobra.Command, opts ProviderSubcommandOption
 // createProviderSubcommand creates a subcommand for a specific provider type.
 func createProviderSubcommand(
 	providerType string,
-	flagConfigurable provider.FlagConfigurable,
+	instance provider.Instance,
 	celCapable provider.CELCapable,
 	opts ProviderSubcommandOptions,
 ) *cobra.Command {
@@ -60,8 +54,8 @@ func createProviderSubcommand(
 		},
 	}
 
-	// Register provider-specific flags
-	providerFlags := flagConfigurable.GetProviderFlags()
+	// Register provider-specific flags (derived via reflection)
+	providerFlags := provider.ProviderFlags(instance)
 	providerFlags.Register(cmd.Flags(), true)
 
 	// Add any extra flags
@@ -82,14 +76,8 @@ func CreateAndConfigureProvider(cmd *cobra.Command, providerType string) (provid
 		return nil, nil, fmt.Errorf("provider type %q not registered", providerType)
 	}
 
-	// Configure from flags
-	flagConfigurable := provider.AsFlagConfigurable(instance)
-	if flagConfigurable == nil {
-		return nil, nil, fmt.Errorf("provider type %q is not flag-configurable", providerType)
-	}
-
-	// Pass flags directly to provider (no viper namespace needed)
-	if err := flagConfigurable.ConfigureFromFlags(cmd.Flags()); err != nil {
+	// Configure from flags (via reflection)
+	if err := provider.ConfigureFromFlags(instance, cmd.Flags()); err != nil {
 		return nil, nil, fmt.Errorf("failed to configure provider from flags: %w", err)
 	}
 

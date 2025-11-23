@@ -3,7 +3,6 @@ package helm
 import (
 	"bytes"
 	"context"
-	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -11,12 +10,10 @@ import (
 
 	"github.com/google/cel-go/cel"
 	"github.com/mcuadros/go-defaults"
-	"github.com/spf13/pflag"
 	"go.yaml.in/yaml/v3"
 	release "helm.sh/helm/v4/pkg/release/v1"
 
 	"github.com/isometry/platform-health/pkg/checks"
-	"github.com/isometry/platform-health/pkg/commands/flags"
 	ph "github.com/isometry/platform-health/pkg/platform_health"
 	"github.com/isometry/platform-health/pkg/provider"
 	"github.com/isometry/platform-health/pkg/provider/helm/client"
@@ -40,11 +37,7 @@ type Helm struct {
 	Timeout   time.Duration `mapstructure:"timeout" default:"5s"`
 }
 
-// Compile-time interface checks
-var (
-	_ provider.CELCapable       = (*Helm)(nil)
-	_ provider.FlagConfigurable = (*Helm)(nil)
-)
+var _ provider.CELCapable = (*Helm)(nil)
 
 func init() {
 	provider.Register(TypeHelm, new(Helm))
@@ -102,53 +95,6 @@ func (i *Helm) GetCELContext(ctx context.Context) (map[string]any, error) {
 		"release": releaseMap,
 		"chart":   chartMap,
 	}, nil
-}
-
-// GetProviderFlags returns flag definitions for CLI configuration.
-func (i *Helm) GetProviderFlags() flags.FlagValues {
-	return flags.FlagValues{
-		"release": {
-			Kind:         "string",
-			DefaultValue: "",
-			Usage:        "Helm release name",
-		},
-		"namespace": {
-			Shorthand:    "n",
-			Kind:         "string",
-			DefaultValue: "default",
-			Usage:        "Kubernetes namespace",
-		},
-		"timeout": {
-			Kind:         "duration",
-			DefaultValue: 5 * time.Second,
-			Usage:        "timeout for Helm operations",
-		},
-	}
-}
-
-// ConfigureFromFlags applies flag values to the provider.
-func (i *Helm) ConfigureFromFlags(fs *pflag.FlagSet) error {
-	var errs []error
-	var err error
-
-	if i.Release, err = fs.GetString("release"); err != nil {
-		errs = append(errs, err)
-	}
-	if i.Namespace, err = fs.GetString("namespace"); err != nil {
-		errs = append(errs, err)
-	}
-	if i.Timeout, err = fs.GetDuration("timeout"); err != nil {
-		errs = append(errs, err)
-	}
-
-	if len(errs) > 0 {
-		return fmt.Errorf("flag errors: %w", errors.Join(errs...))
-	}
-
-	if i.Release == "" {
-		return fmt.Errorf("release is required")
-	}
-	return nil
 }
 
 func (i *Helm) GetType() string {

@@ -5,16 +5,14 @@ import (
 	"testing"
 
 	"github.com/google/cel-go/cel"
-	"github.com/spf13/pflag"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/isometry/platform-health/pkg/checks"
-	"github.com/isometry/platform-health/pkg/commands/flags"
 	ph "github.com/isometry/platform-health/pkg/platform_health"
 )
 
-// mockCELProvider is a test implementation of CELCapable and FlagConfigurable
+// mockCELProvider is a test implementation of CELCapable
 type mockCELProvider struct {
 	BaseCELProvider
 	name      string
@@ -30,8 +28,8 @@ func newMockCELProvider() *mockCELProvider {
 	}
 }
 
-func (m *mockCELProvider) GetType() string { return "mock" }
-func (m *mockCELProvider) GetName() string { return m.name }
+func (m *mockCELProvider) GetType() string  { return "mock" }
+func (m *mockCELProvider) GetName() string  { return m.name }
 func (m *mockCELProvider) SetName(n string) { m.name = n }
 func (m *mockCELProvider) Setup() error {
 	return m.SetupCEL(m.celConfig)
@@ -62,34 +60,15 @@ func (m *mockCELProvider) GetCELContext(ctx context.Context) (map[string]any, er
 	}, nil
 }
 
-func (m *mockCELProvider) GetProviderFlags() flags.FlagValues {
-	return flags.FlagValues{
-		"value": {
-			Kind:         "int",
-			DefaultValue: 0,
-			Usage:        "test value",
-		},
-		"name": {
-			Kind:         "string",
-			DefaultValue: "",
-			Usage:        "test name",
-		},
-	}
-}
-
-func (m *mockCELProvider) ConfigureFromFlags(fs *pflag.FlagSet) error {
-	return nil
-}
-
 // mockNonCELProvider is a provider that doesn't implement CELCapable
 type mockNonCELProvider struct {
 	name string
 }
 
-func (m *mockNonCELProvider) GetType() string                                 { return "nonce" }
-func (m *mockNonCELProvider) GetName() string                                 { return m.name }
-func (m *mockNonCELProvider) SetName(n string)                                { m.name = n }
-func (m *mockNonCELProvider) Setup() error                                    { return nil }
+func (m *mockNonCELProvider) GetType() string  { return "nonce" }
+func (m *mockNonCELProvider) GetName() string  { return m.name }
+func (m *mockNonCELProvider) SetName(n string) { m.name = n }
+func (m *mockNonCELProvider) Setup() error     { return nil }
 func (m *mockNonCELProvider) GetHealth(ctx context.Context) *ph.HealthCheckResponse {
 	return &ph.HealthCheckResponse{Name: m.name, Status: ph.Status_HEALTHY}
 }
@@ -182,7 +161,7 @@ func TestBaseCELProvider_EvaluateCEL(t *testing.T) {
 		{
 			name: "failing check with custom message",
 			checks: []checks.Expression{
-				{Expression: "value > 100", ErrorMessage: "value too small"},
+				{Expression: "value > 100", Message: "value too small"},
 			},
 			ctx:     map[string]any{"value": int64(10)},
 			wantErr: true,
@@ -242,14 +221,6 @@ func TestIsCELCapable(t *testing.T) {
 	assert.False(t, IsCELCapable(nonCELProvider))
 }
 
-func TestIsFlagConfigurable(t *testing.T) {
-	celProvider := newMockCELProvider()
-	nonCELProvider := &mockNonCELProvider{}
-
-	assert.True(t, IsFlagConfigurable(celProvider))
-	assert.False(t, IsFlagConfigurable(nonCELProvider))
-}
-
 func TestAsCELCapable(t *testing.T) {
 	celProvider := newMockCELProvider()
 	nonCELProvider := &mockNonCELProvider{}
@@ -258,17 +229,6 @@ func TestAsCELCapable(t *testing.T) {
 	assert.NotNil(t, result)
 
 	result = AsCELCapable(nonCELProvider)
-	assert.Nil(t, result)
-}
-
-func TestAsFlagConfigurable(t *testing.T) {
-	celProvider := newMockCELProvider()
-	nonCELProvider := &mockNonCELProvider{}
-
-	result := AsFlagConfigurable(celProvider)
-	assert.NotNil(t, result)
-
-	result = AsFlagConfigurable(nonCELProvider)
 	assert.Nil(t, result)
 }
 
@@ -288,7 +248,7 @@ func TestMockCELProvider_Integration(t *testing.T) {
 
 	// Test with failing check
 	provider.SetChecks([]checks.Expression{
-		{Expression: "value > 100", ErrorMessage: "value must be greater than 100"},
+		{Expression: "value > 100", Message: "value must be greater than 100"},
 	})
 	require.NoError(t, provider.Setup())
 
@@ -333,23 +293,4 @@ func TestGetCELCapableProviders(t *testing.T) {
 	instance := NewInstance("testcelcapable")
 	assert.NotNil(t, instance)
 	assert.True(t, IsCELCapable(instance))
-}
-
-func TestGetFlagConfigurableProviders(t *testing.T) {
-	// Register a flag-configurable provider
-	Register("testflagconfig", newMockCELProvider())
-	defer func() {
-		mu.Lock()
-		delete(Providers, "testflagconfig")
-		mu.Unlock()
-	}()
-
-	// Get flag-configurable providers
-	providers := GetFlagConfigurableProviders()
-	assert.Contains(t, providers, "testflagconfig")
-
-	// Verify it's actually flag-configurable
-	instance := NewInstance("testflagconfig")
-	assert.NotNil(t, instance)
-	assert.True(t, IsFlagConfigurable(instance))
 }

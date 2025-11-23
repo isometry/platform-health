@@ -19,8 +19,8 @@ The Kubernetes Provider is configured through the platform-health server's confi
   - `name` (optional): The name of a specific Kubernetes resource. Mutually exclusive with `labelSelector`.
   - `labelSelector` (optional): Select resources by label selector using Kubernetes native syntax (e.g., `app=nginx,env=prod`). Supports equality (`=`, `==`, `!=`) and set-based (`in`, `notin`) operators. When multiple resources match, each is checked and results are aggregated. Mutually exclusive with `name`. If neither `name` nor `labelSelector` is specified, all resources of the kind in the namespace are selected.
 - `checks`: A list of CEL expressions to validate the resource. Each check has:
-  - `expression` (required): A CEL expression that must evaluate to `true` for the resource to be healthy.
-  - `errorMessage` (optional): Custom error message when the check fails.
+  - `expr` (required): A CEL expression that must evaluate to `true` for the resource to be healthy.
+  - `message` (optional): Custom error message when the check fails.
 - `kstatus` (default: `true`): Whether to evaluate resource health using the [kstatus](https://github.com/kubernetes-sigs/cli-utils/tree/master/pkg/kstatus) library. When enabled, resources must reach "Current" status to be considered healthy. A `Detail_KStatus` is included in the response with status, message, and conditions.
 - `timeout` (default: `10s`): Timeout for the Kubernetes API request.
 
@@ -94,8 +94,8 @@ components:
       name: my-app
       namespace: production
     checks:
-      - expression: "resource.status.readyReplicas >= resource.spec.replicas"
-        errorMessage: "Not all replicas are ready"
+      - expr: "resource.status.readyReplicas >= resource.spec.replicas"
+        message: "Not all replicas are ready"
 ```
 
 ### Condition-Based Check
@@ -107,8 +107,8 @@ components:
     kind: Deployment
     resource: my-app
     checks:
-      - expression: "resource.status.conditions.exists(c, c.type == 'Available' && c.status == 'True')"
-        errorMessage: "Deployment is not available"
+      - expr: "resource.status.conditions.exists(c, c.type == 'Available' && c.status == 'True')"
+        message: "Deployment is not available"
 ```
 
 ### Multiple Validation Checks
@@ -120,12 +120,12 @@ components:
     kind: Deployment
     resource: my-app
     checks:
-      - expression: "resource.status.readyReplicas >= 1"
-        errorMessage: "No replicas ready"
-      - expression: "resource.status.updatedReplicas == resource.spec.replicas"
-        errorMessage: "Rolling update in progress"
-      - expression: "resource.metadata.labels['version'] == 'v2'"
-        errorMessage: "Expected version v2"
+      - expr: "resource.status.readyReplicas >= 1"
+        message: "No replicas ready"
+      - expr: "resource.status.updatedReplicas == resource.spec.replicas"
+        message: "Rolling update in progress"
+      - expr: "resource.metadata.labels['version'] == 'v2'"
+        message: "Expected version v2"
 ```
 
 ### StatefulSet Check
@@ -137,8 +137,8 @@ components:
     kind: StatefulSet
     resource: my-database
     checks:
-      - expression: "resource.status.readyReplicas == resource.spec.replicas"
-        errorMessage: "StatefulSet not fully ready"
+      - expr: "resource.status.readyReplicas == resource.spec.replicas"
+        message: "StatefulSet not fully ready"
 ```
 
 ### Service Existence Check
@@ -163,8 +163,8 @@ components:
     kind: Pod
     resource: my-pod
     checks:
-      - expression: "resource.status.phase == 'Running'"
-        errorMessage: "Pod is not running"
+      - expr: "resource.status.phase == 'Running'"
+        message: "Pod is not running"
 ```
 
 ### ConfigMap Content Validation
@@ -176,8 +176,8 @@ components:
     kind: ConfigMap
     resource: app-config
     checks:
-      - expression: "'database_url' in resource.data"
-        errorMessage: "Missing database_url in ConfigMap"
+      - expr: "'database_url' in resource.data"
+        message: "Missing database_url in ConfigMap"
 ```
 
 ### Disable kstatus Evaluation
@@ -195,8 +195,8 @@ components:
       name: my-custom-resource
     kstatus: false
     checks:
-      - expression: "resource.status.ready == true"
-        errorMessage: "Custom resource is not ready"
+      - expr: "resource.status.ready == true"
+        message: "Custom resource is not ready"
 ```
 
 ### All Resources in Scope
@@ -223,8 +223,8 @@ components:
       namespace: production
       labelSelector: "app=myapp"
     checks:
-      - expression: "items.size() >= 1"
-        errorMessage: "No deployments found"
+      - expr: "items.size() >= 1"
+        message: "No deployments found"
 ```
 
 ### All Resources Across All Namespaces
@@ -240,8 +240,8 @@ components:
       namespace: "*"
       labelSelector: "app.kubernetes.io/part-of=myapp"
     checks:
-      - expression: "items.size() >= 1"
-        errorMessage: "No pods found cluster-wide"
+      - expr: "items.size() >= 1"
+        message: "No pods found cluster-wide"
 ```
 
 **Note:** All-namespaces mode requires `labelSelector`; it cannot be used with `name`.
@@ -259,10 +259,10 @@ components:
       namespace: vault
       labelSelector: "app.kubernetes.io/name=vault"
     checks:
-      - expression: "items.size() >= 3"
-        errorMessage: "Less than 3 vault pods found"
-      - expression: "items.all(r, r.status.phase == 'Running')"
-        errorMessage: "Not all pods are running"
+      - expr: "items.size() >= 3"
+        message: "Less than 3 vault pods found"
+      - expr: "items.all(r, r.status.phase == 'Running')"
+        message: "Not all pods are running"
 ```
 
 ### Label Selector with Multiple Conditions
@@ -278,8 +278,8 @@ components:
       namespace: production
       labelSelector: "app.kubernetes.io/part-of=myapp,tier in (frontend,backend)"
     checks:
-      - expression: "items.all(r, r.status.readyReplicas >= r.spec.replicas)"
-        errorMessage: "Not all deployments are fully ready"
+      - expr: "items.all(r, r.status.readyReplicas >= r.spec.replicas)"
+        message: "Not all deployments are fully ready"
 ```
 
 ### Component Selection with Label Selector

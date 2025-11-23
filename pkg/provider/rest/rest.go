@@ -49,10 +49,8 @@ import (
 
 	"github.com/google/cel-go/cel"
 	"github.com/mcuadros/go-defaults"
-	"github.com/spf13/pflag"
 
 	"github.com/isometry/platform-health/pkg/checks"
-	"github.com/isometry/platform-health/pkg/commands/flags"
 	ph "github.com/isometry/platform-health/pkg/platform_health"
 	"github.com/isometry/platform-health/pkg/provider"
 	"github.com/isometry/platform-health/pkg/utils"
@@ -76,16 +74,12 @@ type REST struct {
 	provider.BaseCELProvider `mapstructure:",squash"`
 
 	Name     string        `mapstructure:"-"`
-	Request  Request       `mapstructure:"request"`
+	Request  Request       `mapstructure:"request" flag:"squash"`
 	Insecure bool          `mapstructure:"insecure"`
 	Timeout  time.Duration `mapstructure:"timeout" default:"10s"`
 }
 
-// Compile-time interface checks
-var (
-	_ provider.CELCapable       = (*REST)(nil)
-	_ provider.FlagConfigurable = (*REST)(nil)
-)
+var _ provider.CELCapable = (*REST)(nil)
 
 var certPool *x509.CertPool
 
@@ -138,68 +132,6 @@ func (i *REST) GetCELContext(ctx context.Context) (map[string]any, error) {
 	defer func() { _ = response.Body.Close() }()
 
 	return i.buildCELContext(response, body), nil
-}
-
-// GetProviderFlags returns flag definitions for CLI configuration.
-func (i *REST) GetProviderFlags() flags.FlagValues {
-	return flags.FlagValues{
-		"url": {
-			Kind:         "string",
-			DefaultValue: "",
-			Usage:        "target URL",
-		},
-		"method": {
-			Kind:         "string",
-			DefaultValue: "GET",
-			Usage:        "HTTP method",
-		},
-		"body": {
-			Kind:         "string",
-			DefaultValue: "",
-			Usage:        "request body",
-		},
-		"insecure": {
-			Kind:         "bool",
-			DefaultValue: false,
-			Usage:        "skip TLS verification",
-		},
-		"timeout": {
-			Kind:         "duration",
-			DefaultValue: 10 * time.Second,
-			Usage:        "request timeout",
-		},
-	}
-}
-
-// ConfigureFromFlags applies flag values to the provider.
-func (i *REST) ConfigureFromFlags(fs *pflag.FlagSet) error {
-	var errs []error
-	var err error
-
-	if i.Request.URL, err = fs.GetString("url"); err != nil {
-		errs = append(errs, err)
-	}
-	if i.Request.Method, err = fs.GetString("method"); err != nil {
-		errs = append(errs, err)
-	}
-	if i.Request.Body, err = fs.GetString("body"); err != nil {
-		errs = append(errs, err)
-	}
-	if i.Insecure, err = fs.GetBool("insecure"); err != nil {
-		errs = append(errs, err)
-	}
-	if i.Timeout, err = fs.GetDuration("timeout"); err != nil {
-		errs = append(errs, err)
-	}
-
-	if len(errs) > 0 {
-		return fmt.Errorf("flag errors: %w", errors.Join(errs...))
-	}
-
-	if i.Request.URL == "" {
-		return fmt.Errorf("url is required")
-	}
-	return nil
 }
 
 func (i *REST) GetType() string {

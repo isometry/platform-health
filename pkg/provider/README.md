@@ -37,23 +37,7 @@ This enables:
 - Context inspection via `ph context` command
 - Rich evaluation contexts with provider-specific data
 
-### FlagConfigurable
-
-Providers can implement the `FlagConfigurable` interface to enable ad-hoc CLI usage:
-
-```go
-type FlagConfigurable interface {
-    GetProviderFlags() flags.FlagValues
-    ConfigureFromFlags(v *viper.Viper) error
-}
-```
-
-This enables:
-- Ad-hoc checks: `ph check <provider> --flags...`
-- Context inspection: `ph context <provider> --flags...`
-- No configuration file needed for quick checks
-
-### BaseCELProvider
+#### BaseCELProvider
 
 The `BaseCELProvider` struct provides reusable CEL handling that can be embedded by providers:
 

@@ -205,7 +205,7 @@ func TestCEL_VersionCheck(t *testing.T) {
 		Release:   "my-release",
 		Namespace: "default",
 		BaseCELProvider: provider.BaseCELProvider{Checks: []checks.Expression{
-			{Expression: "release.Revision >= 2", ErrorMessage: "Need at least one upgrade"},
+			{Expression: "release.Revision >= 2", Message: "Need at least one upgrade"},
 		}},
 	}
 	require.NoError(t, provider.Setup())
@@ -224,7 +224,7 @@ func TestCEL_VersionCheckFails(t *testing.T) {
 		Release:   "my-release",
 		Namespace: "default",
 		BaseCELProvider: provider.BaseCELProvider{Checks: []checks.Expression{
-			{Expression: "release.Revision >= 2", ErrorMessage: "Need at least one upgrade"},
+			{Expression: "release.Revision >= 2", Message: "Need at least one upgrade"},
 		}},
 	}
 	require.NoError(t, provider.Setup())
@@ -278,7 +278,7 @@ func TestCEL_ConfigValidationFails(t *testing.T) {
 		Release:   "my-release",
 		Namespace: "default",
 		BaseCELProvider: provider.BaseCELProvider{Checks: []checks.Expression{
-			{Expression: "release.Config['replicas'] >= 3", ErrorMessage: "Need at least 3 replicas"},
+			{Expression: "release.Config['replicas'] >= 3", Message: "Need at least 3 replicas"},
 		}},
 	}
 	require.NoError(t, provider.Setup())
@@ -296,7 +296,7 @@ func TestCEL_NotDeprecated(t *testing.T) {
 		Release:   "my-release",
 		Namespace: "default",
 		BaseCELProvider: provider.BaseCELProvider{Checks: []checks.Expression{
-			{Expression: "!chart.Deprecated", ErrorMessage: "Chart is deprecated"},
+			{Expression: "!chart.Deprecated", Message: "Chart is deprecated"},
 		}},
 	}
 	require.NoError(t, provider.Setup())

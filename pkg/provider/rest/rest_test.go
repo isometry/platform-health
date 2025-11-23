@@ -37,8 +37,8 @@ func TestRESTProvider_JSONValidation(t *testing.T) {
 			},
 			checks: []checks.Expression{
 				{
-					Expression:   `response.json.status == "healthy"`,
-					ErrorMessage: "service is not healthy",
+					Expression: `response.json.status == "healthy"`,
+					Message:    "service is not healthy",
 				},
 			},
 			expectedStatus: ph.Status_HEALTHY,
@@ -50,8 +50,8 @@ func TestRESTProvider_JSONValidation(t *testing.T) {
 			},
 			checks: []checks.Expression{
 				{
-					Expression:   `response.json.status == "healthy"`,
-					ErrorMessage: "service is not healthy",
+					Expression: `response.json.status == "healthy"`,
+					Message:    "service is not healthy",
 				},
 			},
 			expectedStatus: ph.Status_UNHEALTHY,
@@ -68,8 +68,8 @@ func TestRESTProvider_JSONValidation(t *testing.T) {
 			},
 			checks: []checks.Expression{
 				{
-					Expression:   `response.json.data.database.connected == true`,
-					ErrorMessage: "database not connected",
+					Expression: `response.json.data.database.connected == true`,
+					Message:    "database not connected",
 				},
 			},
 			expectedStatus: ph.Status_HEALTHY,
@@ -83,12 +83,12 @@ func TestRESTProvider_JSONValidation(t *testing.T) {
 			},
 			checks: []checks.Expression{
 				{
-					Expression:   `response.json.status == "ok"`,
-					ErrorMessage: "status not ok",
+					Expression: `response.json.status == "ok"`,
+					Message:    "status not ok",
 				},
 				{
-					Expression:   `response.json.uptime > 0`,
-					ErrorMessage: "uptime is zero",
+					Expression: `response.json.uptime > 0`,
+					Message:    "uptime is zero",
 				},
 			},
 			expectedStatus: ph.Status_HEALTHY,
@@ -101,12 +101,12 @@ func TestRESTProvider_JSONValidation(t *testing.T) {
 			},
 			checks: []checks.Expression{
 				{
-					Expression:   `response.json.status == "ok"`,
-					ErrorMessage: "status not ok",
+					Expression: `response.json.status == "ok"`,
+					Message:    "status not ok",
 				},
 				{
-					Expression:   `response.json.uptime > 0`,
-					ErrorMessage: "uptime is zero",
+					Expression: `response.json.uptime > 0`,
+					Message:    "uptime is zero",
 				},
 			},
 			expectedStatus: ph.Status_UNHEALTHY,
@@ -119,8 +119,8 @@ func TestRESTProvider_JSONValidation(t *testing.T) {
 			},
 			checks: []checks.Expression{
 				{
-					Expression:   `response.status == 200`,
-					ErrorMessage: "unexpected status code",
+					Expression: `response.status == 200`,
+					Message:    "unexpected status code",
 				},
 			},
 			expectedStatus: ph.Status_HEALTHY,
@@ -132,8 +132,8 @@ func TestRESTProvider_JSONValidation(t *testing.T) {
 			},
 			checks: []checks.Expression{
 				{
-					Expression:   `size(response.json.items) == 3`,
-					ErrorMessage: "wrong number of items",
+					Expression: `size(response.json.items) == 3`,
+					Message:    "wrong number of items",
 				},
 			},
 			expectedStatus: ph.Status_HEALTHY,
@@ -204,8 +204,8 @@ func TestRESTProvider_POSTWithBody(t *testing.T) {
 			},
 			checks: []checks.Expression{
 				{
-					Expression:   `response.json.authenticated == true`,
-					ErrorMessage: "authentication failed",
+					Expression: `response.json.authenticated == true`,
+					Message:    "authentication failed",
 				},
 			},
 			expectedStatus: ph.Status_HEALTHY,
@@ -281,8 +281,8 @@ func TestRESTProvider_StatusCodeValidation(t *testing.T) {
 			serverStatus: 200,
 			checks: []checks.Expression{
 				{
-					Expression:   `response.status == 200`,
-					ErrorMessage: "expected status 200",
+					Expression: `response.status == 200`,
+					Message:    "expected status 200",
 				},
 			},
 			expectedResult: ph.Status_HEALTHY,
@@ -292,8 +292,8 @@ func TestRESTProvider_StatusCodeValidation(t *testing.T) {
 			serverStatus: 201,
 			checks: []checks.Expression{
 				{
-					Expression:   `response.status >= 200 && response.status < 300`,
-					ErrorMessage: "expected 2xx status",
+					Expression: `response.status >= 200 && response.status < 300`,
+					Message:    "expected 2xx status",
 				},
 			},
 			expectedResult: ph.Status_HEALTHY,
@@ -303,8 +303,8 @@ func TestRESTProvider_StatusCodeValidation(t *testing.T) {
 			serverStatus: 500,
 			checks: []checks.Expression{
 				{
-					Expression:   `response.status == 200`,
-					ErrorMessage: "expected status 200",
+					Expression: `response.status == 200`,
+					Message:    "expected status 200",
 				},
 			},
 			expectedResult: ph.Status_UNHEALTHY,
@@ -383,28 +383,28 @@ func TestRESTProvider_CombinedValidation(t *testing.T) {
 		},
 		BaseCELProvider: provider.BaseCELProvider{Checks: []checks.Expression{
 			{
-				Expression:   `response.status == 200`,
-				ErrorMessage: "expected status 200",
+				Expression: `response.status == 200`,
+				Message:    "expected status 200",
 			},
 			{
-				Expression:   `response.body.matches('"status":\\s*"healthy"')`,
-				ErrorMessage: "status pattern not found",
+				Expression: `response.body.matches('"status":\\s*"healthy"')`,
+				Message:    "status pattern not found",
 			},
 			{
-				Expression:   `response.json.status == "healthy"`,
-				ErrorMessage: "service unhealthy",
+				Expression: `response.json.status == "healthy"`,
+				Message:    "service unhealthy",
 			},
 			{
-				Expression:   `response.json.checks.database == "ok"`,
-				ErrorMessage: "database check failed",
+				Expression: `response.json.checks.database == "ok"`,
+				Message:    "database check failed",
 			},
 			{
-				Expression:   `response.status == 200`,
-				ErrorMessage: "unexpected status code",
+				Expression: `response.status == 200`,
+				Message:    "unexpected status code",
 			},
 			{
-				Expression:   `response.headers["content-type"] == "application/json"`,
-				ErrorMessage: "wrong content type",
+				Expression: `response.headers["content-type"] == "application/json"`,
+				Message:    "wrong content type",
 			},
 		}},
 		Timeout: 5 * time.Second,
@@ -431,8 +431,8 @@ func TestRESTProvider_ContentTypeValidation(t *testing.T) {
 			contentType: "application/json",
 			checks: []checks.Expression{
 				{
-					Expression:   `response.headers["content-type"] == "application/json"`,
-					ErrorMessage: "Expected JSON content type",
+					Expression: `response.headers["content-type"] == "application/json"`,
+					Message:    "Expected JSON content type",
 				},
 			},
 			expectedStatus: ph.Status_HEALTHY,
@@ -442,8 +442,8 @@ func TestRESTProvider_ContentTypeValidation(t *testing.T) {
 			contentType: "application/json; charset=utf-8",
 			checks: []checks.Expression{
 				{
-					Expression:   `response.headers["content-type"].contains("application/json")`,
-					ErrorMessage: "Expected JSON content type",
+					Expression: `response.headers["content-type"].contains("application/json")`,
+					Message:    "Expected JSON content type",
 				},
 			},
 			expectedStatus: ph.Status_HEALTHY,
@@ -453,8 +453,8 @@ func TestRESTProvider_ContentTypeValidation(t *testing.T) {
 			contentType: "text/html",
 			checks: []checks.Expression{
 				{
-					Expression:   `response.headers["content-type"] == "application/json"`,
-					ErrorMessage: "Expected JSON content type",
+					Expression: `response.headers["content-type"] == "application/json"`,
+					Message:    "Expected JSON content type",
 				},
 			},
 			expectedStatus: ph.Status_UNHEALTHY,
@@ -511,8 +511,8 @@ func TestRESTProvider_ErrorCases(t *testing.T) {
 			},
 			BaseCELProvider: provider.BaseCELProvider{Checks: []checks.Expression{
 				{
-					Expression:   `invalid syntax here!!!`,
-					ErrorMessage: "validation failed",
+					Expression: `invalid syntax here!!!`,
+					Message:    "validation failed",
 				},
 			}},
 			Timeout: 5 * time.Second,
@@ -551,28 +551,28 @@ func TestRESTProvider_RequestContextValidation(t *testing.T) {
 		BaseCELProvider: provider.BaseCELProvider{
 			Checks: []checks.Expression{
 				{
-					Expression:   `request.method == "POST"`,
-					ErrorMessage: "request method validation failed",
+					Expression: `request.method == "POST"`,
+					Message:    "request method validation failed",
 				},
 				{
-					Expression:   `request.body.contains("test")`,
-					ErrorMessage: "request body validation failed",
+					Expression: `request.body.contains("test")`,
+					Message:    "request body validation failed",
 				},
 				{
-					Expression:   `request.headers["accept"] == "application/json"`,
-					ErrorMessage: "request accept header missing",
+					Expression: `request.headers["accept"] == "application/json"`,
+					Message:    "request accept header missing",
 				},
 				{
-					Expression:   `response.headers["content-type"] == request.headers["accept"]`,
-					ErrorMessage: "content negotiation failed",
+					Expression: `response.headers["content-type"] == request.headers["accept"]`,
+					Message:    "content negotiation failed",
 				},
 				{
-					Expression:   `response.json.echo_method == request.method`,
-					ErrorMessage: "echoed method doesn't match request",
+					Expression: `response.json.echo_method == request.method`,
+					Message:    "echoed method doesn't match request",
 				},
 				{
-					Expression:   `request.url == "` + server.URL + `"`,
-					ErrorMessage: "request URL validation failed",
+					Expression: `request.url == "` + server.URL + `"`,
+					Message:    "request URL validation failed",
 				},
 			},
 		},

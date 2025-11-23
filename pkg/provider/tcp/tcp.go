@@ -2,16 +2,13 @@ package tcp
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"log/slog"
 	"net"
 	"time"
 
 	"github.com/mcuadros/go-defaults"
-	"github.com/spf13/pflag"
 
-	"github.com/isometry/platform-health/pkg/commands/flags"
 	ph "github.com/isometry/platform-health/pkg/platform_health"
 	"github.com/isometry/platform-health/pkg/provider"
 	"github.com/isometry/platform-health/pkg/utils"
@@ -27,63 +24,8 @@ type TCP struct {
 	Timeout time.Duration `mapstructure:"timeout" default:"1s"`
 }
 
-// Compile-time interface check
-var _ provider.FlagConfigurable = (*TCP)(nil)
-
 func init() {
 	provider.Register(TypeTCP, new(TCP))
-}
-
-// GetProviderFlags returns flag definitions for CLI configuration.
-func (i *TCP) GetProviderFlags() flags.FlagValues {
-	return flags.FlagValues{
-		"host": {
-			Kind:  "string",
-			Usage: "target hostname",
-		},
-		"port": {
-			Kind:         "int",
-			DefaultValue: 80,
-			Usage:        "target port",
-		},
-		"closed": {
-			Kind:  "bool",
-			Usage: "expect port to be closed",
-		},
-		"timeout": {
-			Kind:         "duration",
-			DefaultValue: "1s",
-			Usage:        "connection timeout",
-		},
-	}
-}
-
-// ConfigureFromFlags applies flag values to the provider.
-func (i *TCP) ConfigureFromFlags(fs *pflag.FlagSet) error {
-	var errs []error
-	var err error
-
-	if i.Host, err = fs.GetString("host"); err != nil {
-		errs = append(errs, err)
-	}
-	if i.Port, err = fs.GetInt("port"); err != nil {
-		errs = append(errs, err)
-	}
-	if i.Closed, err = fs.GetBool("closed"); err != nil {
-		errs = append(errs, err)
-	}
-	if i.Timeout, err = fs.GetDuration("timeout"); err != nil {
-		errs = append(errs, err)
-	}
-
-	if len(errs) > 0 {
-		return fmt.Errorf("flag errors: %w", errors.Join(errs...))
-	}
-
-	if i.Host == "" {
-		return fmt.Errorf("host is required")
-	}
-	return nil
 }
 
 func (i *TCP) LogValue() slog.Value {

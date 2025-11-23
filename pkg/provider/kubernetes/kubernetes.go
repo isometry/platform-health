@@ -4,7 +4,6 @@ package kubernetes
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"log/slog"
 	"strings"
@@ -12,7 +11,6 @@ import (
 
 	"github.com/google/cel-go/cel"
 	"github.com/mcuadros/go-defaults"
-	"github.com/spf13/pflag"
 	"google.golang.org/protobuf/types/known/anypb"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -22,7 +20,6 @@ import (
 	"sigs.k8s.io/cli-utils/pkg/kstatus/status"
 
 	"github.com/isometry/platform-health/pkg/checks"
-	"github.com/isometry/platform-health/pkg/commands/flags"
 	ph "github.com/isometry/platform-health/pkg/platform_health"
 	"github.com/isometry/platform-health/pkg/platform_health/details"
 	"github.com/isometry/platform-health/pkg/provider"
@@ -46,17 +43,13 @@ type Kubernetes struct {
 	provider.BaseCELProvider `mapstructure:",squash"`
 
 	Name     string        `mapstructure:"-"`
-	Resource Resource      `mapstructure:"resource"`
+	Resource Resource      `mapstructure:"resource" flag:"squash"`
 	KStatus  *bool         `mapstructure:"kstatus"`
 	Detail   bool          `mapstructure:"detail"`
 	Timeout  time.Duration `mapstructure:"timeout" default:"10s"`
 }
 
-// Compile-time interface checks
-var (
-	_ provider.CELCapable       = (*Kubernetes)(nil)
-	_ provider.FlagConfigurable = (*Kubernetes)(nil)
-)
+var _ provider.CELCapable = (*Kubernetes)(nil)
 
 // Resource represents a Kubernetes resource to check
 type Resource struct {
@@ -196,101 +189,6 @@ func (i *Kubernetes) GetCELContext(ctx context.Context) (map[string]any, error) 
 	return map[string]any{
 		"items": items,
 	}, nil
-}
-
-// GetProviderFlags returns flag definitions for CLI configuration.
-func (i *Kubernetes) GetProviderFlags() flags.FlagValues {
-	return flags.FlagValues{
-		"kind": {
-			Kind:         "string",
-			DefaultValue: "",
-			Usage:        "resource kind (e.g., deployment, pod)",
-		},
-		"namespace": {
-			Shorthand:    "n",
-			Kind:         "string",
-			DefaultValue: "default",
-			Usage:        "Kubernetes namespace (use '*' for all)",
-		},
-		"name": {
-			Kind:         "string",
-			DefaultValue: "",
-			Usage:        "resource name (mutually exclusive with label-selector)",
-		},
-		"label-selector": {
-			Shorthand:    "l",
-			Kind:         "string",
-			DefaultValue: "",
-			Usage:        "label selector (mutually exclusive with name)",
-		},
-		"group": {
-			Kind:         "string",
-			DefaultValue: "",
-			Usage:        "API group (auto-detected for common kinds)",
-		},
-		"version": {
-			Kind:         "string",
-			DefaultValue: "",
-			Usage:        "API version (uses preferred if not specified)",
-		},
-		"timeout": {
-			Kind:         "duration",
-			DefaultValue: 10 * time.Second,
-			Usage:        "timeout for Kubernetes operations",
-		},
-		"kstatus": {
-			Kind:         "bool",
-			DefaultValue: true,
-			Usage:        "enable kstatus evaluation",
-		},
-		"detail": {
-			Kind:         "bool",
-			DefaultValue: false,
-			Usage:        "include detailed kstatus in response",
-		},
-	}
-}
-
-// ConfigureFromFlags applies flag values to the provider.
-func (i *Kubernetes) ConfigureFromFlags(fs *pflag.FlagSet) error {
-	var errs []error
-	var err error
-
-	if i.Resource.Kind, err = fs.GetString("kind"); err != nil {
-		errs = append(errs, err)
-	}
-	if i.Resource.Namespace, err = fs.GetString("namespace"); err != nil {
-		errs = append(errs, err)
-	}
-	if i.Resource.Name, err = fs.GetString("name"); err != nil {
-		errs = append(errs, err)
-	}
-	if i.Resource.LabelSelector, err = fs.GetString("label-selector"); err != nil {
-		errs = append(errs, err)
-	}
-	if i.Resource.Group, err = fs.GetString("group"); err != nil {
-		errs = append(errs, err)
-	}
-	if i.Resource.Version, err = fs.GetString("version"); err != nil {
-		errs = append(errs, err)
-	}
-	if i.Timeout, err = fs.GetDuration("timeout"); err != nil {
-		errs = append(errs, err)
-	}
-	var kstatus bool
-	if kstatus, err = fs.GetBool("kstatus"); err != nil {
-		errs = append(errs, err)
-	}
-	i.KStatus = &kstatus
-	if i.Detail, err = fs.GetBool("detail"); err != nil {
-		errs = append(errs, err)
-	}
-
-	if len(errs) > 0 {
-		return fmt.Errorf("flag errors: %w", errors.Join(errs...))
-	}
-
-	return nil
 }
 
 func (i *Kubernetes) GetType() string {
