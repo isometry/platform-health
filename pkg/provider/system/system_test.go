@@ -1,13 +1,15 @@
 package system_test
 
 import (
-	"context"
 	"log/slog"
 	"testing"
+	"testing/synctest"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/isometry/platform-health/pkg/phctx"
 	ph "github.com/isometry/platform-health/pkg/platform_health"
 	"github.com/isometry/platform-health/pkg/provider/mock"
 	"github.com/isometry/platform-health/pkg/provider/system"
@@ -103,7 +105,7 @@ func TestSystemGetHealth(t *testing.T) {
 			s.SetName("TestSystem")
 			require.NoError(t, s.Setup())
 
-			result := s.GetHealth(context.Background())
+			result := s.GetHealth(t.Context())
 
 			assert.NotNil(t, result)
 			assert.Equal(t, system.ProviderType, result.GetType())
@@ -127,7 +129,7 @@ func TestSystemChildName(t *testing.T) {
 	s.SetName("ParentSystem")
 	require.NoError(t, s.Setup())
 
-	result := s.GetHealth(context.Background())
+	result := s.GetHealth(t.Context())
 	require.Equal(t, 1, len(result.GetComponents()))
 
 	// Check that child has correct name
@@ -157,7 +159,7 @@ func TestSystemNestedSystems(t *testing.T) {
 	s.SetName("OuterSystem")
 	require.NoError(t, s.Setup())
 
-	result := s.GetHealth(context.Background())
+	result := s.GetHealth(t.Context())
 
 	assert.NotNil(t, result)
 	assert.Equal(t, ph.Status_HEALTHY, result.GetStatus())
@@ -185,4 +187,37 @@ func TestSystemInterface(t *testing.T) {
 
 	assert.Equal(t, system.ProviderType, s.GetType())
 	assert.Equal(t, "Test", s.GetName())
+}
+
+func TestSystemParallelismOneNoDeadlock(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		s := &system.Component{
+			Name: "test-system",
+			Components: map[string]any{
+				"child1": map[string]any{
+					"type":   "mock",
+					"health": ph.Status_HEALTHY,
+					"sleep":  10 * time.Millisecond,
+				},
+				"child2": map[string]any{
+					"type":   "mock",
+					"health": ph.Status_HEALTHY,
+					"sleep":  10 * time.Millisecond,
+				},
+				"child3": map[string]any{
+					"type":   "mock",
+					"health": ph.Status_UNHEALTHY,
+					"sleep":  10 * time.Millisecond,
+				},
+			},
+		}
+		s.SetName("test-system")
+		require.NoError(t, s.Setup())
+
+		ctx := phctx.ContextWithParallelism(t.Context(), 1)
+		result := s.GetHealth(ctx)
+
+		assert.Equal(t, ph.Status_UNHEALTHY, result.Status)
+		assert.Len(t, result.Components, 3)
+	})
 }

@@ -1,7 +1,6 @@
 package tcp_test
 
 import (
-	"context"
 	"log/slog"
 	"net"
 	"testing"
@@ -80,7 +79,7 @@ func TestTCP(t *testing.T) {
 			instance.SetName(tt.name)
 			require.NoError(t, instance.Setup())
 
-			result := instance.GetHealth(context.Background())
+			result := instance.GetHealth(t.Context())
 
 			assert.NotNil(t, result)
 			assert.Equal(t, tcp.ProviderType, result.GetType())

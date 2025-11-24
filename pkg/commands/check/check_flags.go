@@ -8,4 +8,6 @@ var checkFlags = flags.Merge(
 	flags.ConfigFlags(),
 	flags.ComponentFlags(),
 	flags.OutputFlags(),
+	flags.FailFastFlags(),
+	flags.ParallelismFlags(),
 )

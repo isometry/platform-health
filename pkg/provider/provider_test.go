@@ -8,6 +8,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
+	"github.com/isometry/platform-health/pkg/phctx"
 	ph "github.com/isometry/platform-health/pkg/platform_health"
 	"github.com/isometry/platform-health/pkg/provider"
 	"github.com/isometry/platform-health/pkg/provider/mock"
@@ -65,7 +66,7 @@ func TestCheckAll(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			_, actual := provider.Check(context.Background(), tt.instances)
+			_, actual := provider.Check(t.Context(), tt.instances)
 			assert.Equal(t, tt.expected, actual)
 		})
 	}
@@ -78,7 +79,7 @@ func TestServiceWithDuration(t *testing.T) {
 		Sleep:  10 * time.Millisecond,
 	}
 
-	result := provider.GetHealthWithDuration(context.Background(), instance)
+	result := provider.GetHealthWithDuration(t.Context(), instance)
 
 	assert.Equal(t, instance.GetType(), result.GetType())
 	assert.Equal(t, instance.GetName(), result.GetName())
@@ -132,4 +133,55 @@ func TestCheckTimeout(t *testing.T) {
 		assert.Len(t, responses, 1)
 		assert.Contains(t, responses[0].Message, "deadline exceeded")
 	})
+}
+
+// TestCheckParallelismOne verifies that parallelism=1 doesn't cause deadlock
+// when checking nested providers (e.g., system provider with children).
+func TestCheckParallelismOne(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		// Create a "system-like" provider that internally checks multiple children
+		// by simulating what the system provider does
+		instances := []provider.Instance{
+			&mock.Component{Name: "child1", Health: ph.Status_HEALTHY, Sleep: 10 * time.Millisecond},
+			&mock.Component{Name: "child2", Health: ph.Status_HEALTHY, Sleep: 10 * time.Millisecond},
+			&mock.Component{Name: "child3", Health: ph.Status_UNHEALTHY, Sleep: 10 * time.Millisecond},
+		}
+
+		// Set parallelism to 1 - should still complete without deadlock
+		ctx := phctx.ContextWithParallelism(t.Context(), 1)
+
+		responses, status := provider.Check(ctx, instances)
+
+		assert.Equal(t, ph.Status_UNHEALTHY, status)
+		assert.Len(t, responses, 3)
+	})
+}
+
+// TestCheckParallelismZero verifies that parallelism=0 uses GOMAXPROCS
+func TestCheckParallelismZero(t *testing.T) {
+	instances := []provider.Instance{
+		&mock.Component{Name: "test1", Health: ph.Status_HEALTHY},
+		&mock.Component{Name: "test2", Health: ph.Status_HEALTHY},
+	}
+
+	ctx := phctx.ContextWithParallelism(t.Context(), 0)
+	responses, status := provider.Check(ctx, instances)
+
+	assert.Equal(t, ph.Status_HEALTHY, status)
+	assert.Len(t, responses, 2)
+}
+
+// TestCheckParallelismUnlimited verifies that parallelism=-1 (unlimited) works
+func TestCheckParallelismUnlimited(t *testing.T) {
+	instances := []provider.Instance{
+		&mock.Component{Name: "test1", Health: ph.Status_HEALTHY},
+		&mock.Component{Name: "test2", Health: ph.Status_HEALTHY},
+		&mock.Component{Name: "test3", Health: ph.Status_HEALTHY},
+	}
+
+	ctx := phctx.ContextWithParallelism(t.Context(), -1)
+	responses, status := provider.Check(ctx, instances)
+
+	assert.Equal(t, ph.Status_HEALTHY, status)
+	assert.Len(t, responses, 3)
 }

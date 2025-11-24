@@ -7,13 +7,13 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
+	"github.com/isometry/platform-health/pkg/phctx"
 	"github.com/isometry/platform-health/pkg/provider"
 	"github.com/isometry/platform-health/pkg/provider/mock"
-	"github.com/isometry/platform-health/pkg/utils"
 )
 
 func init() {
-	log = utils.ContextLogger(context.TODO())
+	log = phctx.Logger(context.Background())
 }
 
 // findInstanceByName finds an instance by name in a slice

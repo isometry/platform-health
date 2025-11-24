@@ -101,7 +101,7 @@ func TestHelm_StatusVariants(t *testing.T) {
 			}
 			require.NoError(t, instance.Setup())
 
-			result := instance.GetHealth(context.Background())
+			result := instance.GetHealth(t.Context())
 			assert.Equal(t, tt.expectedStatus, result.Status)
 			assert.Equal(t, "test-helm", result.Name)
 			if tt.expectContains != "" {
@@ -121,7 +121,7 @@ func TestHelm_ReleaseNotFound(t *testing.T) {
 	}
 	require.NoError(t, instance.Setup())
 
-	result := instance.GetHealth(context.Background())
+	result := instance.GetHealth(t.Context())
 	assert.Equal(t, ph.Status_UNHEALTHY, result.Status)
 	assert.Contains(t, result.Message, "not found")
 }
@@ -142,7 +142,7 @@ func TestHelm_FactoryError(t *testing.T) {
 	}
 	require.NoError(t, instance.Setup())
 
-	result := instance.GetHealth(context.Background())
+	result := instance.GetHealth(t.Context())
 	assert.Equal(t, ph.Status_UNHEALTHY, result.Status)
 	assert.Contains(t, result.Message, "failed to initialize helm")
 }
@@ -167,7 +167,7 @@ func TestHelm_Timeout(t *testing.T) {
 	}
 	require.NoError(t, instance.Setup())
 
-	result := instance.GetHealth(context.Background())
+	result := instance.GetHealth(t.Context())
 	assert.Equal(t, ph.Status_UNHEALTHY, result.Status)
 	assert.Equal(t, "context deadline exceeded", result.Message)
 }
@@ -210,7 +210,7 @@ func TestCEL_VersionCheck(t *testing.T) {
 	}
 	require.NoError(t, instance.Setup())
 
-	result := instance.GetHealth(context.Background())
+	result := instance.GetHealth(t.Context())
 	assert.Equal(t, ph.Status_HEALTHY, result.Status)
 }
 
@@ -229,7 +229,7 @@ func TestCEL_VersionCheckFails(t *testing.T) {
 	}
 	require.NoError(t, instance.Setup())
 
-	result := instance.GetHealth(context.Background())
+	result := instance.GetHealth(t.Context())
 	assert.Equal(t, ph.Status_UNHEALTHY, result.Status)
 	assert.Contains(t, result.Message, "Need at least one upgrade")
 }
@@ -247,7 +247,7 @@ func TestCEL_ChartVersion(t *testing.T) {
 	}
 	require.NoError(t, instance.Setup())
 
-	result := instance.GetHealth(context.Background())
+	result := instance.GetHealth(t.Context())
 	assert.Equal(t, ph.Status_HEALTHY, result.Status)
 }
 
@@ -264,7 +264,7 @@ func TestCEL_ConfigValidation(t *testing.T) {
 	}
 	require.NoError(t, instance.Setup())
 
-	result := instance.GetHealth(context.Background())
+	result := instance.GetHealth(t.Context())
 	assert.Equal(t, ph.Status_HEALTHY, result.Status)
 }
 
@@ -283,7 +283,7 @@ func TestCEL_ConfigValidationFails(t *testing.T) {
 	}
 	require.NoError(t, instance.Setup())
 
-	result := instance.GetHealth(context.Background())
+	result := instance.GetHealth(t.Context())
 	assert.Equal(t, ph.Status_UNHEALTHY, result.Status)
 	assert.Contains(t, result.Message, "Need at least 3 replicas")
 }
@@ -301,7 +301,7 @@ func TestCEL_NotDeprecated(t *testing.T) {
 	}
 	require.NoError(t, instance.Setup())
 
-	result := instance.GetHealth(context.Background())
+	result := instance.GetHealth(t.Context())
 	assert.Equal(t, ph.Status_HEALTHY, result.Status)
 }
 
@@ -318,7 +318,7 @@ func TestCEL_LabelCheck(t *testing.T) {
 	}
 	require.NoError(t, instance.Setup())
 
-	result := instance.GetHealth(context.Background())
+	result := instance.GetHealth(t.Context())
 	assert.Equal(t, ph.Status_HEALTHY, result.Status)
 }
 
@@ -342,7 +342,7 @@ func TestCEL_ChartValues(t *testing.T) {
 	}
 	require.NoError(t, instance.Setup())
 
-	result := instance.GetHealth(context.Background())
+	result := instance.GetHealth(t.Context())
 	assert.Equal(t, ph.Status_HEALTHY, result.Status)
 }
 
@@ -390,7 +390,7 @@ spec:
 	}
 	require.NoError(t, instance.Setup())
 
-	result := instance.GetHealth(context.Background())
+	result := instance.GetHealth(t.Context())
 	assert.Equal(t, ph.Status_HEALTHY, result.Status)
 }
 
@@ -409,7 +409,7 @@ func TestCEL_ManifestsEmpty(t *testing.T) {
 	}
 	require.NoError(t, instance.Setup())
 
-	result := instance.GetHealth(context.Background())
+	result := instance.GetHealth(t.Context())
 	assert.Equal(t, ph.Status_HEALTHY, result.Status)
 }
 
@@ -444,7 +444,7 @@ metadata:
 	}
 	require.NoError(t, instance.Setup())
 
-	result := instance.GetHealth(context.Background())
+	result := instance.GetHealth(t.Context())
 	assert.Equal(t, ph.Status_HEALTHY, result.Status)
 }
 

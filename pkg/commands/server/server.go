@@ -73,7 +73,9 @@ func serve(_ *cobra.Command, _ []string) (err error) {
 
 	serverId := uuid.New().String()
 
-	opts := []server.Option{}
+	opts := []server.Option{
+		server.WithParallelism(viper.GetInt("parallelism")),
+	}
 	if !viper.GetBool("no-grpc-health-v1") {
 		opts = append(opts, server.WithHealthService())
 	}

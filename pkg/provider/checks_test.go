@@ -274,7 +274,7 @@ func TestMockCELProvider_Integration(t *testing.T) {
 	})
 	require.NoError(t, p.Setup())
 
-	response := p.GetHealth(context.Background())
+	response := p.GetHealth(t.Context())
 	assert.Equal(t, ph.Status_HEALTHY, response.Status)
 
 	// Test with failing check
@@ -283,7 +283,7 @@ func TestMockCELProvider_Integration(t *testing.T) {
 	})
 	require.NoError(t, p.Setup())
 
-	response = p.GetHealth(context.Background())
+	response = p.GetHealth(t.Context())
 	assert.Equal(t, ph.Status_UNHEALTHY, response.Status)
 	assert.Contains(t, response.Message, "value must be greater than 100")
 }

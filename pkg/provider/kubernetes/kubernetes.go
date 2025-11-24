@@ -20,12 +20,11 @@ import (
 	"sigs.k8s.io/cli-utils/pkg/kstatus/status"
 
 	"github.com/isometry/platform-health/pkg/checks"
+	"github.com/isometry/platform-health/pkg/phctx"
 	ph "github.com/isometry/platform-health/pkg/platform_health"
 	"github.com/isometry/platform-health/pkg/platform_health/details"
 	"github.com/isometry/platform-health/pkg/provider"
 	"github.com/isometry/platform-health/pkg/provider/kubernetes/client"
-	"github.com/isometry/platform-health/pkg/server"
-	"github.com/isometry/platform-health/pkg/utils"
 )
 
 const ProviderType = "kubernetes"
@@ -206,7 +205,7 @@ func (c *Component) SetName(name string) {
 }
 
 func (c *Component) GetHealth(ctx context.Context) *ph.HealthCheckResponse {
-	log := utils.ContextLogger(ctx, slog.String("provider", ProviderType), slog.Any("instance", c))
+	log := phctx.Logger(ctx, slog.String("provider", ProviderType), slog.Any("instance", c))
 	log.Debug("checking")
 
 	component := &ph.HealthCheckResponse{
@@ -308,7 +307,7 @@ func (c *Component) checkBySelector(ctx context.Context, client dynamic.Interfac
 	}
 
 	// Filter by component paths if specified
-	componentPaths := server.ComponentPathsFromContext(ctx)
+	componentPaths := phctx.ComponentPathsFromContext(ctx)
 	if len(componentPaths) > 0 {
 		requestedNames := make(map[string]bool)
 		for _, paths := range componentPaths {

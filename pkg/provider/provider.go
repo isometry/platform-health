@@ -2,11 +2,12 @@ package provider
 
 import (
 	"context"
-	"sync"
 	"time"
 
+	"golang.org/x/sync/errgroup"
 	"google.golang.org/protobuf/types/known/durationpb"
 
+	"github.com/isometry/platform-health/pkg/phctx"
 	ph "github.com/isometry/platform-health/pkg/platform_health"
 )
 
@@ -31,27 +32,39 @@ type Config interface {
 }
 
 func Check(ctx context.Context, instances []Instance) (response []*ph.HealthCheckResponse, status ph.Status) {
-	var wg sync.WaitGroup
+	failFast := phctx.FailFastFromContext(ctx)
+	limit := phctx.ParallelismLimit(phctx.ParallelismFromContext(ctx))
+
 	instanceChan := make(chan *ph.HealthCheckResponse, len(instances))
 
+	g, gctx := errgroup.WithContext(ctx)
+	if limit > 0 {
+		g.SetLimit(limit)
+	}
+	// if limit < 0, don't call SetLimit (unlimited)
+
 	for _, instance := range instances {
-		wg.Go(func() {
-			instanceChan <- GetHealthWithDuration(ctx, instance)
+		g.Go(func() error {
+			result := GetHealthWithDuration(gctx, instance)
+			instanceChan <- result
+			if failFast && result.Status > ph.Status_HEALTHY {
+				return context.Canceled
+			}
+			return nil
 		})
 	}
 
 	go func() {
-		wg.Wait()
+		_ = g.Wait() // error is context.Canceled on fail-fast; results collected via channel
 		close(instanceChan)
 	}()
 
 	response = make([]*ph.HealthCheckResponse, 0, len(instances))
 	status = ph.Status_HEALTHY
-	for instance := range instanceChan {
-		response = append(response, instance)
-
-		if instance.Status.Number() > status.Number() {
-			status = instance.Status
+	for result := range instanceChan {
+		response = append(response, result)
+		if result.Status.Number() > status.Number() {
+			status = result.Status
 		}
 	}
 

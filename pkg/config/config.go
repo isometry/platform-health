@@ -8,8 +8,8 @@ import (
 	"github.com/fsnotify/fsnotify"
 	"github.com/spf13/viper"
 
+	"github.com/isometry/platform-health/pkg/phctx"
 	"github.com/isometry/platform-health/pkg/provider"
-	"github.com/isometry/platform-health/pkg/utils"
 )
 
 // abstractConfig holds raw YAML before provider type resolution
@@ -24,7 +24,7 @@ type concreteConfig map[string][]provider.Instance
 var log *slog.Logger
 
 func Load(ctx context.Context, configPaths []string, configName string) (*concreteConfig, error) {
-	log = utils.ContextLogger(ctx)
+	log = phctx.Logger(ctx)
 
 	conf := &concreteConfig{}
 	if err := conf.initialize(configPaths, configName); err != nil {

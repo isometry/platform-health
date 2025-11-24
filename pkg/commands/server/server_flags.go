@@ -6,6 +6,7 @@ import (
 
 var serverFlags = flags.Merge(
 	flags.ConfigFlags(),
+	flags.ParallelismFlags(),
 	flags.FlagValues{
 		"listen": {
 			Shorthand:    "l",

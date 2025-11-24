@@ -69,7 +69,7 @@ func TestLocalHTTP(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			ctx, cancel := context.WithTimeout(context.Background(), tt.timeout)
+			ctx, cancel := context.WithTimeout(t.Context(), tt.timeout)
 			defer cancel()
 
 			server := httptest.NewServer(
@@ -97,70 +97,6 @@ func TestLocalHTTP(t *testing.T) {
 				Timeout: tt.timeout,
 			}
 			require.NoError(t, instance.Setup())
-
-			result := instance.GetHealth(ctx)
-
-			assert.NotNil(t, result)
-			assert.Equal(t, tt.expected, result.GetStatus())
-		})
-	}
-}
-
-func TestRemoteHTTP(t *testing.T) {
-	tests := []struct {
-		name     string
-		url      string
-		method   string
-		status   []int
-		timeout  time.Duration
-		expected ph.Status
-	}{
-		{
-			name:     "HTTP server GET",
-			url:      "https://www.google.com",
-			method:   "GET",
-			status:   []int{http.StatusOK},
-			timeout:  time.Second,
-			expected: ph.Status_HEALTHY,
-		},
-		{
-			name:     "HTTP server HEAD",
-			url:      "https://www.google.com",
-			method:   "HEAD",
-			status:   []int{http.StatusOK},
-			timeout:  time.Second,
-			expected: ph.Status_HEALTHY,
-		},
-		{
-			name:     "HTTP server unexpected status",
-			url:      "https://www.google.com",
-			method:   "GET",
-			status:   []int{http.StatusNotFound},
-			timeout:  time.Second,
-			expected: ph.Status_UNHEALTHY,
-		},
-		{
-			name:     "HTTP server timeout",
-			url:      "https://www.google.com",
-			method:   "GET",
-			status:   []int{http.StatusOK},
-			timeout:  time.Nanosecond,
-			expected: ph.Status_UNHEALTHY,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			ctx, cancel := context.WithTimeout(context.Background(), tt.timeout)
-			defer cancel()
-
-			instance := &httpProvider.Component{
-				Name:    "TestHTTP",
-				URL:     tt.url,
-				Method:  tt.method,
-				Status:  tt.status,
-				Timeout: tt.timeout,
-			}
 
 			result := instance.GetHealth(ctx)
 

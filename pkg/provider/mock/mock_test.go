@@ -1,7 +1,6 @@
 package mock_test
 
 import (
-	"context"
 	"testing"
 	"time"
 
@@ -54,7 +53,7 @@ func TestMock(t *testing.T) {
 			require.NoError(t, tt.mock.Setup())
 
 			start := time.Now()
-			result := tt.mock.GetHealth(context.Background())
+			result := tt.mock.GetHealth(t.Context())
 			duration := time.Since(start)
 
 			assert.Equal(t, tt.expect, result.GetStatus())
@@ -113,7 +112,7 @@ func TestMock_GetCheckContext(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			require.NoError(t, tt.mock.Setup())
 
-			ctx, err := tt.mock.GetCheckContext(context.Background())
+			ctx, err := tt.mock.GetCheckContext(t.Context())
 			require.NoError(t, err)
 
 			mockData, ok := ctx["mock"].(map[string]any)
@@ -189,7 +188,7 @@ func TestMock_CELEvaluation(t *testing.T) {
 			tt.mock.SetChecks(tt.checks)
 			require.NoError(t, tt.mock.Setup())
 
-			result := tt.mock.GetHealth(context.Background())
+			result := tt.mock.GetHealth(t.Context())
 			assert.Equal(t, tt.expectStatus, result.GetStatus())
 			if tt.expectMsg != "" {
 				assert.Contains(t, result.GetMessage(), tt.expectMsg)

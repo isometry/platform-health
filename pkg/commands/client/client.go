@@ -90,6 +90,7 @@ func query(cmd *cobra.Command, _ []string) (err error) {
 
 	status, err := health.Check(ctx, &ph.HealthCheckRequest{
 		Components: viper.GetStringSlice("component"),
+		FailFast:   viper.GetBool("fail-fast"),
 	})
 	if err != nil {
 		log.Info("failed to check", slog.Any("error", err))

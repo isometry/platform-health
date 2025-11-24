@@ -1,7 +1,6 @@
 package kubernetes_test
 
 import (
-	"context"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -140,7 +139,7 @@ func TestCheckByName_Healthy(t *testing.T) {
 	}
 	require.NoError(t, instance.Setup())
 
-	result := instance.GetHealth(context.Background())
+	result := instance.GetHealth(t.Context())
 	assert.Equal(t, ph.Status_HEALTHY, result.Status)
 	assert.Equal(t, "test-provider", result.Name)
 }
@@ -157,7 +156,7 @@ func TestCheckByName_NotFound(t *testing.T) {
 	}
 	require.NoError(t, instance.Setup())
 
-	result := instance.GetHealth(context.Background())
+	result := instance.GetHealth(t.Context())
 	assert.Equal(t, ph.Status_UNHEALTHY, result.Status)
 }
 
@@ -178,7 +177,7 @@ func TestCheckBySelector_MultipleResources(t *testing.T) {
 	}
 	require.NoError(t, instance.Setup())
 
-	result := instance.GetHealth(context.Background())
+	result := instance.GetHealth(t.Context())
 	assert.Equal(t, ph.Status_HEALTHY, result.Status)
 	assert.Len(t, result.Components, 3)
 }
@@ -195,7 +194,7 @@ func TestCheckBySelector_EmptyResult(t *testing.T) {
 	}
 	require.NoError(t, instance.Setup())
 
-	result := instance.GetHealth(context.Background())
+	result := instance.GetHealth(t.Context())
 	assert.Equal(t, ph.Status_HEALTHY, result.Status)
 	assert.Len(t, result.Components, 0)
 }
@@ -216,7 +215,7 @@ func TestCheckBySelector_RequireAtLeastOne(t *testing.T) {
 	}
 	require.NoError(t, instance.Setup())
 
-	result := instance.GetHealth(context.Background())
+	result := instance.GetHealth(t.Context())
 	assert.Equal(t, ph.Status_UNHEALTHY, result.Status)
 	assert.Contains(t, result.Message, "No resources found")
 }
@@ -236,7 +235,7 @@ func TestCheckBySelector_EmptySelector(t *testing.T) {
 	}
 	require.NoError(t, instance.Setup())
 
-	result := instance.GetHealth(context.Background())
+	result := instance.GetHealth(t.Context())
 	assert.Equal(t, ph.Status_HEALTHY, result.Status)
 	assert.Len(t, result.Components, 2)
 }
@@ -256,7 +255,7 @@ func TestCELChecks_SingleResource(t *testing.T) {
 	}
 	require.NoError(t, instance.Setup())
 
-	result := instance.GetHealth(context.Background())
+	result := instance.GetHealth(t.Context())
 	assert.Equal(t, ph.Status_HEALTHY, result.Status)
 }
 
@@ -278,7 +277,7 @@ func TestCELChecks_ItemsList(t *testing.T) {
 	}
 	require.NoError(t, instance.Setup())
 
-	result := instance.GetHealth(context.Background())
+	result := instance.GetHealth(t.Context())
 	assert.Equal(t, ph.Status_HEALTHY, result.Status)
 }
 
@@ -298,7 +297,7 @@ func TestCELChecks_ItemsListFails(t *testing.T) {
 	}
 	require.NoError(t, instance.Setup())
 
-	result := instance.GetHealth(context.Background())
+	result := instance.GetHealth(t.Context())
 	assert.Equal(t, ph.Status_UNHEALTHY, result.Status)
 	assert.Contains(t, result.Message, "Need at least 3 deployments")
 }

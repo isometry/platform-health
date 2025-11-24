@@ -15,6 +15,7 @@ message HealthCheckRequest {
   // components to check (empty = all); supports hierarchical paths like "system/subcomponent"
   repeated string components = 1;
   repeated string hops = 2; // list of server IDs for loop detection
+  bool fail_fast = 3; // cancel remaining checks after first failure
 }
 
 message HealthCheckResponse {
@@ -26,6 +27,7 @@ message HealthCheckResponse {
   repeated google.protobuf.Any details = 6;
   repeated HealthCheckResponse components = 7;
   google.protobuf.Duration duration = 8;
+  bool fail_fast_triggered = 9; // indicates results may be incomplete due to fail-fast
 }
 
 enum Status {

@@ -6,10 +6,9 @@ import (
 	"log/slog"
 	"strings"
 
+	"github.com/isometry/platform-health/pkg/phctx"
 	ph "github.com/isometry/platform-health/pkg/platform_health"
 	"github.com/isometry/platform-health/pkg/provider"
-	"github.com/isometry/platform-health/pkg/server"
-	"github.com/isometry/platform-health/pkg/utils"
 )
 
 const ProviderType = "system"
@@ -86,7 +85,7 @@ func (c *Component) GetResolved() []provider.Instance {
 }
 
 func (c *Component) GetHealth(ctx context.Context) *ph.HealthCheckResponse {
-	log := utils.ContextLogger(ctx, slog.String("provider", ProviderType), slog.Any("instance", c))
+	log := phctx.Logger(ctx, slog.String("provider", ProviderType), slog.Any("instance", c))
 	log.Debug("checking")
 
 	component := &ph.HealthCheckResponse{
@@ -96,14 +95,14 @@ func (c *Component) GetHealth(ctx context.Context) *ph.HealthCheckResponse {
 	defer component.LogStatus(log)
 
 	// Check for component filtering from context
-	componentPaths := server.ComponentPathsFromContext(ctx)
+	componentPaths := phctx.ComponentPathsFromContext(ctx)
 	subComponents := c.resolved
 	var invalidComponents []string
 
 	if len(componentPaths) > 0 {
 		subComponents, invalidComponents = c.filterChildren(componentPaths)
 		// Clear component paths from context - they've been consumed at this level
-		ctx = server.ContextWithComponentPaths(ctx, nil)
+		ctx = phctx.ContextWithComponentPaths(ctx, nil)
 	}
 
 	// Return error for invalid components
@@ -118,12 +117,18 @@ func (c *Component) GetHealth(ctx context.Context) *ph.HealthCheckResponse {
 	component.Status = aggregateStatus
 	component.Components = componentResults
 
+	// Fail-fast triggered if enabled and something failed
+	if phctx.FailFastFromContext(ctx) && aggregateStatus > ph.Status_HEALTHY {
+		component.FailFastTriggered = true
+		component.Message = "Results may be incomplete due to fail-fast mode"
+	}
+
 	return component
 }
 
 // filterChildren filters resolved children based on component paths
 // Returns the filtered children and any invalid component names
-func (c *Component) filterChildren(paths server.ComponentPaths) ([]provider.Instance, []string) {
+func (c *Component) filterChildren(paths phctx.ComponentPaths) ([]provider.Instance, []string) {
 	// Build map for quick lookup
 	childMap := make(map[string]provider.Instance)
 	for _, child := range c.resolved {
@@ -133,7 +138,7 @@ func (c *Component) filterChildren(paths server.ComponentPaths) ([]provider.Inst
 	// Track which children to include and their sub-components
 	type matchedChild struct {
 		instance      provider.Instance
-		subComponents server.ComponentPaths
+		subComponents phctx.ComponentPaths
 	}
 	matched := make(map[string]*matchedChild)
 	var invalidComponents []string
@@ -180,10 +185,10 @@ func (c *Component) filterChildren(paths server.ComponentPaths) ([]provider.Inst
 // filteredChild wraps a provider.Instance to pass sub-component paths via context
 type filteredChild struct {
 	provider.Instance
-	subPaths server.ComponentPaths
+	subPaths phctx.ComponentPaths
 }
 
 func (f *filteredChild) GetHealth(ctx context.Context) *ph.HealthCheckResponse {
-	ctx = server.ContextWithComponentPaths(ctx, f.subPaths)
+	ctx = phctx.ContextWithComponentPaths(ctx, f.subPaths)
 	return f.Instance.GetHealth(ctx)
 }
