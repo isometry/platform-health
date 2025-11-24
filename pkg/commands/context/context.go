@@ -156,9 +156,9 @@ func displayContext(cmd *cobra.Command, checkProvider provider.InstanceWithCheck
 	case "yaml", "yml":
 		return outputYAML(ctx)
 	case "json":
-		fallthrough
-	default:
 		return outputJSON(ctx)
+	default:
+		return fmt.Errorf("unsupported output format: %q", output)
 	}
 }
 
