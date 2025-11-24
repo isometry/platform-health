@@ -7,6 +7,20 @@ import (
 	"github.com/go-viper/mapstructure/v2"
 )
 
+// NewInstance creates a new instance of the specified provider type.
+// Returns nil if the provider type is not registered.
+func NewInstance(providerType string) Instance {
+	mu.RLock()
+	defer mu.RUnlock()
+
+	registeredType, ok := Providers[providerType]
+	if !ok {
+		return nil
+	}
+
+	return reflect.New(registeredType.Elem()).Interface().(Instance)
+}
+
 // NewInstanceFromConfig creates a provider instance from a registered type and config map.
 // It handles reflection-based instantiation, mapstructure decoding with duration support,
 // name assignment, and Setup() invocation.

@@ -49,10 +49,10 @@ Use a provider subcommand for ad-hoc context inspection.`,
 
 	// Add dynamic provider subcommands
 	shared.AddProviderSubcommands(cmd, shared.ProviderSubcommandOptions{
-		RequireCEL: true,
-		SetupFlags: func(cmd *cobra.Command, _ provider.CELCapable) {
-			cmd.Short = fmt.Sprintf("Get CEL context for %s provider", cmd.Use)
-			cmd.Long = fmt.Sprintf("Create an ad-hoc %s provider instance and display its CEL evaluation context.", cmd.Use)
+		RequireChecks: true,
+		SetupFlags: func(cmd *cobra.Command, _ provider.Instance) {
+			cmd.Short = fmt.Sprintf("Get check context for %s provider", cmd.Use)
+			cmd.Long = fmt.Sprintf("Create an ad-hoc %s provider instance and display its check evaluation context.", cmd.Use)
 		},
 		RunFunc: runProviderContext,
 	})
@@ -78,14 +78,14 @@ func runInstanceContext(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	// Check if CEL-capable
-	celCapable := provider.AsCELCapable(targetInstance)
-	if celCapable == nil {
-		return fmt.Errorf("instance %q (type %s) does not support CEL", instancePath, targetInstance.GetType())
+	// Check if provider supports checks
+	checkProvider := provider.AsInstanceWithChecks(targetInstance)
+	if checkProvider == nil {
+		return fmt.Errorf("instance %q (type %s) does not support checks", instancePath, targetInstance.GetType())
 	}
 
 	// Get and display context
-	return displayContext(cmd, celCapable)
+	return displayContext(cmd, checkProvider)
 }
 
 // resolveInstancePath resolves a path like "system/subsystem/instance" to the target instance.
@@ -126,13 +126,14 @@ func resolveInstancePath(instances []provider.Instance, path string) (provider.I
 // runProviderContext creates an ad-hoc provider instance and displays its context.
 func runProviderContext(cmd *cobra.Command, providerType string) error {
 	// Create and configure provider from flags
-	instance, celCapable, err := shared.CreateAndConfigureProvider(cmd, providerType)
+	instance, err := shared.CreateAndConfigureProvider(cmd, providerType)
 	if err != nil {
 		return err
 	}
 
-	if celCapable == nil {
-		return fmt.Errorf("provider type %q does not support CEL", providerType)
+	checkProvider := provider.AsInstanceWithChecks(instance)
+	if checkProvider == nil {
+		return fmt.Errorf("provider type %q does not support checks", providerType)
 	}
 
 	// Setup the provider
@@ -140,14 +141,14 @@ func runProviderContext(cmd *cobra.Command, providerType string) error {
 		return fmt.Errorf("failed to setup provider: %w", err)
 	}
 
-	return displayContext(cmd, celCapable)
+	return displayContext(cmd, checkProvider)
 }
 
-// displayContext fetches and displays the CEL context in the requested format.
-func displayContext(cmd *cobra.Command, celCapable provider.CELCapable) error {
-	ctx, err := celCapable.GetCELContext(cmd.Context())
+// displayContext fetches and displays the check context in the requested format.
+func displayContext(cmd *cobra.Command, checkProvider provider.InstanceWithChecks) error {
+	ctx, err := checkProvider.GetCheckContext(cmd.Context())
 	if err != nil {
-		return fmt.Errorf("failed to get CEL context: %w", err)
+		return fmt.Errorf("failed to get check context: %w", err)
 	}
 
 	output := viper.GetString("output-format")

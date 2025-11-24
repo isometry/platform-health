@@ -67,22 +67,22 @@ func TestMock_Interfaces(t *testing.T) {
 	m := &mock.Mock{Name: "test"}
 	require.NoError(t, m.Setup())
 
-	t.Run("CELCapable", func(t *testing.T) {
-		assert.True(t, provider.IsCELCapable(m))
-		celProvider := provider.AsCELCapable(m)
+	t.Run("InstanceWithChecks", func(t *testing.T) {
+		assert.True(t, provider.SupportsChecks(m))
+		celProvider := provider.AsInstanceWithChecks(m)
 		assert.NotNil(t, celProvider)
 	})
 }
 
-func TestMock_GetCELConfig(t *testing.T) {
+func TestMock_GetCheckConfig(t *testing.T) {
 	m := &mock.Mock{Name: "test"}
 	require.NoError(t, m.Setup())
 
-	celConfig := m.GetCELConfig()
+	celConfig := m.GetCheckConfig()
 	assert.NotNil(t, celConfig)
 }
 
-func TestMock_GetCELContext(t *testing.T) {
+func TestMock_GetCheckContext(t *testing.T) {
 	tests := []struct {
 		name   string
 		mock   *mock.Mock
@@ -113,7 +113,7 @@ func TestMock_GetCELContext(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			require.NoError(t, tt.mock.Setup())
 
-			ctx, err := tt.mock.GetCELContext(context.Background())
+			ctx, err := tt.mock.GetCheckContext(context.Background())
 			require.NoError(t, err)
 
 			mockData, ok := ctx["mock"].(map[string]any)

@@ -14,17 +14,18 @@ import (
 
 const TypeMock = "mock"
 
-var _ provider.CELCapable = (*Mock)(nil)
+var _ provider.InstanceWithChecks = (*Mock)(nil)
 
 var celConfig = checks.NewCEL(
 	cel.Variable("mock", cel.MapType(cel.StringType, cel.DynType)),
 )
 
 type Mock struct {
-	provider.BaseCELProvider `mapstructure:",squash"`
-	Name                     string        `mapstructure:"-"`
-	Health                   ph.Status     `mapstructure:"health" default:"HEALTHY"`
-	Sleep                    time.Duration `mapstructure:"sleep" default:"1ns"`
+	provider.BaseInstanceWithChecks `mapstructure:",squash"`
+
+	Name   string        `mapstructure:"-"`
+	Health ph.Status     `mapstructure:"health" default:"HEALTHY"`
+	Sleep  time.Duration `mapstructure:"sleep" default:"1ns"`
 }
 
 func init() {
@@ -34,7 +35,7 @@ func init() {
 func (i *Mock) Setup() error {
 	defaults.SetDefaults(i)
 
-	return i.SetupCEL(celConfig)
+	return i.SetupChecks(celConfig)
 }
 
 func (i *Mock) GetType() string {
@@ -60,14 +61,14 @@ func (i *Mock) GetHealth(ctx context.Context) *ph.HealthCheckResponse {
 	}
 
 	// Evaluate CEL checks if configured
-	celCtx, err := i.GetCELContext(ctx)
+	checkCtx, err := i.GetCheckContext(ctx)
 	if err != nil {
 		component.Status = ph.Status_UNHEALTHY
 		component.Message = err.Error()
 		return component
 	}
 
-	if err := i.EvaluateCEL(celCtx); err != nil {
+	if err := i.EvaluateChecks(checkCtx); err != nil {
 		component.Status = ph.Status_UNHEALTHY
 		component.Message = err.Error()
 	}
@@ -75,13 +76,13 @@ func (i *Mock) GetHealth(ctx context.Context) *ph.HealthCheckResponse {
 	return component
 }
 
-// CELCapable implementation
+// InstanceWithChecks implementation
 
-func (i *Mock) GetCELConfig() *checks.CEL {
+func (i *Mock) GetCheckConfig() *checks.CEL {
 	return celConfig
 }
 
-func (i *Mock) GetCELContext(ctx context.Context) (map[string]any, error) {
+func (i *Mock) GetCheckContext(ctx context.Context) (map[string]any, error) {
 	return map[string]any{
 		"mock": map[string]any{
 			"health": i.Health.String(),

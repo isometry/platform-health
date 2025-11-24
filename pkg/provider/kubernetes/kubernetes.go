@@ -40,7 +40,7 @@ var celConfig = checks.NewCEL(
 )
 
 type Kubernetes struct {
-	provider.BaseCELProvider `mapstructure:",squash"`
+	provider.BaseInstanceWithChecks `mapstructure:",squash"`
 
 	Name     string        `mapstructure:"-"`
 	Resource Resource      `mapstructure:"resource" flag:"squash"`
@@ -49,7 +49,7 @@ type Kubernetes struct {
 	Timeout  time.Duration `mapstructure:"timeout" default:"10s"`
 }
 
-var _ provider.CELCapable = (*Kubernetes)(nil)
+var _ provider.InstanceWithChecks = (*Kubernetes)(nil)
 
 // Resource represents a Kubernetes resource to check
 type Resource struct {
@@ -106,18 +106,18 @@ func (i *Kubernetes) Setup() error {
 		i.KStatus = &kstatusDefault
 	}
 
-	return i.SetupCEL(celConfig)
+	return i.SetupChecks(celConfig)
 }
 
-// GetCELConfig returns the Kubernetes provider's CEL variable declarations.
-func (i *Kubernetes) GetCELConfig() *checks.CEL {
+// GetCheckConfig returns the Kubernetes provider's CEL variable declarations.
+func (i *Kubernetes) GetCheckConfig() *checks.CEL {
 	return celConfig
 }
 
-// GetCELContext fetches the Kubernetes resource(s) and returns the CEL evaluation context.
+// GetCheckContext fetches the Kubernetes resource(s) and returns the CEL evaluation context.
 // For single resource (by name): returns {"resource": resourceMap}
 // For multiple resources (by selector): returns {"items": []resourceMap}
-func (i *Kubernetes) GetCELContext(ctx context.Context) (map[string]any, error) {
+func (i *Kubernetes) GetCheckContext(ctx context.Context) (map[string]any, error) {
 	clients, err := client.ClientFactory.GetClients()
 	if err != nil {
 		return nil, err
@@ -275,7 +275,7 @@ func (i *Kubernetes) checkByName(ctx context.Context, client dynamic.Interface, 
 		"resource": blob.Object,
 	}
 
-	if err := i.EvaluateCEL(celCtx); err != nil {
+	if err := i.EvaluateChecks(celCtx); err != nil {
 		return component.Unhealthy(err.Error())
 	}
 
@@ -372,7 +372,7 @@ func (i *Kubernetes) checkBySelector(ctx context.Context, client dynamic.Interfa
 		"items": items,
 	}
 
-	if err := i.EvaluateCEL(celCtx); err != nil {
+	if err := i.EvaluateChecks(celCtx); err != nil {
 		return component.Unhealthy(err.Error())
 	}
 

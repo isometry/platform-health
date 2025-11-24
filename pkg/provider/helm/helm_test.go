@@ -204,7 +204,7 @@ func TestCEL_VersionCheck(t *testing.T) {
 		Name:      "test-helm",
 		Release:   "my-release",
 		Namespace: "default",
-		BaseCELProvider: provider.BaseCELProvider{Checks: []checks.Expression{
+		BaseInstanceWithChecks: provider.BaseInstanceWithChecks{Checks: []checks.Expression{
 			{Expression: "release.Revision >= 2", Message: "Need at least one upgrade"},
 		}},
 	}
@@ -223,7 +223,7 @@ func TestCEL_VersionCheckFails(t *testing.T) {
 		Name:      "test-helm",
 		Release:   "my-release",
 		Namespace: "default",
-		BaseCELProvider: provider.BaseCELProvider{Checks: []checks.Expression{
+		BaseInstanceWithChecks: provider.BaseInstanceWithChecks{Checks: []checks.Expression{
 			{Expression: "release.Revision >= 2", Message: "Need at least one upgrade"},
 		}},
 	}
@@ -241,7 +241,7 @@ func TestCEL_ChartVersion(t *testing.T) {
 		Name:      "test-helm",
 		Release:   "my-release",
 		Namespace: "default",
-		BaseCELProvider: provider.BaseCELProvider{Checks: []checks.Expression{
+		BaseInstanceWithChecks: provider.BaseInstanceWithChecks{Checks: []checks.Expression{
 			{Expression: "chart.Version == '1.0.0'"},
 		}},
 	}
@@ -258,7 +258,7 @@ func TestCEL_ConfigValidation(t *testing.T) {
 		Name:      "test-helm",
 		Release:   "my-release",
 		Namespace: "default",
-		BaseCELProvider: provider.BaseCELProvider{Checks: []checks.Expression{
+		BaseInstanceWithChecks: provider.BaseInstanceWithChecks{Checks: []checks.Expression{
 			{Expression: "'replicas' in release.Config && release.Config['replicas'] >= 3"},
 		}},
 	}
@@ -277,7 +277,7 @@ func TestCEL_ConfigValidationFails(t *testing.T) {
 		Name:      "test-helm",
 		Release:   "my-release",
 		Namespace: "default",
-		BaseCELProvider: provider.BaseCELProvider{Checks: []checks.Expression{
+		BaseInstanceWithChecks: provider.BaseInstanceWithChecks{Checks: []checks.Expression{
 			{Expression: "release.Config['replicas'] >= 3", Message: "Need at least 3 replicas"},
 		}},
 	}
@@ -295,7 +295,7 @@ func TestCEL_NotDeprecated(t *testing.T) {
 		Name:      "test-helm",
 		Release:   "my-release",
 		Namespace: "default",
-		BaseCELProvider: provider.BaseCELProvider{Checks: []checks.Expression{
+		BaseInstanceWithChecks: provider.BaseInstanceWithChecks{Checks: []checks.Expression{
 			{Expression: "!chart.Deprecated", Message: "Chart is deprecated"},
 		}},
 	}
@@ -312,7 +312,7 @@ func TestCEL_LabelCheck(t *testing.T) {
 		Name:      "test-helm",
 		Release:   "my-release",
 		Namespace: "default",
-		BaseCELProvider: provider.BaseCELProvider{Checks: []checks.Expression{
+		BaseInstanceWithChecks: provider.BaseInstanceWithChecks{Checks: []checks.Expression{
 			{Expression: "'team' in release.Labels && 'env' in release.Labels"},
 		}},
 	}
@@ -331,7 +331,7 @@ func TestCEL_ChartValues(t *testing.T) {
 		Name:      "test-helm",
 		Release:   "my-release",
 		Namespace: "default",
-		BaseCELProvider: provider.BaseCELProvider{Checks: []checks.Expression{
+		BaseInstanceWithChecks: provider.BaseInstanceWithChecks{Checks: []checks.Expression{
 			// Check chart default value
 			{Expression: "chart.Values['replicas'] == 1"},
 			// Check nested default value
@@ -350,7 +350,7 @@ func TestSetup_InvalidCEL(t *testing.T) {
 	provider := &helm.Helm{
 		Release:   "my-release",
 		Namespace: "default",
-		BaseCELProvider: provider.BaseCELProvider{Checks: []checks.Expression{
+		BaseInstanceWithChecks: provider.BaseInstanceWithChecks{Checks: []checks.Expression{
 			{Expression: "invalid cel syntax [[["},
 		}},
 	}
@@ -382,7 +382,7 @@ spec:
 		Name:      "test-helm",
 		Release:   "my-release",
 		Namespace: "default",
-		BaseCELProvider: provider.BaseCELProvider{Checks: []checks.Expression{
+		BaseInstanceWithChecks: provider.BaseInstanceWithChecks{Checks: []checks.Expression{
 			{Expression: "size(release.Manifest) == 2"},
 			{Expression: "release.Manifest[0].kind == 'ConfigMap'"},
 			{Expression: "release.Manifest[1].kind == 'Deployment'"},
@@ -403,7 +403,7 @@ func TestCEL_ManifestsEmpty(t *testing.T) {
 		Name:      "test-helm",
 		Release:   "my-release",
 		Namespace: "default",
-		BaseCELProvider: provider.BaseCELProvider{Checks: []checks.Expression{
+		BaseInstanceWithChecks: provider.BaseInstanceWithChecks{Checks: []checks.Expression{
 			{Expression: "size(release.Manifest) == 0"},
 		}},
 	}
@@ -437,7 +437,7 @@ metadata:
 		Name:      "test-helm",
 		Release:   "my-release",
 		Namespace: "default",
-		BaseCELProvider: provider.BaseCELProvider{Checks: []checks.Expression{
+		BaseInstanceWithChecks: provider.BaseInstanceWithChecks{Checks: []checks.Expression{
 			{Expression: "release.Manifest.filter(m, m.kind == 'ConfigMap').size() == 2"},
 			{Expression: "release.Manifest.filter(m, m.kind == 'Deployment').size() == 1"},
 		}},

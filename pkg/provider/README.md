@@ -19,14 +19,14 @@ To create a new provider, there are a few requirements:
 
 ## Optional Interfaces
 
-### CELCapable
+### InstanceWithChecks
 
-Providers can implement the `CELCapable` interface to support CEL (Common Expression Language) expressions for health checks:
+Providers can implement the `InstanceWithChecks` interface to support CEL (Common Expression Language) expressions for health checks:
 
 ```go
-type CELCapable interface {
-    GetCELConfig() *checks.CEL
-    GetCELContext(ctx context.Context) (map[string]any, error)
+type InstanceWithChecks interface {
+    GetCheckConfig() *checks.CEL
+    GetCheckContext(ctx context.Context) (map[string]any, error)
     GetChecks() []checks.Expression
     SetChecks([]checks.Expression)
 }
@@ -37,17 +37,17 @@ This enables:
 - Context inspection via `ph context` command
 - Rich evaluation contexts with provider-specific data
 
-#### BaseCELProvider
+#### BaseInstanceWithChecks
 
-The `BaseCELProvider` struct provides reusable CEL handling that can be embedded by providers:
+The `BaseInstanceWithChecks` struct provides reusable CEL handling that can be embedded by providers:
 
 ```go
-type BaseCELProvider struct {
+type BaseInstanceWithChecks struct {
     Checks    []checks.Expression `mapstructure:"checks"`
     evaluator *checks.Evaluator
 }
 ```
 
-Embed this in your provider and call `SetupCEL()` from `Setup()` to get CEL support with minimal boilerplate.
+Embed this in your provider and call `SetupChecks()` from `Setup()` to get CEL support with minimal boilerplate.
 
 By following these guidelines, you can extend the platform-health server to interact with any external system, making it a powerful tool for platform health monitoring.

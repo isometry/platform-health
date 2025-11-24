@@ -71,7 +71,7 @@ type Request struct {
 
 // REST provider extends HTTP provider with response validation capabilities
 type REST struct {
-	provider.BaseCELProvider `mapstructure:",squash"`
+	provider.BaseInstanceWithChecks `mapstructure:",squash"`
 
 	Name     string        `mapstructure:"-"`
 	Request  Request       `mapstructure:"request" flag:"squash"`
@@ -79,7 +79,7 @@ type REST struct {
 	Timeout  time.Duration `mapstructure:"timeout" default:"10s"`
 }
 
-var _ provider.CELCapable = (*REST)(nil)
+var _ provider.InstanceWithChecks = (*REST)(nil)
 
 var certPool *x509.CertPool
 
@@ -112,16 +112,16 @@ func (i *REST) LogValue() slog.Value {
 
 func (i *REST) Setup() error {
 	defaults.SetDefaults(i)
-	return i.SetupCEL(celConfig)
+	return i.SetupChecks(celConfig)
 }
 
-// GetCELConfig returns the REST provider's CEL variable declarations.
-func (i *REST) GetCELConfig() *checks.CEL {
+// GetCheckConfig returns the REST provider's CEL variable declarations.
+func (i *REST) GetCheckConfig() *checks.CEL {
 	return celConfig
 }
 
-// GetCELContext performs the HTTP request and returns the CEL evaluation context.
-func (i *REST) GetCELContext(ctx context.Context) (map[string]any, error) {
+// GetCheckContext performs the HTTP request and returns the CEL evaluation context.
+func (i *REST) GetCheckContext(ctx context.Context) (map[string]any, error) {
 	ctx, cancel := context.WithTimeout(ctx, i.Timeout)
 	defer cancel()
 
@@ -131,7 +131,7 @@ func (i *REST) GetCELContext(ctx context.Context) (map[string]any, error) {
 	}
 	defer func() { _ = response.Body.Close() }()
 
-	return i.buildCELContext(response, body), nil
+	return i.buildCheckContext(response, body), nil
 }
 
 func (i *REST) GetType() string {
@@ -156,14 +156,14 @@ func (i *REST) GetHealth(ctx context.Context) *ph.HealthCheckResponse {
 	}
 	defer component.LogStatus(log)
 
-	// Get CEL context (executes HTTP request)
-	celCtx, err := i.GetCELContext(ctx)
+	// Get check context (executes HTTP request)
+	checkCtx, err := i.GetCheckContext(ctx)
 	if err != nil {
 		return component.Unhealthy(err.Error())
 	}
 
 	// Apply CEL checks
-	if err := i.EvaluateCEL(celCtx); err != nil {
+	if err := i.EvaluateChecks(checkCtx); err != nil {
 		return component.Unhealthy(err.Error())
 	}
 
@@ -232,8 +232,8 @@ func (i *REST) executeHTTPRequest(ctx context.Context) (*http.Response, []byte, 
 	return response, body, nil
 }
 
-// buildCELContext creates CEL evaluation context from HTTP request and response
-func (i *REST) buildCELContext(response *http.Response, body []byte) map[string]any {
+// buildCheckContext creates CEL evaluation context from HTTP request and response
+func (i *REST) buildCheckContext(response *http.Response, body []byte) map[string]any {
 	bodyText := string(body)
 
 	// Parse JSON body if possible (ignore error, jsonData remains nil for non-JSON)

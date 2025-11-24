@@ -29,7 +29,7 @@ var celConfig = checks.NewCEL(
 )
 
 type Helm struct {
-	provider.BaseCELProvider `mapstructure:",squash"`
+	provider.BaseInstanceWithChecks `mapstructure:",squash"`
 
 	Name      string        `mapstructure:"-"`
 	Release   string        `mapstructure:"release"`
@@ -37,7 +37,7 @@ type Helm struct {
 	Timeout   time.Duration `mapstructure:"timeout" default:"5s"`
 }
 
-var _ provider.CELCapable = (*Helm)(nil)
+var _ provider.InstanceWithChecks = (*Helm)(nil)
 
 func init() {
 	provider.Register(TypeHelm, new(Helm))
@@ -56,16 +56,16 @@ func (i *Helm) LogValue() slog.Value {
 
 func (i *Helm) Setup() error {
 	defaults.SetDefaults(i)
-	return i.SetupCEL(celConfig)
+	return i.SetupChecks(celConfig)
 }
 
-// GetCELConfig returns the Helm provider's CEL variable declarations.
-func (i *Helm) GetCELConfig() *checks.CEL {
+// GetCheckConfig returns the Helm provider's CEL variable declarations.
+func (i *Helm) GetCheckConfig() *checks.CEL {
 	return celConfig
 }
 
-// GetCELContext fetches the Helm release and returns the CEL evaluation context.
-func (i *Helm) GetCELContext(ctx context.Context) (map[string]any, error) {
+// GetCheckContext fetches the Helm release and returns the CEL evaluation context.
+func (i *Helm) GetCheckContext(ctx context.Context) (map[string]any, error) {
 	log := utils.ContextLogger(ctx, slog.String("provider", TypeHelm), slog.Any("instance", i))
 
 	statusRunner, err := client.ClientFactory.GetStatusRunner(i.Namespace, log)
@@ -125,21 +125,21 @@ func (i *Helm) GetHealth(ctx context.Context) *ph.HealthCheckResponse {
 	}
 	defer component.LogStatus(log)
 
-	// Get CEL context (fetches release)
-	celCtx, err := i.GetCELContext(ctx)
+	// Get check context (fetches release)
+	checkCtx, err := i.GetCheckContext(ctx)
 	if err != nil {
 		return component.Unhealthy(err.Error())
 	}
 
 	// Check release status from context
-	releaseMap := celCtx["release"].(map[string]any)
+	releaseMap := checkCtx["release"].(map[string]any)
 	status := releaseMap["Status"].(string)
 	if status != string(client.StatusDeployed) {
 		return component.Unhealthy(fmt.Sprintf("expected status 'deployed'; actual status '%s'", status))
 	}
 
 	// Apply CEL checks
-	if err := i.EvaluateCEL(celCtx); err != nil {
+	if err := i.EvaluateChecks(checkCtx); err != nil {
 		return component.Unhealthy(err.Error())
 	}
 

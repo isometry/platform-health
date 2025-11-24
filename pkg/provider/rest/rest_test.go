@@ -158,7 +158,7 @@ func TestRESTProvider_JSONValidation(t *testing.T) {
 
 			// Create REST provider instance
 			instance := &restProvider.REST{
-				BaseCELProvider: provider.BaseCELProvider{
+				BaseInstanceWithChecks: provider.BaseInstanceWithChecks{
 					Checks: tt.checks,
 				},
 				Name: "test-service",
@@ -244,7 +244,7 @@ func TestRESTProvider_POSTWithBody(t *testing.T) {
 
 			// Create REST provider instance
 			instance := &restProvider.REST{
-				BaseCELProvider: provider.BaseCELProvider{
+				BaseInstanceWithChecks: provider.BaseInstanceWithChecks{
 					Checks: tt.checks,
 				},
 				Name: "test-service",
@@ -328,7 +328,7 @@ func TestRESTProvider_StatusCodeValidation(t *testing.T) {
 
 			// Create REST provider instance
 			instance := &restProvider.REST{
-				BaseCELProvider: provider.BaseCELProvider{
+				BaseInstanceWithChecks: provider.BaseInstanceWithChecks{
 					Checks: tt.checks,
 				},
 				Name: "test-service",
@@ -381,7 +381,7 @@ func TestRESTProvider_CombinedValidation(t *testing.T) {
 			URL:    server.URL,
 			Method: "GET",
 		},
-		BaseCELProvider: provider.BaseCELProvider{Checks: []checks.Expression{
+		BaseInstanceWithChecks: provider.BaseInstanceWithChecks{Checks: []checks.Expression{
 			{
 				Expression: `response.status == 200`,
 				Message:    "expected status 200",
@@ -479,7 +479,7 @@ func TestRESTProvider_ContentTypeValidation(t *testing.T) {
 
 			// Create REST provider instance
 			instance := &restProvider.REST{
-				BaseCELProvider: provider.BaseCELProvider{
+				BaseInstanceWithChecks: provider.BaseInstanceWithChecks{
 					Checks: tt.checks,
 				},
 				Name: "test-service",
@@ -509,7 +509,7 @@ func TestRESTProvider_ErrorCases(t *testing.T) {
 				URL:    "http://localhost",
 				Method: "GET",
 			},
-			BaseCELProvider: provider.BaseCELProvider{Checks: []checks.Expression{
+			BaseInstanceWithChecks: provider.BaseInstanceWithChecks{Checks: []checks.Expression{
 				{
 					Expression: `invalid syntax here!!!`,
 					Message:    "validation failed",
@@ -548,7 +548,7 @@ func TestRESTProvider_RequestContextValidation(t *testing.T) {
 
 	// Create REST provider with request context validation
 	instance := &restProvider.REST{
-		BaseCELProvider: provider.BaseCELProvider{
+		BaseInstanceWithChecks: provider.BaseInstanceWithChecks{
 			Checks: []checks.Expression{
 				{
 					Expression: `request.method == "POST"`,

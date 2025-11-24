@@ -40,8 +40,8 @@ Use a provider subcommand for ad-hoc checks without config.`,
 
 	// Add dynamic provider subcommands for ad-hoc checks
 	shared.AddProviderSubcommands(cmd, shared.ProviderSubcommandOptions{
-		RequireCEL: false,
-		SetupFlags: func(cmd *cobra.Command, celCapable provider.CELCapable) {
+		RequireChecks: false,
+		SetupFlags: func(cmd *cobra.Command, instance provider.Instance) {
 			// Set up logging in PreRun
 			cmd.PreRun = func(cmd *cobra.Command, args []string) {
 				log = slog.Default()
@@ -50,8 +50,8 @@ Use a provider subcommand for ad-hoc checks without config.`,
 			cmd.Short = fmt.Sprintf("Perform ad-hoc health check for %s provider", cmd.Use)
 			cmd.Long = fmt.Sprintf("Create an ad-hoc %s provider instance and perform a health check.", cmd.Use)
 
-			// Add --check flag for inline CEL expressions only if provider supports CEL
-			if celCapable != nil {
+			// Add --check flag for inline CEL expressions only if provider supports checks
+			if provider.SupportsChecks(instance) {
 				cmd.Flags().StringSlice("check", nil, "CEL expression to evaluate (can be specified multiple times)")
 			}
 
@@ -70,13 +70,13 @@ func runProviderCheck(cmd *cobra.Command, providerType string) error {
 	flags.BindFlags(cmd)
 
 	// Create and configure provider from flags
-	instance, celCapable, err := shared.CreateAndConfigureProvider(cmd, providerType)
+	instance, err := shared.CreateAndConfigureProvider(cmd, providerType)
 	if err != nil {
 		return err
 	}
 
-	// Handle inline --check expressions for CEL-capable providers
-	if celCapable != nil {
+	// Handle inline --check expressions for providers that support checks
+	if checkProvider := provider.AsInstanceWithChecks(instance); checkProvider != nil {
 		checkExprs, err := cmd.Flags().GetStringSlice("check")
 		if err != nil {
 			return fmt.Errorf("failed to get check expressions: %w", err)
@@ -86,7 +86,7 @@ func runProviderCheck(cmd *cobra.Command, providerType string) error {
 			for i, expr := range checkExprs {
 				exprs[i] = checks.Expression{Expression: expr}
 			}
-			celCapable.SetChecks(exprs)
+			checkProvider.SetChecks(exprs)
 		}
 	}
 

@@ -11,10 +11,10 @@ import (
 
 // ProviderSubcommandOptions configures the creation of provider subcommands.
 type ProviderSubcommandOptions struct {
-	// RequireCEL filters to only CEL-capable providers
-	RequireCEL bool
+	// RequireChecks filters to only providers that support checks
+	RequireChecks bool
 	// SetupFlags adds extra flags to the subcommand (e.g., --check, --output)
-	SetupFlags func(*cobra.Command, provider.CELCapable)
+	SetupFlags func(*cobra.Command, provider.Instance)
 	// RunFunc is the command handler
 	RunFunc func(cmd *cobra.Command, providerType string) error
 }
@@ -27,14 +27,13 @@ func AddProviderSubcommands(parent *cobra.Command, opts ProviderSubcommandOption
 			continue
 		}
 
-		// CEL capability check
-		celCapable := provider.AsCELCapable(instance)
-		if opts.RequireCEL && celCapable == nil {
+		// Check capability check
+		if opts.RequireChecks && !provider.SupportsChecks(instance) {
 			continue
 		}
 
 		// Create subcommand
-		providerCmd := createProviderSubcommand(providerType, instance, celCapable, opts)
+		providerCmd := createProviderSubcommand(providerType, instance, opts)
 		parent.AddCommand(providerCmd)
 	}
 }
@@ -43,7 +42,6 @@ func AddProviderSubcommands(parent *cobra.Command, opts ProviderSubcommandOption
 func createProviderSubcommand(
 	providerType string,
 	instance provider.Instance,
-	celCapable provider.CELCapable,
 	opts ProviderSubcommandOptions,
 ) *cobra.Command {
 	cmd := &cobra.Command{
@@ -60,27 +58,25 @@ func createProviderSubcommand(
 
 	// Add any extra flags
 	if opts.SetupFlags != nil {
-		opts.SetupFlags(cmd, celCapable)
+		opts.SetupFlags(cmd, instance)
 	}
 
 	return cmd
 }
 
 // CreateAndConfigureProvider creates a provider instance and configures it from flags.
-// Returns the configured instance and its CEL capability (may be nil).
 // Note: caller must call instance.Setup() after any additional configuration.
-func CreateAndConfigureProvider(cmd *cobra.Command, providerType string) (provider.Instance, provider.CELCapable, error) {
+func CreateAndConfigureProvider(cmd *cobra.Command, providerType string) (provider.Instance, error) {
 	// Create new provider instance
 	instance := provider.NewInstance(providerType)
 	if instance == nil {
-		return nil, nil, fmt.Errorf("provider type %q not registered", providerType)
+		return nil, fmt.Errorf("provider type %q not registered", providerType)
 	}
 
 	// Configure from flags (via reflection)
 	if err := provider.ConfigureFromFlags(instance, cmd.Flags()); err != nil {
-		return nil, nil, fmt.Errorf("failed to configure provider from flags: %w", err)
+		return nil, fmt.Errorf("failed to configure provider from flags: %w", err)
 	}
 
-	celCapable := provider.AsCELCapable(instance)
-	return instance, celCapable, nil
+	return instance, nil
 }

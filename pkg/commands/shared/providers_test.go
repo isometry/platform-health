@@ -51,17 +51,17 @@ func TestAddProviderSubcommands(t *testing.T) {
 		assert.NotNil(t, sleepFlag, "sleep flag should be registered")
 	})
 
-	t.Run("RequireCEL_Included", func(t *testing.T) {
+	t.Run("RequireChecks_Included", func(t *testing.T) {
 		parent := &cobra.Command{Use: "test"}
 
 		shared.AddProviderSubcommands(parent, shared.ProviderSubcommandOptions{
-			RequireCEL: true,
+			RequireChecks: true,
 			RunFunc: func(cmd *cobra.Command, providerType string) error {
 				return nil
 			},
 		})
 
-		// Mock is CEL-capable, should be included
+		// Mock is check-capable, should be included
 		mockCmd, _, err := parent.Find([]string{"mock"})
 		require.NoError(t, err)
 		assert.Equal(t, "mock", mockCmd.Use)
@@ -70,12 +70,12 @@ func TestAddProviderSubcommands(t *testing.T) {
 	t.Run("SetupFlagsCalled", func(t *testing.T) {
 		parent := &cobra.Command{Use: "test"}
 		setupFlagsCalled := false
-		var receivedCELCapable provider.CELCapable
+		var receivedInstance provider.Instance
 
 		shared.AddProviderSubcommands(parent, shared.ProviderSubcommandOptions{
-			SetupFlags: func(cmd *cobra.Command, celCapable provider.CELCapable) {
+			SetupFlags: func(cmd *cobra.Command, instance provider.Instance) {
 				setupFlagsCalled = true
-				receivedCELCapable = celCapable
+				receivedInstance = instance
 				// Add a custom flag to verify this was called
 				cmd.Flags().Bool("custom-flag", false, "test flag")
 			},
@@ -85,7 +85,7 @@ func TestAddProviderSubcommands(t *testing.T) {
 		})
 
 		assert.True(t, setupFlagsCalled, "SetupFlags should be called")
-		assert.NotNil(t, receivedCELCapable, "CELCapable should be passed to SetupFlags")
+		assert.NotNil(t, receivedInstance, "Instance should be passed to SetupFlags")
 
 		// Verify the custom flag was added
 		mockCmd, _, err := parent.Find([]string{"mock"})
@@ -139,11 +139,11 @@ func TestCreateAndConfigureProvider(t *testing.T) {
 		cmd.Flags().String("health", "HEALTHY", "")
 		cmd.Flags().Duration("sleep", 0, "")
 
-		instance, celCapable, err := shared.CreateAndConfigureProvider(cmd, "mock")
+		instance, err := shared.CreateAndConfigureProvider(cmd, "mock")
 		require.NoError(t, err)
 		assert.NotNil(t, instance)
 		assert.Equal(t, "mock", instance.GetType())
-		assert.NotNil(t, celCapable, "mock should be CEL-capable")
+		assert.True(t, provider.SupportsChecks(instance), "mock should be check-capable")
 	})
 
 	t.Run("VerifyFlagValues", func(t *testing.T) {
@@ -151,7 +151,7 @@ func TestCreateAndConfigureProvider(t *testing.T) {
 		cmd.Flags().String("health", "UNHEALTHY", "")
 		cmd.Flags().Duration("sleep", 0, "")
 
-		instance, _, err := shared.CreateAndConfigureProvider(cmd, "mock")
+		instance, err := shared.CreateAndConfigureProvider(cmd, "mock")
 		require.NoError(t, err)
 
 		// The instance should have been configured from flags
@@ -164,10 +164,9 @@ func TestCreateAndConfigureProvider(t *testing.T) {
 	t.Run("UnknownProvider", func(t *testing.T) {
 		cmd := &cobra.Command{Use: "test"}
 
-		instance, celCapable, err := shared.CreateAndConfigureProvider(cmd, "unknown-provider")
+		instance, err := shared.CreateAndConfigureProvider(cmd, "unknown-provider")
 		assert.Error(t, err)
 		assert.Nil(t, instance)
-		assert.Nil(t, celCapable)
 		assert.Contains(t, err.Error(), "not registered")
 	})
 
@@ -177,7 +176,7 @@ func TestCreateAndConfigureProvider(t *testing.T) {
 		cmd.Flags().String("health", "INVALID_STATUS", "")
 		cmd.Flags().Duration("sleep", 0, "")
 
-		_, _, err := shared.CreateAndConfigureProvider(cmd, "mock")
+		_, err := shared.CreateAndConfigureProvider(cmd, "mock")
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "unknown enum value")
 	})
@@ -188,7 +187,7 @@ func TestCreateAndConfigureProvider(t *testing.T) {
 		cmd.Flags().String("health", "LOOP_DETECTED", "")
 		cmd.Flags().Duration("sleep", 0, "")
 
-		instance, _, err := shared.CreateAndConfigureProvider(cmd, "mock")
+		instance, err := shared.CreateAndConfigureProvider(cmd, "mock")
 		require.NoError(t, err)
 		require.NotNil(t, instance)
 
@@ -205,7 +204,7 @@ func TestCreateAndConfigureProvider(t *testing.T) {
 		// Set the flag value
 		require.NoError(t, cmd.Flags().Set("health", "UNHEALTHY"))
 
-		instance, _, err := shared.CreateAndConfigureProvider(cmd, "mock")
+		instance, err := shared.CreateAndConfigureProvider(cmd, "mock")
 		require.NoError(t, err)
 
 		require.NoError(t, instance.Setup())
