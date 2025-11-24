@@ -1,7 +1,9 @@
 package client
 
 import (
+	"fmt"
 	"log/slog"
+	"regexp"
 
 	"helm.sh/helm/v4/pkg/action"
 	"helm.sh/helm/v4/pkg/release/common"
@@ -45,23 +47,40 @@ func (f *DefaultHelmFactory) GetStatusRunner(namespace string, log *slog.Logger)
 		return nil, err
 	}
 
-	return &statusRunner{
-		action: action.NewStatus(actionConfig),
+	// Use List action with optimizations instead of Status for better performance
+	// with large release histories
+	listAction := action.NewList(actionConfig)
+	listAction.StateMask = action.ListAll
+	listAction.Limit = 1
+	listAction.Sort = action.ByDateDesc
+
+	return &listRunner{
+		action:    listAction,
+		namespace: namespace,
 	}, nil
 }
 
-// statusRunner wraps action.Status to return concrete *release.Release
-type statusRunner struct {
-	action *action.Status
+// listRunner uses action.List with optimizations to efficiently find the latest release
+type listRunner struct {
+	action    *action.List
+	namespace string
 }
 
-func (s *statusRunner) Run(name string) (*release.Release, error) {
-	releaser, err := s.action.Run(name)
+func (l *listRunner) Run(name string) (*release.Release, error) {
+	// Set filter for exact release name match
+	l.action.Filter = "^" + regexp.QuoteMeta(name) + "$"
+
+	releases, err := l.action.Run()
 	if err != nil {
 		return nil, err
 	}
-	// Type assert from ri.Releaser interface to concrete type
-	return releaser.(*release.Release), nil
+
+	if len(releases) == 0 {
+		return nil, fmt.Errorf("release %q not found in namespace %q", name, l.namespace)
+	}
+
+	// Type assert from release.Releaser interface to concrete type
+	return releases[0].(*release.Release), nil
 }
 
 // MockStatusRunner for testing
