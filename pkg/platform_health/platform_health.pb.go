@@ -79,7 +79,8 @@ type HealthCheckRequest struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// components to check (empty = all); supports hierarchical paths like "system/subcomponent"
 	Components    []string `protobuf:"bytes,1,rep,name=components,proto3" json:"components,omitempty"`
-	Hops          []string `protobuf:"bytes,2,rep,name=hops,proto3" json:"hops,omitempty"` // list of server IDs for loop detection
+	Hops          []string `protobuf:"bytes,2,rep,name=hops,proto3" json:"hops,omitempty"`                          // list of server IDs for loop detection
+	FailFast      bool     `protobuf:"varint,3,opt,name=fail_fast,json=failFast,proto3" json:"fail_fast,omitempty"` // cancel remaining checks after first failure
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -128,18 +129,26 @@ func (x *HealthCheckRequest) GetHops() []string {
 	return nil
 }
 
+func (x *HealthCheckRequest) GetFailFast() bool {
+	if x != nil {
+		return x.FailFast
+	}
+	return false
+}
+
 type HealthCheckResponse struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Type          string                 `protobuf:"bytes,1,opt,name=type,proto3" json:"type,omitempty"`               // e.g. "tcp", "rest", "grpc", "kafka", "s3"
-	Name          string                 `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`               // instance name
-	ServerId      *string                `protobuf:"bytes,3,opt,name=serverId,proto3,oneof" json:"serverId,omitempty"` // unique identifier for server/satellite instance
-	Status        Status                 `protobuf:"varint,4,opt,name=status,proto3,enum=platform_health.v1.Status" json:"status,omitempty"`
-	Message       string                 `protobuf:"bytes,5,opt,name=message,proto3" json:"message,omitempty"`
-	Details       []*anypb.Any           `protobuf:"bytes,6,rep,name=details,proto3" json:"details,omitempty"`
-	Components    []*HealthCheckResponse `protobuf:"bytes,7,rep,name=components,proto3" json:"components,omitempty"`
-	Duration      *durationpb.Duration   `protobuf:"bytes,8,opt,name=duration,proto3" json:"duration,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	state             protoimpl.MessageState `protogen:"open.v1"`
+	Type              string                 `protobuf:"bytes,1,opt,name=type,proto3" json:"type,omitempty"`               // e.g. "tcp", "rest", "grpc", "kafka", "s3"
+	Name              string                 `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`               // instance name
+	ServerId          *string                `protobuf:"bytes,3,opt,name=serverId,proto3,oneof" json:"serverId,omitempty"` // unique identifier for server/satellite instance
+	Status            Status                 `protobuf:"varint,4,opt,name=status,proto3,enum=platform_health.v1.Status" json:"status,omitempty"`
+	Message           string                 `protobuf:"bytes,5,opt,name=message,proto3" json:"message,omitempty"`
+	Details           []*anypb.Any           `protobuf:"bytes,6,rep,name=details,proto3" json:"details,omitempty"`
+	Components        []*HealthCheckResponse `protobuf:"bytes,7,rep,name=components,proto3" json:"components,omitempty"`
+	Duration          *durationpb.Duration   `protobuf:"bytes,8,opt,name=duration,proto3" json:"duration,omitempty"`
+	FailFastTriggered bool                   `protobuf:"varint,9,opt,name=fail_fast_triggered,json=failFastTriggered,proto3" json:"fail_fast_triggered,omitempty"` // indicates results may be incomplete due to fail-fast
+	unknownFields     protoimpl.UnknownFields
+	sizeCache         protoimpl.SizeCache
 }
 
 func (x *HealthCheckResponse) Reset() {
@@ -228,16 +237,24 @@ func (x *HealthCheckResponse) GetDuration() *durationpb.Duration {
 	return nil
 }
 
+func (x *HealthCheckResponse) GetFailFastTriggered() bool {
+	if x != nil {
+		return x.FailFastTriggered
+	}
+	return false
+}
+
 var File_proto_platform_health_proto protoreflect.FileDescriptor
 
 const file_proto_platform_health_proto_rawDesc = "" +
 	"\n" +
-	"\x1bproto/platform_health.proto\x12\x12platform_health.v1\x1a\x19google/protobuf/any.proto\x1a\x1egoogle/protobuf/duration.proto\"H\n" +
+	"\x1bproto/platform_health.proto\x12\x12platform_health.v1\x1a\x19google/protobuf/any.proto\x1a\x1egoogle/protobuf/duration.proto\"e\n" +
 	"\x12HealthCheckRequest\x12\x1e\n" +
 	"\n" +
 	"components\x18\x01 \x03(\tR\n" +
 	"components\x12\x12\n" +
-	"\x04hops\x18\x02 \x03(\tR\x04hops\"\xe9\x02\n" +
+	"\x04hops\x18\x02 \x03(\tR\x04hops\x12\x1b\n" +
+	"\tfail_fast\x18\x03 \x01(\bR\bfailFast\"\x99\x03\n" +
 	"\x13HealthCheckResponse\x12\x12\n" +
 	"\x04type\x18\x01 \x01(\tR\x04type\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12\x1f\n" +
@@ -248,7 +265,8 @@ const file_proto_platform_health_proto_rawDesc = "" +
 	"\n" +
 	"components\x18\a \x03(\v2'.platform_health.v1.HealthCheckResponseR\n" +
 	"components\x125\n" +
-	"\bduration\x18\b \x01(\v2\x19.google.protobuf.DurationR\bdurationB\v\n" +
+	"\bduration\x18\b \x01(\v2\x19.google.protobuf.DurationR\bduration\x12.\n" +
+	"\x13fail_fast_triggered\x18\t \x01(\bR\x11failFastTriggeredB\v\n" +
 	"\t_serverId*D\n" +
 	"\x06Status\x12\v\n" +
 	"\aUNKNOWN\x10\x00\x12\v\n" +

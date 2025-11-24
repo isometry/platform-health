@@ -9,9 +9,9 @@ import (
 
 	"github.com/mcuadros/go-defaults"
 
+	"github.com/isometry/platform-health/pkg/phctx"
 	ph "github.com/isometry/platform-health/pkg/platform_health"
 	"github.com/isometry/platform-health/pkg/provider"
-	"github.com/isometry/platform-health/pkg/utils"
 )
 
 const ProviderType = "tcp"
@@ -58,7 +58,7 @@ func (c *Component) SetName(name string) {
 }
 
 func (c *Component) GetHealth(ctx context.Context) *ph.HealthCheckResponse {
-	log := utils.ContextLogger(ctx, slog.String("provider", ProviderType), slog.Any("instance", c))
+	log := phctx.Logger(ctx, slog.String("provider", ProviderType), slog.Any("instance", c))
 	log.Debug("checking")
 
 	ctx, cancel := context.WithTimeout(ctx, c.Timeout)

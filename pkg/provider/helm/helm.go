@@ -14,10 +14,10 @@ import (
 	release "helm.sh/helm/v4/pkg/release/v1"
 
 	"github.com/isometry/platform-health/pkg/checks"
+	"github.com/isometry/platform-health/pkg/phctx"
 	ph "github.com/isometry/platform-health/pkg/platform_health"
 	"github.com/isometry/platform-health/pkg/provider"
 	"github.com/isometry/platform-health/pkg/provider/helm/client"
-	"github.com/isometry/platform-health/pkg/utils"
 )
 
 const ProviderType = "helm"
@@ -69,7 +69,7 @@ func (c *Component) GetCheckContext(ctx context.Context) (map[string]any, error)
 	ctx, cancel := context.WithTimeout(ctx, c.Timeout)
 	defer cancel()
 
-	log := utils.ContextLogger(ctx, slog.String("provider", ProviderType), slog.Any("instance", c))
+	log := phctx.Logger(ctx, slog.String("provider", ProviderType), slog.Any("instance", c))
 
 	statusRunner, err := client.ClientFactory.GetStatusRunner(c.Namespace, log)
 	if err != nil {
@@ -101,7 +101,7 @@ func (c *Component) SetName(name string) {
 }
 
 func (c *Component) GetHealth(ctx context.Context) *ph.HealthCheckResponse {
-	log := utils.ContextLogger(ctx, slog.String("provider", ProviderType), slog.Any("instance", c))
+	log := phctx.Logger(ctx, slog.String("provider", ProviderType), slog.Any("instance", c))
 	log.Debug("checking")
 
 	component := &ph.HealthCheckResponse{

@@ -56,7 +56,7 @@ func TestVaultGetHealth(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			ctx, cancel := context.WithTimeout(context.Background(), tt.timeout+time.Second)
+			ctx, cancel := context.WithTimeout(t.Context(), tt.timeout+time.Second)
 			defer cancel()
 
 			server := httptest.NewServer(

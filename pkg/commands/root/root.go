@@ -7,6 +7,7 @@ import (
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
+	"golang.org/x/term"
 
 	"github.com/isometry/platform-health/pkg/commands/check"
 	"github.com/isometry/platform-health/pkg/commands/client"
@@ -14,7 +15,6 @@ import (
 	"github.com/isometry/platform-health/pkg/commands/flags"
 	"github.com/isometry/platform-health/pkg/commands/migrate"
 	"github.com/isometry/platform-health/pkg/commands/server"
-	"github.com/isometry/platform-health/pkg/utils"
 )
 
 func New() *cobra.Command {
@@ -65,7 +65,7 @@ func setupLogging() {
 	}
 
 	// Resolve "auto" format based on TTY detection
-	useJSON := logFormat == "json" || (logFormat == "auto" && !utils.IsTTY())
+	useJSON := logFormat == "json" || (logFormat == "auto" && !term.IsTerminal(int(os.Stdout.Fd())))
 
 	var handler slog.Handler
 	if useJSON {

@@ -119,7 +119,9 @@ func run(cmd *cobra.Command, _ []string) error {
 	cmd.SilenceErrors = true
 
 	serverId := "oneshot"
-	srv, err := server.NewPlatformHealthServer(&serverId, conf)
+	srv, err := server.NewPlatformHealthServer(&serverId, conf,
+		server.WithParallelism(viper.GetInt("parallelism")),
+	)
 	if err != nil {
 		log.Error("failed to create server", "error", err)
 		return err
@@ -127,6 +129,7 @@ func run(cmd *cobra.Command, _ []string) error {
 
 	status, err := srv.Check(cmd.Context(), &ph.HealthCheckRequest{
 		Components: viper.GetStringSlice("component"),
+		FailFast:   viper.GetBool("fail-fast"),
 	})
 	if err != nil {
 		slog.Info("failed to check", slog.Any("error", err))

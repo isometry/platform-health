@@ -1,7 +1,6 @@
 package satellite_test
 
 import (
-	"context"
 	"log/slog"
 	"net"
 	"testing"
@@ -11,6 +10,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc/resolver"
 
+	"github.com/isometry/platform-health/pkg/phctx"
 	ph "github.com/isometry/platform-health/pkg/platform_health"
 	"github.com/isometry/platform-health/pkg/provider"
 	"github.com/isometry/platform-health/pkg/provider/mock"
@@ -114,7 +114,7 @@ func TestSatelliteGetHealth(t *testing.T) {
 
 			*config = tt.config
 
-			ctx := server.ContextWithHops(context.Background(), tt.hops)
+			ctx := phctx.ContextWithHops(t.Context(), tt.hops)
 
 			result := instance.GetHealth(ctx)
 
@@ -138,8 +138,8 @@ func TestSatelliteComponents(t *testing.T) {
 
 	tests := []struct {
 		name           string
-		components     []string              // configured allowlist
-		contextPaths   server.ComponentPaths // incoming request
+		components     []string             // configured allowlist
+		contextPaths   phctx.ComponentPaths // incoming request
 		expectedStatus ph.Status
 		expectMessage  string
 	}{
@@ -158,13 +158,13 @@ func TestSatelliteComponents(t *testing.T) {
 		{
 			name:           "ValidContextComponent",
 			components:     []string{"allowed", "other"},
-			contextPaths:   server.ComponentPaths{{"allowed"}},
+			contextPaths:   phctx.ComponentPaths{{"allowed"}},
 			expectedStatus: ph.Status_HEALTHY,
 		},
 		{
 			name:           "InvalidContextComponent",
 			components:     []string{"allowed"},
-			contextPaths:   server.ComponentPaths{{"forbidden"}},
+			contextPaths:   phctx.ComponentPaths{{"forbidden"}},
 			expectedStatus: ph.Status_UNHEALTHY,
 			expectMessage:  "not allowed",
 		},
@@ -181,9 +181,9 @@ func TestSatelliteComponents(t *testing.T) {
 			}
 			require.NoError(t, instance.Setup())
 
-			ctx := context.Background()
+			ctx := t.Context()
 			if tt.contextPaths != nil {
-				ctx = server.ContextWithComponentPaths(ctx, tt.contextPaths)
+				ctx = phctx.ContextWithComponentPaths(ctx, tt.contextPaths)
 			}
 
 			result := instance.GetHealth(ctx)
@@ -243,7 +243,7 @@ func TestSatelliteComponentFiltering(t *testing.T) {
 			}
 			require.NoError(t, instance.Setup())
 
-			result := instance.GetHealth(context.Background())
+			result := instance.GetHealth(t.Context())
 			assert.Equal(t, tt.expectedStatus, result.Status)
 		})
 	}

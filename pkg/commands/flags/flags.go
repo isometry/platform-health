@@ -3,6 +3,7 @@ package flags
 import (
 	"log/slog"
 	"maps"
+	"runtime"
 	"time"
 
 	"github.com/spf13/cobra"
@@ -160,6 +161,30 @@ func OutputFlags() FlagValues {
 			Kind:         "bool",
 			DefaultValue: false,
 			Usage:        "compact JSON output",
+		},
+	}
+}
+
+// FailFastFlags returns flags for fail-fast behavior
+func FailFastFlags() FlagValues {
+	return FlagValues{
+		"fail-fast": {
+			Shorthand:    "F",
+			Kind:         "bool",
+			DefaultValue: false,
+			Usage:        "cancel remaining checks after first failure",
+		},
+	}
+}
+
+// ParallelismFlags returns flags for parallelism control
+func ParallelismFlags() FlagValues {
+	return FlagValues{
+		"parallelism": {
+			Shorthand:    "j",
+			Kind:         "int",
+			DefaultValue: runtime.GOMAXPROCS(0),
+			Usage:        "max concurrent health checks (0 = GOMAXPROCS, -1 = unlimited)",
 		},
 	}
 }

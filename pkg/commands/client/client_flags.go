@@ -9,6 +9,7 @@ import (
 var clientFlags = flags.Merge(
 	flags.ComponentFlags(),
 	flags.OutputFlags(),
+	flags.FailFastFlags(),
 	flags.FlagValues{
 		"server": {
 			Shorthand:    "s",

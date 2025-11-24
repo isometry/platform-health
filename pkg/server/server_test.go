@@ -1,7 +1,6 @@
 package server
 
 import (
-	"context"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -159,7 +158,7 @@ func TestPlatformHealthServer_Check(t *testing.T) {
 			}
 
 			req := &ph.HealthCheckRequest{Hops: tt.hops}
-			resp, err := phs.Check(context.Background(), req)
+			resp, err := phs.Check(t.Context(), req)
 			if err != nil {
 				t.Fatalf("Check() error = %v", err)
 			}

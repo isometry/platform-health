@@ -142,7 +142,7 @@ func TestRESTProvider_JSONValidation(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
 			defer cancel()
 
 			// Create test server
@@ -214,7 +214,7 @@ func TestRESTProvider_POSTWithBody(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
 			defer cancel()
 
 			// Track received request
@@ -313,7 +313,7 @@ func TestRESTProvider_StatusCodeValidation(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
 			defer cancel()
 
 			// Create test server
@@ -351,7 +351,7 @@ func TestRESTProvider_StatusCodeValidation(t *testing.T) {
 }
 
 func TestRESTProvider_CombinedValidation(t *testing.T) {
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
 	defer cancel()
 
 	// Create test server
@@ -463,7 +463,7 @@ func TestRESTProvider_ContentTypeValidation(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
 			defer cancel()
 
 			// Create test server
@@ -524,7 +524,7 @@ func TestRESTProvider_ErrorCases(t *testing.T) {
 }
 
 func TestRESTProvider_RequestContextValidation(t *testing.T) {
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
 	defer cancel()
 
 	// Track received request headers

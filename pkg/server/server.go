@@ -14,6 +14,7 @@ import (
 	"google.golang.org/protobuf/types/known/anypb"
 	"google.golang.org/protobuf/types/known/durationpb"
 
+	"github.com/isometry/platform-health/pkg/phctx"
 	ph "github.com/isometry/platform-health/pkg/platform_health"
 	"github.com/isometry/platform-health/pkg/platform_health/details"
 	"github.com/isometry/platform-health/pkg/provider"
@@ -21,48 +22,15 @@ import (
 
 type PlatformHealthServer struct {
 	ph.UnimplementedHealthServer
-	Config     provider.Config
-	serverId   *string
-	grpcServer *grpc.Server
-	grpcHealth *gRPCHealthServer
+	Config      provider.Config
+	serverId    *string
+	parallelism int
+	grpcServer  *grpc.Server
+	grpcHealth  *gRPCHealthServer
 }
 
 type gRPCHealthServer struct {
 	grpc_health_v1.UnimplementedHealthServer
-}
-
-type Hops []string // IDs of the platform-health servers that have been visited
-type HopsKey string
-
-const hopsKey = HopsKey("hops")
-
-func ContextWithHops(ctx context.Context, hops Hops) context.Context {
-	return context.WithValue(ctx, hopsKey, hops)
-}
-
-func HopsFromContext(ctx context.Context) Hops {
-	if hops, ok := ctx.Value(hopsKey).(Hops); ok {
-		return hops
-	} else {
-		return Hops{}
-	}
-}
-
-// ComponentPaths represents hierarchical component paths for filtering health checks
-type ComponentPaths [][]string // Each path like ["system", "subcomponent"]
-type componentPathsKeyType string
-
-const componentPathsKey = componentPathsKeyType("componentPaths")
-
-func ContextWithComponentPaths(ctx context.Context, paths ComponentPaths) context.Context {
-	return context.WithValue(ctx, componentPathsKey, paths)
-}
-
-func ComponentPathsFromContext(ctx context.Context) ComponentPaths {
-	if paths, ok := ctx.Value(componentPathsKey).(ComponentPaths); ok {
-		return paths
-	}
-	return nil
 }
 
 // filterInstances filters provider instances based on component paths
@@ -132,7 +100,7 @@ type filteredInstance struct {
 
 func (f *filteredInstance) GetHealth(ctx context.Context) *ph.HealthCheckResponse {
 	// Pass sub-component paths via context for hierarchical filtering
-	ctx = ContextWithComponentPaths(ctx, f.subPaths)
+	ctx = phctx.ContextWithComponentPaths(ctx, f.subPaths)
 	return f.Instance.GetHealth(ctx)
 }
 
@@ -150,6 +118,12 @@ func WithHealthService() Option {
 			s.grpcHealth = &gRPCHealthServer{}
 		}
 		grpc_health_v1.RegisterHealthServer(s.grpcServer, s.grpcHealth)
+	}
+}
+
+func WithParallelism(limit int) Option {
+	return func(s *PlatformHealthServer) {
+		s.parallelism = limit
 	}
 }
 
@@ -182,7 +156,7 @@ func (s *PlatformHealthServer) alreadyVisitedServer(hops []string) int {
 		return -1
 	}
 
-	return slices.Index[Hops, string](hops, *s.serverId)
+	return slices.Index[phctx.Hops, string](hops, *s.serverId)
 }
 
 func (s *PlatformHealthServer) Check(ctx context.Context, req *ph.HealthCheckRequest) (*ph.HealthCheckResponse, error) {
@@ -200,7 +174,11 @@ func (s *PlatformHealthServer) Check(ctx context.Context, req *ph.HealthCheckReq
 
 	// Add this server to the list of visited servers and push to context for consumption by satellite instances
 	hops = append(hops, *s.serverId)
-	ctx = ContextWithHops(ctx, hops)
+	ctx = phctx.ContextWithHops(ctx, hops)
+
+	// Set fail-fast and parallelism in context
+	ctx = phctx.ContextWithFailFast(ctx, req.GetFailFast())
+	ctx = phctx.ContextWithParallelism(ctx, s.parallelism)
 
 	providerServices := s.Config.GetInstances()
 
@@ -232,6 +210,12 @@ func (s *PlatformHealthServer) Check(ctx context.Context, req *ph.HealthCheckReq
 	// If a loop was detected, expose serverId to assist debugging
 	if health == ph.Status_LOOP_DETECTED {
 		component.ServerId = s.serverId
+	}
+
+	// Fail-fast triggered if enabled and something failed
+	if req.GetFailFast() && health > ph.Status_HEALTHY {
+		component.FailFastTriggered = true
+		component.Message = "Results may be incomplete due to fail-fast mode"
 	}
 
 	return &component, nil

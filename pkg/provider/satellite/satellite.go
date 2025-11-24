@@ -15,10 +15,9 @@ import (
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/credentials/insecure"
 
+	"github.com/isometry/platform-health/pkg/phctx"
 	ph "github.com/isometry/platform-health/pkg/platform_health"
 	"github.com/isometry/platform-health/pkg/provider"
-	"github.com/isometry/platform-health/pkg/server"
-	"github.com/isometry/platform-health/pkg/utils"
 )
 
 const ProviderType = "satellite"
@@ -31,6 +30,7 @@ type Component struct {
 	Insecure   bool          `mapstructure:"insecure"`
 	Timeout    time.Duration `mapstructure:"timeout" default:"30s"`
 	Components []string      `mapstructure:"components"`
+	FailFast   bool          `mapstructure:"fail_fast"`
 }
 
 func init() {
@@ -46,6 +46,9 @@ func (c *Component) LogValue() slog.Value {
 	}
 	if len(c.Components) > 0 {
 		logAttr = append(logAttr, slog.Int("components", len(c.Components)))
+	}
+	if c.FailFast {
+		logAttr = append(logAttr, slog.Bool("fail_fast", c.FailFast))
 	}
 	return slog.GroupValue(logAttr...)
 }
@@ -69,7 +72,7 @@ func (c *Component) SetName(name string) {
 }
 
 func (i *Component) GetHealth(ctx context.Context) *ph.HealthCheckResponse {
-	log := utils.ContextLogger(ctx, slog.String("provider", ProviderType), slog.Any("instance", i))
+	log := phctx.Logger(ctx, slog.String("provider", ProviderType), slog.Any("instance", i))
 	log.Debug("checking")
 
 	component := &ph.HealthCheckResponse{
@@ -105,13 +108,14 @@ func (i *Component) GetHealth(ctx context.Context) *ph.HealthCheckResponse {
 	}
 	defer func() { _ = conn.Close() }()
 
-	// Build request with hops for loop detection
+	// Build request with hops for loop detection and fail-fast propagation
 	request := &ph.HealthCheckRequest{
-		Hops: server.HopsFromContext(ctx),
+		Hops:     phctx.HopsFromContext(ctx),
+		FailFast: i.FailFast || phctx.FailFastFromContext(ctx),
 	}
 
 	// Handle component filtering
-	contextPaths := server.ComponentPathsFromContext(ctx)
+	contextPaths := phctx.ComponentPathsFromContext(ctx)
 
 	if len(i.Components) > 0 {
 		if len(contextPaths) > 0 {

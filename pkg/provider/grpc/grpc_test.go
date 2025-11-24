@@ -1,7 +1,6 @@
 package grpc_test
 
 import (
-	"context"
 	"log/slog"
 	"net"
 	"testing"
@@ -99,7 +98,7 @@ func TestGetHealth(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			healthServer.SetServingStatus(tt.grpc.Service, tt.status)
 			require.NoError(t, tt.grpc.Setup())
-			service := tt.grpc.GetHealth(context.Background())
+			service := tt.grpc.GetHealth(t.Context())
 			assert.Equal(t, tt.expected, service.Status)
 		})
 	}
