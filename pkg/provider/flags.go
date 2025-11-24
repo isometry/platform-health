@@ -18,8 +18,9 @@ import (
 //   - mapstructure: flag name (skip if "-" or empty)
 //   - default: default value
 //   - description: custom usage text (auto-generated if not provided)
-//   - flag:"squash": for struct fields, flatten without prefix (kind instead of resource.kind)
-//   - flag:"nested": for struct fields, flatten with prefix (resource.kind)
+//   - flag:"[name],[option]": name override (optional), option is "inline" or "nested"
+//   - flag:",inline": for struct fields, flatten without prefix (kind instead of resource.kind)
+//   - flag:",nested": for struct fields, flatten with prefix (resource.kind)
 func ProviderFlags(instance Instance) flags.FlagValues {
 	result := make(flags.FlagValues)
 	providerType := instance.GetType()
@@ -49,32 +50,27 @@ func deriveFlags(val reflect.Value, prefix string, providerType string, result f
 
 		// Get flag name from mapstructure tag
 		flagName := field.Tag.Get("mapstructure")
-		if flagName == "" || flagName == "-" {
+		if flagName == "" || flagName == "-" || flagName == ",squash" {
 			continue
 		}
 
-		// Handle squash for embedded structs
-		if flagName == ",squash" {
-			if field.Type.Kind() == reflect.Struct {
-				deriveFlags(val.Field(i), prefix, providerType, result)
-			}
-			continue
-		}
-
-		// Check if this is a struct that should be squashed or nested
+		// Parse flag tag: "name,option" where name is optional and option is "inline" or "nested"
 		flagTag := field.Tag.Get("flag")
-		if field.Type.Kind() == reflect.Struct && (flagTag == "squash" || flagTag == "nested") {
-			newPrefix := ""
-			if flagTag == "nested" {
-				// nested: use full prefix (resource.kind)
+		var flagOption string
+		if parts := strings.Split(flagTag, ","); len(parts) >= 2 {
+			flagOption = parts[1]
+		}
+
+		// Check if this is a struct that should be inlined or nested
+		if field.Type.Kind() == reflect.Struct && (flagOption == "inline" || flagOption == "nested") {
+			var newPrefix string
+			if flagOption == "nested" {
 				if prefix != "" {
 					newPrefix = prefix + "." + flagName
 				} else {
 					newPrefix = flagName
 				}
-			}
-			// squash: keep current prefix (no additional nesting)
-			if flagTag == "squash" {
+			} else {
 				newPrefix = prefix
 			}
 			deriveFlags(val.Field(i), newPrefix, providerType, result)
@@ -143,15 +139,7 @@ func configureFields(val reflect.Value, prefix string, fs *pflag.FlagSet, errs *
 
 		// Get flag name from mapstructure tag
 		flagName := field.Tag.Get("mapstructure")
-		if flagName == "" || flagName == "-" {
-			continue
-		}
-
-		// Handle squash for embedded structs
-		if flagName == ",squash" {
-			if field.Type.Kind() == reflect.Struct {
-				configureFields(val.Field(i), prefix, fs, errs)
-			}
+		if flagName == "" || flagName == "-" || flagName == ",squash" {
 			continue
 		}
 
@@ -161,20 +149,23 @@ func configureFields(val reflect.Value, prefix string, fs *pflag.FlagSet, errs *
 			continue
 		}
 
-		// Check if this is a struct that should be squashed or nested
+		// Parse flag tag: "name,option" where name is optional and option is "inline" or "nested"
 		flagTag := field.Tag.Get("flag")
-		if field.Type.Kind() == reflect.Struct && (flagTag == "squash" || flagTag == "nested") {
-			newPrefix := ""
-			if flagTag == "nested" {
-				// nested: use full prefix (resource.kind)
+		var flagOption string
+		if parts := strings.Split(flagTag, ","); len(parts) >= 2 {
+			flagOption = parts[1]
+		}
+
+		// Check if this is a struct that should be inlined or nested
+		if field.Type.Kind() == reflect.Struct && (flagOption == "inline" || flagOption == "nested") {
+			var newPrefix string
+			if flagOption == "nested" {
 				if prefix != "" {
 					newPrefix = prefix + "." + flagName
 				} else {
 					newPrefix = flagName
 				}
-			}
-			// squash: keep current prefix (no additional nesting)
-			if flagTag == "squash" {
+			} else {
 				newPrefix = prefix
 			}
 			configureFields(fieldVal, newPrefix, fs, errs)

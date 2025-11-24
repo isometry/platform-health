@@ -43,7 +43,7 @@ type Kubernetes struct {
 	provider.BaseInstanceWithChecks `mapstructure:",squash"`
 
 	Name     string        `mapstructure:"-"`
-	Resource Resource      `mapstructure:"resource" flag:"squash"`
+	Resource Resource      `mapstructure:"resource" flag:",inline"`
 	KStatus  *bool         `mapstructure:"kstatus"`
 	Detail   bool          `mapstructure:"detail"`
 	Timeout  time.Duration `mapstructure:"timeout" default:"10s"`

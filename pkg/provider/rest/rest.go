@@ -74,7 +74,7 @@ type REST struct {
 	provider.BaseInstanceWithChecks `mapstructure:",squash"`
 
 	Name     string        `mapstructure:"-"`
-	Request  Request       `mapstructure:"request" flag:"squash"`
+	Request  Request       `mapstructure:"request" flag:",inline"`
 	Insecure bool          `mapstructure:"insecure"`
 	Timeout  time.Duration `mapstructure:"timeout" default:"10s"`
 }
