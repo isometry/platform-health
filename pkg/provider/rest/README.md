@@ -198,6 +198,7 @@ In this example, the provider combines Content-Type validation, regex pattern ma
 
 ## Security Considerations
 
+- **Idempotency**: Health check endpoints should be idempotent (safe to call repeatedly without side effects). Avoid endpoints that create records, consume resources, or modify state.
 - Response bodies are limited to 10MB to prevent memory exhaustion.
 - CEL expressions are validated at configuration load time to prevent runtime errors.
 - TLS certificate validation is enabled by default (use `insecure: true` only for testing).
