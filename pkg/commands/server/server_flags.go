@@ -10,7 +10,6 @@ var serverFlags = flags.Merge(
 		"listen": {
 			Shorthand:    "l",
 			Kind:         "string",
-			DefaultValue: "",
 			NoOptDefault: "localhost",
 			Usage:        "listen on host (default all interfaces)",
 		},
@@ -21,16 +20,14 @@ var serverFlags = flags.Merge(
 			Usage:        "listen on port",
 		},
 		"no-grpc-health-v1": {
-			Shorthand:    "H",
-			Kind:         "bool",
-			DefaultValue: false,
-			Usage:        "disable gRPC Health v1",
+			Shorthand: "H",
+			Kind:      "bool",
+			Usage:     "disable gRPC Health v1",
 		},
 		"grpc-reflection": {
-			Shorthand:    "R",
-			Kind:         "bool",
-			DefaultValue: false,
-			Usage:        "enable gRPC reflection",
+			Shorthand: "R",
+			Kind:      "bool",
+			Usage:     "enable gRPC reflection",
 		},
 	},
 )

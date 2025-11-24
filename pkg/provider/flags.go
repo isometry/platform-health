@@ -237,7 +237,7 @@ func enumFromString(t reflect.Type, s string) (int32, error) {
 	s = strings.ToUpper(s)
 
 	// Try values 0-100 (more than enough for any protobuf enum)
-	for i := int32(0); i < 100; i++ {
+	for i := range int32(100) {
 		// Create a value of the enum type with this int32
 		v := reflect.New(t).Elem()
 		v.SetInt(int64(i))
@@ -365,4 +365,3 @@ func setFieldFromFlag(fieldVal reflect.Value, fieldType reflect.Type, fs *pflag.
 	}
 	return nil
 }
-

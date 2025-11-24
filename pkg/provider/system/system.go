@@ -16,7 +16,7 @@ const TypeSystem = "system"
 
 type System struct {
 	Name string `mapstructure:"-"`
-	// Components holds child provider configs: map[instanceName]configWithType
+	// Components holds sub-components' provider configs: map[instanceName]configWithType
 	Components map[string]any `mapstructure:"components"`
 	// resolved holds the concrete provider instances after Setup()
 	resolved []provider.Instance
@@ -35,7 +35,7 @@ func (s *System) LogValue() slog.Value {
 }
 
 func (s *System) Setup() error {
-	// Resolve all child components
+	// Resolve all sub-components
 	s.resolved = make([]provider.Instance, 0)
 
 	for instanceName, instanceConfig := range s.Components {
@@ -80,7 +80,7 @@ func (s *System) SetName(name string) {
 	s.Name = name
 }
 
-// GetResolved returns the resolved child instances.
+// GetResolved returns the resolved sub-components.
 func (s *System) GetResolved() []provider.Instance {
 	return s.resolved
 }
@@ -97,11 +97,11 @@ func (s *System) GetHealth(ctx context.Context) *ph.HealthCheckResponse {
 
 	// Check for component filtering from context
 	componentPaths := server.ComponentPathsFromContext(ctx)
-	children := s.resolved
+	subComponents := s.resolved
 	var invalidComponents []string
 
 	if len(componentPaths) > 0 {
-		children, invalidComponents = s.filterChildren(componentPaths)
+		subComponents, invalidComponents = s.filterChildren(componentPaths)
 		// Clear component paths from context - they've been consumed at this level
 		ctx = server.ContextWithComponentPaths(ctx, nil)
 	}
@@ -113,10 +113,10 @@ func (s *System) GetHealth(ctx context.Context) *ph.HealthCheckResponse {
 		return component
 	}
 
-	// Check child components (filtered or all)
-	childResults, aggregateStatus := provider.Check(ctx, children)
+	// Check sub-components (filtered or all)
+	componentResults, aggregateStatus := provider.Check(ctx, subComponents)
 	component.Status = aggregateStatus
-	component.Components = childResults
+	component.Components = componentResults
 
 	return component
 }

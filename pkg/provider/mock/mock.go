@@ -89,4 +89,3 @@ func (i *Mock) GetCELContext(ctx context.Context) (map[string]any, error) {
 		},
 	}, nil
 }
-

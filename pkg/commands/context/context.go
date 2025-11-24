@@ -29,18 +29,19 @@ func New() *cobra.Command {
 		Short: "Inspect CEL evaluation context for providers",
 		Long: `Inspect the CEL evaluation context available to health check expressions.
 
-Provide a component name or path (e.g., 'system/child') for configured components.
+Provide a component name or path (e.g., '<system-name>/<component-name>') for configured components.
 Use a provider subcommand for ad-hoc context inspection.`,
+		Args: cobra.ExactArgs(1),
 		PersistentPreRun: func(cmd *cobra.Command, args []string) {
-			// Ensure root setup runs (logging, etc.)
-			if parent := cmd.Root(); parent.PersistentPreRun != nil {
-				parent.PersistentPreRun(cmd, args)
+			// Chain to root's PersistentPreRun for logging setup
+			if root := cmd.Root(); root.PersistentPreRun != nil {
+				root.PersistentPreRun(cmd, args)
 			}
 			flags.BindFlags(cmd)
 			log = slog.Default()
 			cmd.SetContext(slogctx.NewCtx(cmd.Context(), log))
 		},
-		RunE: runList,
+		RunE: runInstanceContext,
 	}
 
 	// Register persistent flags
@@ -59,29 +60,17 @@ Use a provider subcommand for ad-hoc context inspection.`,
 	return cmd
 }
 
-// runList handles the base context command for configured instance lookup.
-func runList(cmd *cobra.Command, args []string) error {
-	if len(args) == 0 {
-		return fmt.Errorf("instance name required; use --help to see available providers")
-	}
-
-	if len(args) > 1 {
-		return fmt.Errorf("expected 1 argument, got %d", len(args))
-	}
-
-	// Look up configured instance
-	return runInstanceContext(cmd, args[0])
-}
-
 // runInstanceContext gets context for a configured instance from config file.
 // Supports both simple instance names and component paths (e.g., "system/subsystem/instance").
-func runInstanceContext(cmd *cobra.Command, instancePath string) error {
+func runInstanceContext(cmd *cobra.Command, args []string) error {
 	// Load configuration
 	paths, name := flags.ConfigPaths()
 	conf, err := config.Load(cmd.Context(), paths, name)
 	if err != nil {
 		return fmt.Errorf("failed to load config: %w", err)
 	}
+
+	instancePath := args[0]
 
 	// Resolve the instance path
 	targetInstance, err := resolveInstancePath(conf.GetInstances(), instancePath)
@@ -161,7 +150,7 @@ func displayContext(cmd *cobra.Command, celCapable provider.CELCapable) error {
 		return fmt.Errorf("failed to get CEL context: %w", err)
 	}
 
-	output := viper.GetString("output")
+	output := viper.GetString("output-format")
 	switch strings.ToLower(output) {
 	case "yaml", "yml":
 		return outputYAML(ctx)

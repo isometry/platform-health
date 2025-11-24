@@ -22,7 +22,7 @@ func New() *cobra.Command {
 		Use:           "ph",
 		Short:         "Platform Health - unified health check tool",
 		Long:          `Platform Health provides health checking capabilities for distributed systems.`,
-		SilenceErrors: true,
+		SilenceErrors: false,
 		SilenceUsage:  true,
 		PersistentPreRun: func(cmd *cobra.Command, args []string) {
 			flags.BindFlags(cmd)

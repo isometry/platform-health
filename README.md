@@ -160,7 +160,23 @@ ph context http --url https://api.example.com/health
 
 ## Configuration
 
-The Platform Health server reads a simple configuration file, defaulting to `platform-health.yaml` with the following structure:
+The Platform Health server reads configuration from a YAML file. By default, it searches for `platform-health.yaml` in standard config paths (`/config` and `.`).
+
+You can customize this with:
+- `--config-path`: Override config file search paths (can be specified multiple times)
+- `--config-name`: Change the config file name (without extension)
+
+```bash
+# Use custom config file
+ph server --config-name myconfig
+
+# Add search paths
+ph server --config-path /custom/path --config-path ./local
+```
+
+### Configuration Structure
+
+All health check components are defined under the `components` key:
 
 ```yaml
 components:
@@ -168,6 +184,8 @@ components:
     type: <provider-type>
     <provider-specific-config>
 ```
+
+Component names can contain any characters valid in YAML keys, but should avoid `/` which is used for path-filtered queries. The `type` field specifies which provider to use, and the remaining fields are provider-specific configuration.
 
 ### Example
 
@@ -221,4 +239,14 @@ components:
           name: kustomize-controller
 ```
 
-The system is reported "healthy" only if all child components are healthy.
+The system is reported "healthy" only if all sub-components are healthy.
+
+### CEL Expressions
+
+Several providers support CEL (Common Expression Language) expressions for custom health check validation:
+
+- [`rest`](pkg/provider/rest): Full HTTP response with JSON parsing
+- [`kubernetes`](pkg/provider/kubernetes): Full resource(s), including metadata, spec, status, etc.
+- [`helm`](pkg/provider/helm): Release info, chart metadata, values and manifests
+
+Use `ph context` to inspect the evaluation context available to your expressions. See [pkg/checks/README.md](pkg/checks/README.md) for CEL syntax examples and patterns.

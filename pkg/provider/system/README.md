@@ -1,19 +1,19 @@
 # System Provider
 
-The System Provider extends the platform-health server to enable hierarchical grouping of related health checks. It does this by defining a named container that holds other provider instances as children, aggregating their health status into a single result.
+The System Provider extends the platform-health server to enable hierarchical grouping of related health checks. It does this by defining a named container that holds other provider instances as sub-components, aggregating their health status into a single result.
 
 ## Usage
 
-Once the System Provider is configured, any query to the platform health server will trigger validation of all child components within the system. The system is reported "healthy" if-and-only-if all of its child components are "healthy". The worst status among children propagates up to the system level.
+Once the System Provider is configured, any query to the platform health server will trigger validation of all sub-components within the system. The system is reported "healthy" if-and-only-if all of its sub-components are "healthy". The worst status among sub-components propagates up to the system level.
 
-Child instances appear as nested components in the system's response, making it easy to identify the relationship in health reports.
+Sub-components appear nested in the system's response, making it easy to identify the relationship in health reports.
 
 ## Configuration
 
 The System Provider is configured through the platform-health server's configuration file. Each instance is defined with its name as the YAML key under `components`.
 
 - `type` (required): Must be `system`.
-- `components`: A map of child instances. Each child is defined with its name as the key and must include a `type` field specifying its provider type.
+- `components`: A map of sub-components. Each sub-component is defined with its name as the key and must include a `type` field specifying its provider type.
 
 ### Example
 
@@ -65,4 +65,4 @@ components:
         port: 5432
 ```
 
-This creates a hierarchy where `infrastructure` contains a `monitoring` subsystem and a database check. The nested structure is reflected in the response, with each system aggregating its children's status.
+This creates a hierarchy where `infrastructure` contains a `monitoring` subsystem and a database check. The nested structure is reflected in the response, with each system aggregating its sub-components' status.

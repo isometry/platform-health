@@ -7,7 +7,7 @@ import (
 var contextFlags = flags.Merge(
 	flags.ConfigFlags(),
 	flags.FlagValues{
-		"output": {
+		"output-format": {
 			Shorthand:    "o",
 			Kind:         "string",
 			DefaultValue: "json",

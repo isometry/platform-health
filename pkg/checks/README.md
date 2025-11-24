@@ -2,14 +2,6 @@
 
 The checks package provides CEL (Common Expression Language) expression evaluation for health check validation. It is used by providers to validate responses and resources using powerful, flexible expressions.
 
-## Supported Providers
-
-The following providers support CEL expressions:
-
-- [`rest`](../provider/rest): Full response with JSON parsing
-- [`kubernetes`](../provider/kubernetes): Resource metadata, spec, status
-- [`helm`](../provider/helm): Release info, chart metadata, values
-
 ## Debugging CEL Expressions
 
 Use `ph context` to inspect the evaluation context available to your CEL expressions:
