@@ -112,7 +112,7 @@ func resolveInstancePath(instances []provider.Instance, path string) (provider.I
 		}
 
 		// Otherwise, it must be a system provider to continue traversal
-		sys, ok := found.(*system.System)
+		sys, ok := found.(*system.Component)
 		if !ok {
 			return nil, fmt.Errorf("component %q is not a system provider (cannot traverse further)", strings.Join(parts[:i+1], "/"))
 		}

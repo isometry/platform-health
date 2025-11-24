@@ -22,42 +22,42 @@ func TestCheckAll(t *testing.T) {
 		{
 			name: "AllHealthy",
 			instances: []provider.Instance{
-				&mock.Mock{Health: ph.Status_HEALTHY},
-				&mock.Mock{Health: ph.Status_HEALTHY},
+				&mock.Component{Health: ph.Status_HEALTHY},
+				&mock.Component{Health: ph.Status_HEALTHY},
 			},
 			expected: ph.Status_HEALTHY,
 		},
 		{
 			name: "OneUnhealthy",
 			instances: []provider.Instance{
-				&mock.Mock{Health: ph.Status_UNHEALTHY},
-				&mock.Mock{Health: ph.Status_HEALTHY},
+				&mock.Component{Health: ph.Status_UNHEALTHY},
+				&mock.Component{Health: ph.Status_HEALTHY},
 			},
 			expected: ph.Status_UNHEALTHY,
 		},
 		{
 			name: "AllUnhealthy",
 			instances: []provider.Instance{
-				&mock.Mock{Health: ph.Status_UNHEALTHY},
-				&mock.Mock{Health: ph.Status_UNHEALTHY},
+				&mock.Component{Health: ph.Status_UNHEALTHY},
+				&mock.Component{Health: ph.Status_UNHEALTHY},
 			},
 			expected: ph.Status_UNHEALTHY,
 		},
 		{
 			name: "LoopFirstPriority",
 			instances: []provider.Instance{
-				&mock.Mock{Health: ph.Status_LOOP_DETECTED},
-				&mock.Mock{Health: ph.Status_UNHEALTHY},
-				&mock.Mock{Health: ph.Status_HEALTHY},
+				&mock.Component{Health: ph.Status_LOOP_DETECTED},
+				&mock.Component{Health: ph.Status_UNHEALTHY},
+				&mock.Component{Health: ph.Status_HEALTHY},
 			},
 			expected: ph.Status_LOOP_DETECTED,
 		},
 		{
 			name: "LoopLastPriority",
 			instances: []provider.Instance{
-				&mock.Mock{Health: ph.Status_HEALTHY},
-				&mock.Mock{Health: ph.Status_UNHEALTHY},
-				&mock.Mock{Health: ph.Status_LOOP_DETECTED},
+				&mock.Component{Health: ph.Status_HEALTHY},
+				&mock.Component{Health: ph.Status_UNHEALTHY},
+				&mock.Component{Health: ph.Status_LOOP_DETECTED},
 			},
 			expected: ph.Status_LOOP_DETECTED,
 		},
@@ -72,7 +72,7 @@ func TestCheckAll(t *testing.T) {
 }
 
 func TestServiceWithDuration(t *testing.T) {
-	instance := &mock.Mock{
+	instance := &mock.Component{
 		Name:   "test",
 		Health: ph.Status_HEALTHY,
 		Sleep:  10 * time.Millisecond,
@@ -92,9 +92,9 @@ func TestServiceWithDuration(t *testing.T) {
 func TestCheckVaryingDelays(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		instances := []provider.Instance{
-			&mock.Mock{Name: "fast", Health: ph.Status_HEALTHY, Sleep: 100 * time.Millisecond},
-			&mock.Mock{Name: "medium", Health: ph.Status_UNHEALTHY, Sleep: 500 * time.Millisecond},
-			&mock.Mock{Name: "slow", Health: ph.Status_HEALTHY, Sleep: time.Second},
+			&mock.Component{Name: "fast", Health: ph.Status_HEALTHY, Sleep: 100 * time.Millisecond},
+			&mock.Component{Name: "medium", Health: ph.Status_UNHEALTHY, Sleep: 500 * time.Millisecond},
+			&mock.Component{Name: "slow", Health: ph.Status_HEALTHY, Sleep: time.Second},
 		}
 
 		responses, status := provider.Check(t.Context(), instances)
@@ -123,7 +123,7 @@ func TestCheckTimeout(t *testing.T) {
 		defer cancel()
 
 		instances := []provider.Instance{
-			&mock.Mock{Name: "slow", Health: ph.Status_HEALTHY, Sleep: 5 * time.Minute},
+			&mock.Component{Name: "slow", Health: ph.Status_HEALTHY, Sleep: 5 * time.Minute},
 		}
 
 		responses, status := provider.Check(ctx, instances)

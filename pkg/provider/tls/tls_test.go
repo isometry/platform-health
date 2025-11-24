@@ -85,7 +85,7 @@ func TestTLS(t *testing.T) {
 			ctx, cancel := context.WithTimeout(context.Background(), tt.timeout)
 			defer cancel()
 
-			instance := &tls.TLS{
+			instance := &tls.Component{
 				Name:        "TestTLS",
 				Host:        tt.host,
 				Port:        tt.port,
@@ -99,7 +99,7 @@ func TestTLS(t *testing.T) {
 			result := instance.GetHealth(ctx)
 
 			assert.NotNil(t, result)
-			assert.Equal(t, tls.TypeTLS, result.GetType())
+			assert.Equal(t, tls.ProviderType, result.GetType())
 			assert.Equal(t, "TestTLS", result.GetName())
 			assert.Equal(t, tt.expected, result.GetStatus())
 		})

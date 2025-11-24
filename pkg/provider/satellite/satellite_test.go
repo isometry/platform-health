@@ -103,23 +103,23 @@ func TestSatelliteGetHealth(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			component := &satellite.Satellite{
+			instance := &satellite.Component{
 				Name:    "TestSatellite",
 				Host:    "localhost",
 				Port:    tt.port,
 				Timeout: time.Second,
 			}
-			component.SetName("TestSatellite")
-			require.NoError(t, component.Setup())
+			instance.SetName("TestSatellite")
+			require.NoError(t, instance.Setup())
 
 			*config = tt.config
 
 			ctx := server.ContextWithHops(context.Background(), tt.hops)
 
-			result := component.GetHealth(ctx)
+			result := instance.GetHealth(ctx)
 
 			assert.NotNil(t, result)
-			assert.Equal(t, satellite.TypeSatellite, result.GetType())
+			assert.Equal(t, satellite.ProviderType, result.GetType())
 			assert.Equal(t, "TestSatellite", result.GetName())
 			assert.Equal(t, tt.expected, result.GetStatus())
 		})
@@ -172,21 +172,21 @@ func TestSatelliteComponents(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			sat := &satellite.Satellite{
+			instance := &satellite.Component{
 				Name:       "test",
 				Host:       "localhost",
 				Port:       port,
 				Timeout:    time.Second,
 				Components: tt.components,
 			}
-			require.NoError(t, sat.Setup())
+			require.NoError(t, instance.Setup())
 
 			ctx := context.Background()
 			if tt.contextPaths != nil {
 				ctx = server.ContextWithComponentPaths(ctx, tt.contextPaths)
 			}
 
-			result := sat.GetHealth(ctx)
+			result := instance.GetHealth(ctx)
 			assert.Equal(t, tt.expectedStatus, result.Status)
 			if tt.expectMessage != "" {
 				assert.Contains(t, result.Message, tt.expectMessage)
@@ -234,16 +234,16 @@ func TestSatelliteComponentFiltering(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			sat := &satellite.Satellite{
+			instance := &satellite.Component{
 				Name:       "test",
 				Host:       "localhost",
 				Port:       port,
 				Timeout:    time.Second,
 				Components: tt.components,
 			}
-			require.NoError(t, sat.Setup())
+			require.NoError(t, instance.Setup())
 
-			result := sat.GetHealth(context.Background())
+			result := instance.GetHealth(context.Background())
 			assert.Equal(t, tt.expectedStatus, result.Status)
 		})
 	}

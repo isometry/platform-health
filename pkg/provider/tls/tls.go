@@ -21,9 +21,9 @@ import (
 	"github.com/isometry/platform-health/pkg/utils"
 )
 
-const TypeTLS = "tls"
+const ProviderType = "tls"
 
-type TLS struct {
+type Component struct {
 	Name        string        `mapstructure:"-"`
 	Host        string        `mapstructure:"host"`
 	Port        int           `mapstructure:"port" default:"443"`
@@ -42,56 +42,56 @@ type VerificationStatus struct {
 var certPool *x509.CertPool = nil
 
 func init() {
-	provider.Register(TypeTLS, new(TLS))
+	provider.Register(ProviderType, new(Component))
 	if systemCertPool, err := x509.SystemCertPool(); err == nil {
 		certPool = systemCertPool
 	}
 }
 
-func (i *TLS) LogValue() slog.Value {
+func (c *Component) LogValue() slog.Value {
 	logAttr := []slog.Attr{
-		slog.String("name", i.Name),
-		slog.String("host", i.Host),
-		slog.Int("port", i.Port),
-		slog.Any("timeout", i.Timeout),
+		slog.String("name", c.Name),
+		slog.String("host", c.Host),
+		slog.Int("port", c.Port),
+		slog.Any("timeout", c.Timeout),
 	}
 	return slog.GroupValue(logAttr...)
 }
 
-func (i *TLS) Setup() error {
-	defaults.SetDefaults(i)
+func (c *Component) Setup() error {
+	defaults.SetDefaults(c)
 
 	return nil
 }
 
-func (i *TLS) GetType() string {
-	return TypeTLS
+func (c *Component) GetType() string {
+	return ProviderType
 }
 
-func (i *TLS) GetName() string {
-	return i.Name
+func (c *Component) GetName() string {
+	return c.Name
 }
 
-func (i *TLS) SetName(name string) {
-	i.Name = name
+func (c *Component) SetName(name string) {
+	c.Name = name
 }
 
-func (i *TLS) GetHealth(ctx context.Context) *ph.HealthCheckResponse {
-	log := utils.ContextLogger(ctx, slog.String("provider", TypeTLS), slog.Any("instance", i))
+func (c *Component) GetHealth(ctx context.Context) *ph.HealthCheckResponse {
+	log := utils.ContextLogger(ctx, slog.String("provider", ProviderType), slog.Any("instance", c))
 	log.Debug("checking")
 
-	ctx, cancel := context.WithTimeout(ctx, i.Timeout)
+	ctx, cancel := context.WithTimeout(ctx, c.Timeout)
 	defer cancel()
 
 	component := &ph.HealthCheckResponse{
-		Type: TypeTLS,
-		Name: i.Name,
+		Type: ProviderType,
+		Name: c.Name,
 	}
 	defer component.LogStatus(log)
 
 	dialer := &net.Dialer{}
 
-	address := net.JoinHostPort(i.Host, fmt.Sprint(i.Port))
+	address := net.JoinHostPort(c.Host, fmt.Sprint(c.Port))
 	conn, err := dialer.DialContext(ctx, "tcp", address)
 	if err != nil {
 		return component.Unhealthy(err.Error())
@@ -99,10 +99,10 @@ func (i *TLS) GetHealth(ctx context.Context) *ph.HealthCheckResponse {
 	defer func() { _ = conn.Close() }()
 
 	tlsConf := &tls.Config{
-		ServerName: i.Host,
+		ServerName: c.Host,
 		RootCAs:    certPool,
 	}
-	if i.Insecure {
+	if c.Insecure {
 		tlsConf.InsecureSkipVerify = true
 	}
 
@@ -123,7 +123,7 @@ func (i *TLS) GetHealth(ctx context.Context) *ph.HealthCheckResponse {
 	defer func() { _ = tlsConn.Close() }()
 
 	connectionState := tlsConn.ConnectionState()
-	if i.Detail {
+	if c.Detail {
 		if detail, err := anypb.New(Detail(&connectionState)); err != nil {
 			return component.Unhealthy(err.Error())
 		} else {
@@ -131,12 +131,12 @@ func (i *TLS) GetHealth(ctx context.Context) *ph.HealthCheckResponse {
 		}
 	}
 
-	if time.Until(connectionState.PeerCertificates[0].NotAfter) < i.MinValidity {
+	if time.Until(connectionState.PeerCertificates[0].NotAfter) < c.MinValidity {
 		return component.Unhealthy(fmt.Sprintf("certificate expires: %s", connectionState.PeerCertificates[0].NotAfter))
 	}
 
-	if len(i.SANs) > 0 {
-		for _, san := range i.SANs {
+	if len(c.SANs) > 0 {
+		for _, san := range c.SANs {
 			if !slices.Contains[[]string, string](connectionState.PeerCertificates[0].DNSNames, san) {
 				return component.Unhealthy(fmt.Sprintf("expected SAN %s not found in certificate", san))
 			}

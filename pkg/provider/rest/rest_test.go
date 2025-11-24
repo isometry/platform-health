@@ -157,7 +157,7 @@ func TestRESTProvider_JSONValidation(t *testing.T) {
 			})
 
 			// Create REST provider instance
-			instance := &restProvider.REST{
+			instance := &restProvider.Component{
 				BaseWithChecks: provider.BaseWithChecks{
 					Checks: tt.checks,
 				},
@@ -243,7 +243,7 @@ func TestRESTProvider_POSTWithBody(t *testing.T) {
 			})
 
 			// Create REST provider instance
-			instance := &restProvider.REST{
+			instance := &restProvider.Component{
 				BaseWithChecks: provider.BaseWithChecks{
 					Checks: tt.checks,
 				},
@@ -327,7 +327,7 @@ func TestRESTProvider_StatusCodeValidation(t *testing.T) {
 			})
 
 			// Create REST provider instance
-			instance := &restProvider.REST{
+			instance := &restProvider.Component{
 				BaseWithChecks: provider.BaseWithChecks{
 					Checks: tt.checks,
 				},
@@ -375,7 +375,7 @@ func TestRESTProvider_CombinedValidation(t *testing.T) {
 	})
 
 	// Create REST provider with CEL validation
-	instance := &restProvider.REST{
+	instance := &restProvider.Component{
 		Name: "test-service",
 		Request: restProvider.Request{
 			URL:    server.URL,
@@ -478,7 +478,7 @@ func TestRESTProvider_ContentTypeValidation(t *testing.T) {
 			})
 
 			// Create REST provider instance
-			instance := &restProvider.REST{
+			instance := &restProvider.Component{
 				BaseWithChecks: provider.BaseWithChecks{
 					Checks: tt.checks,
 				},
@@ -503,7 +503,7 @@ func TestRESTProvider_ContentTypeValidation(t *testing.T) {
 
 func TestRESTProvider_ErrorCases(t *testing.T) {
 	t.Run("invalid CEL expression syntax", func(t *testing.T) {
-		instance := &restProvider.REST{
+		instance := &restProvider.Component{
 			Name: "test-service",
 			Request: restProvider.Request{
 				URL:    "http://localhost",
@@ -547,7 +547,7 @@ func TestRESTProvider_RequestContextValidation(t *testing.T) {
 	})
 
 	// Create REST provider with request context validation
-	instance := &restProvider.REST{
+	instance := &restProvider.Component{
 		BaseWithChecks: provider.BaseWithChecks{
 			Checks: []checks.Expression{
 				{

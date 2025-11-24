@@ -21,9 +21,9 @@ import (
 	"github.com/isometry/platform-health/pkg/utils"
 )
 
-const TypeSatellite = "satellite"
+const ProviderType = "satellite"
 
-type Satellite struct {
+type Component struct {
 	Name       string        `mapstructure:"-"`
 	Host       string        `mapstructure:"host"`
 	Port       int           `mapstructure:"port"`
@@ -34,46 +34,46 @@ type Satellite struct {
 }
 
 func init() {
-	provider.Register(TypeSatellite, new(Satellite))
+	provider.Register(ProviderType, new(Component))
 }
 
-func (i *Satellite) LogValue() slog.Value {
+func (c *Component) LogValue() slog.Value {
 	logAttr := []slog.Attr{
-		slog.String("name", i.Name),
-		slog.String("host", i.Host),
-		slog.Int("port", i.Port),
-		slog.Any("timeout", i.Timeout),
+		slog.String("name", c.Name),
+		slog.String("host", c.Host),
+		slog.Int("port", c.Port),
+		slog.Any("timeout", c.Timeout),
 	}
-	if len(i.Components) > 0 {
-		logAttr = append(logAttr, slog.Int("components", len(i.Components)))
+	if len(c.Components) > 0 {
+		logAttr = append(logAttr, slog.Int("components", len(c.Components)))
 	}
 	return slog.GroupValue(logAttr...)
 }
 
-func (i *Satellite) Setup() error {
-	defaults.SetDefaults(i)
+func (c *Component) Setup() error {
+	defaults.SetDefaults(c)
 
 	return nil
 }
 
-func (i *Satellite) GetType() string {
-	return TypeSatellite
+func (c *Component) GetType() string {
+	return ProviderType
 }
 
-func (i *Satellite) GetName() string {
-	return i.Name
+func (c *Component) GetName() string {
+	return c.Name
 }
 
-func (i *Satellite) SetName(name string) {
-	i.Name = name
+func (c *Component) SetName(name string) {
+	c.Name = name
 }
 
-func (i *Satellite) GetHealth(ctx context.Context) *ph.HealthCheckResponse {
-	log := utils.ContextLogger(ctx, slog.String("provider", TypeSatellite), slog.Any("instance", i))
+func (i *Component) GetHealth(ctx context.Context) *ph.HealthCheckResponse {
+	log := utils.ContextLogger(ctx, slog.String("provider", ProviderType), slog.Any("instance", i))
 	log.Debug("checking")
 
 	component := &ph.HealthCheckResponse{
-		Type: TypeSatellite,
+		Type: ProviderType,
 		Name: i.Name,
 	}
 	defer component.LogStatus(log)

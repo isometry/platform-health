@@ -12,15 +12,15 @@ import (
 	"github.com/isometry/platform-health/pkg/provider"
 )
 
-const TypeMock = "mock"
+const ProviderType = "mock"
 
-var _ provider.InstanceWithChecks = (*Mock)(nil)
+var _ provider.InstanceWithChecks = (*Component)(nil)
 
 var celConfig = checks.NewCEL(
 	cel.Variable("mock", cel.MapType(cel.StringType, cel.DynType)),
 )
 
-type Mock struct {
+type Component struct {
 	provider.BaseWithChecks `mapstructure:",squash"`
 
 	Name   string        `mapstructure:"-"`
@@ -29,56 +29,56 @@ type Mock struct {
 }
 
 func init() {
-	provider.Register(TypeMock, new(Mock))
+	provider.Register(ProviderType, new(Component))
 }
 
-func (i *Mock) Setup() error {
-	defaults.SetDefaults(i)
+func (c *Component) Setup() error {
+	defaults.SetDefaults(c)
 
-	return i.SetupChecks(celConfig)
+	return c.SetupChecks(celConfig)
 }
 
-func (i *Mock) GetType() string {
-	return TypeMock
+func (c *Component) GetType() string {
+	return ProviderType
 }
 
-func (i *Mock) GetName() string {
-	return i.Name
+func (c *Component) GetName() string {
+	return c.Name
 }
 
-func (i *Mock) SetName(name string) {
-	i.Name = name
+func (c *Component) SetName(name string) {
+	c.Name = name
 }
 
-func (i *Mock) GetHealth(ctx context.Context) *ph.HealthCheckResponse {
+func (c *Component) GetHealth(ctx context.Context) *ph.HealthCheckResponse {
 	// simulate a delay, respecting context cancellation
 	select {
-	case <-time.After(i.Sleep):
+	case <-time.After(c.Sleep):
 		// normal completion
 	case <-ctx.Done():
 		return &ph.HealthCheckResponse{
-			Type:    TypeMock,
-			Name:    i.Name,
+			Type:    ProviderType,
+			Name:    c.Name,
 			Status:  ph.Status_UNHEALTHY,
 			Message: ctx.Err().Error(),
 		}
 	}
 
 	component := &ph.HealthCheckResponse{
-		Type:   TypeMock,
-		Name:   i.Name,
-		Status: i.Health,
+		Type:   ProviderType,
+		Name:   c.Name,
+		Status: c.Health,
 	}
 
 	// Evaluate CEL checks if configured
-	checkCtx, err := i.GetCheckContext(ctx)
+	checkCtx, err := c.GetCheckContext(ctx)
 	if err != nil {
 		component.Status = ph.Status_UNHEALTHY
 		component.Message = err.Error()
 		return component
 	}
 
-	if err := i.EvaluateChecks(checkCtx); err != nil {
+	if err := c.EvaluateChecks(checkCtx); err != nil {
 		component.Status = ph.Status_UNHEALTHY
 		component.Message = err.Error()
 	}
@@ -88,15 +88,15 @@ func (i *Mock) GetHealth(ctx context.Context) *ph.HealthCheckResponse {
 
 // InstanceWithChecks implementation
 
-func (i *Mock) GetCheckConfig() *checks.CEL {
+func (c *Component) GetCheckConfig() *checks.CEL {
 	return celConfig
 }
 
-func (i *Mock) GetCheckContext(ctx context.Context) (map[string]any, error) {
+func (c *Component) GetCheckContext(ctx context.Context) (map[string]any, error) {
 	return map[string]any{
 		"mock": map[string]any{
-			"health": i.Health.String(),
-			"sleep":  i.Sleep.String(),
+			"health": c.Health.String(),
+			"sleep":  c.Sleep.String(),
 		},
 	}, nil
 }

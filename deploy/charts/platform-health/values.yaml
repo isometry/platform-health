@@ -28,7 +28,6 @@ serverArgs: &args
   - --log-level=2
 
 # Define the health checks for the application
-# config: {provider: [target]}
 # @see the provider specific README.md for more information on how it can be configured
 #
 ## Example: basic health checks

@@ -20,9 +20,9 @@ import (
 	"github.com/isometry/platform-health/pkg/utils"
 )
 
-const TypeHTTP = "http"
+const ProviderType = "http"
 
-type HTTP struct {
+type Component struct {
 	Name     string        `mapstructure:"-"`
 	URL      string        `mapstructure:"url"`
 	Method   string        `mapstructure:"method" default:"HEAD"`
@@ -35,67 +35,67 @@ type HTTP struct {
 var certPool *x509.CertPool = nil
 
 func init() {
-	provider.Register(TypeHTTP, new(HTTP))
+	provider.Register(ProviderType, new(Component))
 	if systemCertPool, err := x509.SystemCertPool(); err == nil {
 		certPool = systemCertPool
 	}
 }
 
-func (i *HTTP) LogValue() slog.Value {
+func (c *Component) LogValue() slog.Value {
 	logAttr := []slog.Attr{
-		slog.String("name", i.Name),
-		slog.String("url", i.URL),
-		slog.Any("status", i.Status),
-		slog.Any("timeout", i.Timeout),
-		slog.Bool("insecure", i.Insecure),
-		slog.Bool("detail", i.Detail),
+		slog.String("name", c.Name),
+		slog.String("url", c.URL),
+		slog.Any("status", c.Status),
+		slog.Any("timeout", c.Timeout),
+		slog.Bool("insecure", c.Insecure),
+		slog.Bool("detail", c.Detail),
 	}
 	return slog.GroupValue(logAttr...)
 }
 
-func (i *HTTP) Setup() error {
-	defaults.SetDefaults(i)
+func (c *Component) Setup() error {
+	defaults.SetDefaults(c)
 
 	return nil
 }
 
-func (i *HTTP) GetType() string {
-	return TypeHTTP
+func (c *Component) GetType() string {
+	return ProviderType
 }
 
-func (i *HTTP) GetName() string {
-	return i.Name
+func (c *Component) GetName() string {
+	return c.Name
 }
 
-func (i *HTTP) SetName(name string) {
-	i.Name = name
+func (c *Component) SetName(name string) {
+	c.Name = name
 }
 
-func (i *HTTP) GetHealth(ctx context.Context) *ph.HealthCheckResponse {
-	log := utils.ContextLogger(ctx, slog.String("provider", TypeHTTP), slog.Any("instance", i))
+func (c *Component) GetHealth(ctx context.Context) *ph.HealthCheckResponse {
+	log := utils.ContextLogger(ctx, slog.String("provider", ProviderType), slog.Any("instance", c))
 	log.Debug("checking")
 
-	ctx, cancel := context.WithTimeout(ctx, i.Timeout)
+	ctx, cancel := context.WithTimeout(ctx, c.Timeout)
 	defer cancel()
 
 	component := &ph.HealthCheckResponse{
-		Type: TypeHTTP,
-		Name: i.Name,
+		Type: ProviderType,
+		Name: c.Name,
 	}
 	defer component.LogStatus(log)
 
-	request, err := http.NewRequestWithContext(ctx, i.Method, i.URL, nil)
+	request, err := http.NewRequestWithContext(ctx, c.Method, c.URL, nil)
 	if err != nil {
 		log.Error("failed to create request", "error", err.Error())
 		return component.Unhealthy(err.Error())
 	}
 
-	client := &http.Client{Timeout: i.Timeout}
+	client := &http.Client{Timeout: c.Timeout}
 	tlsConf := &tls.Config{
 		ServerName: request.URL.Hostname(),
 		RootCAs:    certPool,
 	}
-	if i.Insecure {
+	if c.Insecure {
 		tlsConf.InsecureSkipVerify = true
 	}
 	client.Transport = &http.Transport{TLSClientConfig: tlsConf}
@@ -114,7 +114,7 @@ func (i *HTTP) GetHealth(ctx context.Context) *ph.HealthCheckResponse {
 		}
 	}
 
-	if i.Detail && response.TLS != nil {
+	if c.Detail && response.TLS != nil {
 		if detail, err := anypb.New(tlsProvider.Detail(response.TLS)); err != nil {
 			return component.Unhealthy(err.Error())
 		} else {
@@ -122,8 +122,8 @@ func (i *HTTP) GetHealth(ctx context.Context) *ph.HealthCheckResponse {
 		}
 	}
 
-	if !slices.Contains[[]int, int](i.Status, response.StatusCode) {
-		return component.Unhealthy(fmt.Sprintf("expected status %d; actual status %d", i.Status, response.StatusCode))
+	if !slices.Contains[[]int, int](c.Status, response.StatusCode) {
+		return component.Unhealthy(fmt.Sprintf("expected status %d; actual status %d", c.Status, response.StatusCode))
 	}
 	_ = response.Body.Close()
 

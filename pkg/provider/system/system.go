@@ -12,9 +12,9 @@ import (
 	"github.com/isometry/platform-health/pkg/utils"
 )
 
-const TypeSystem = "system"
+const ProviderType = "system"
 
-type System struct {
+type Component struct {
 	Name string `mapstructure:"-"`
 	// Components holds sub-components' provider configs: map[instanceName]configWithType
 	Components map[string]any `mapstructure:"components"`
@@ -23,22 +23,22 @@ type System struct {
 }
 
 func init() {
-	provider.Register(TypeSystem, new(System))
+	provider.Register(ProviderType, new(Component))
 }
 
-func (s *System) LogValue() slog.Value {
+func (c *Component) LogValue() slog.Value {
 	logAttr := []slog.Attr{
-		slog.String("name", s.Name),
-		slog.Int("components", len(s.resolved)),
+		slog.String("name", c.Name),
+		slog.Int("components", len(c.resolved)),
 	}
 	return slog.GroupValue(logAttr...)
 }
 
-func (s *System) Setup() error {
+func (c *Component) Setup() error {
 	// Resolve all sub-components
-	s.resolved = make([]provider.Instance, 0)
+	c.resolved = make([]provider.Instance, 0)
 
-	for instanceName, instanceConfig := range s.Components {
+	for instanceName, instanceConfig := range c.Components {
 		// Convert instance config to map
 		configMap, ok := instanceConfig.(map[string]any)
 		if !ok {
@@ -62,46 +62,46 @@ func (s *System) Setup() error {
 			continue
 		}
 
-		s.resolved = append(s.resolved, instance)
+		c.resolved = append(c.resolved, instance)
 	}
 
 	return nil
 }
 
-func (s *System) GetType() string {
-	return TypeSystem
+func (c *Component) GetType() string {
+	return ProviderType
 }
 
-func (s *System) GetName() string {
-	return s.Name
+func (c *Component) GetName() string {
+	return c.Name
 }
 
-func (s *System) SetName(name string) {
-	s.Name = name
+func (c *Component) SetName(name string) {
+	c.Name = name
 }
 
 // GetResolved returns the resolved sub-components.
-func (s *System) GetResolved() []provider.Instance {
-	return s.resolved
+func (c *Component) GetResolved() []provider.Instance {
+	return c.resolved
 }
 
-func (s *System) GetHealth(ctx context.Context) *ph.HealthCheckResponse {
-	log := utils.ContextLogger(ctx, slog.String("provider", TypeSystem), slog.Any("instance", s))
+func (c *Component) GetHealth(ctx context.Context) *ph.HealthCheckResponse {
+	log := utils.ContextLogger(ctx, slog.String("provider", ProviderType), slog.Any("instance", c))
 	log.Debug("checking")
 
 	component := &ph.HealthCheckResponse{
-		Type: TypeSystem,
-		Name: s.Name,
+		Type: ProviderType,
+		Name: c.Name,
 	}
 	defer component.LogStatus(log)
 
 	// Check for component filtering from context
 	componentPaths := server.ComponentPathsFromContext(ctx)
-	subComponents := s.resolved
+	subComponents := c.resolved
 	var invalidComponents []string
 
 	if len(componentPaths) > 0 {
-		subComponents, invalidComponents = s.filterChildren(componentPaths)
+		subComponents, invalidComponents = c.filterChildren(componentPaths)
 		// Clear component paths from context - they've been consumed at this level
 		ctx = server.ContextWithComponentPaths(ctx, nil)
 	}
@@ -123,10 +123,10 @@ func (s *System) GetHealth(ctx context.Context) *ph.HealthCheckResponse {
 
 // filterChildren filters resolved children based on component paths
 // Returns the filtered children and any invalid component names
-func (s *System) filterChildren(paths server.ComponentPaths) ([]provider.Instance, []string) {
+func (c *Component) filterChildren(paths server.ComponentPaths) ([]provider.Instance, []string) {
 	// Build map for quick lookup
 	childMap := make(map[string]provider.Instance)
-	for _, child := range s.resolved {
+	for _, child := range c.resolved {
 		childMap[child.GetName()] = child
 	}
 

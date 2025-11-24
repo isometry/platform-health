@@ -19,9 +19,9 @@ import (
 	"github.com/isometry/platform-health/pkg/utils"
 )
 
-var TypeGRPC = "grpc"
+const ProviderType = "grpc"
 
-type GRPC struct {
+type Component struct {
 	Name     string        `mapstructure:"-"`
 	Host     string        `mapstructure:"host"`
 	Port     int           `mapstructure:"port"`
@@ -32,63 +32,63 @@ type GRPC struct {
 }
 
 func init() {
-	provider.Register(TypeGRPC, new(GRPC))
+	provider.Register(ProviderType, new(Component))
 }
 
-func (i *GRPC) LogValue() slog.Value {
+func (c *Component) LogValue() slog.Value {
 	logAttr := []slog.Attr{
-		slog.String("name", i.Name),
-		slog.String("host", i.Host),
-		slog.Int("port", i.Port),
-		slog.Any("timeout", i.Timeout),
+		slog.String("name", c.Name),
+		slog.String("host", c.Host),
+		slog.Int("port", c.Port),
+		slog.Any("timeout", c.Timeout),
 	}
 	return slog.GroupValue(logAttr...)
 }
 
-func (i *GRPC) Setup() error {
-	defaults.SetDefaults(i)
+func (c *Component) Setup() error {
+	defaults.SetDefaults(c)
 
 	return nil
 }
 
-func (i *GRPC) GetType() string {
-	return TypeGRPC
+func (c *Component) GetType() string {
+	return ProviderType
 }
 
-func (i *GRPC) GetName() string {
-	return i.Name
+func (c *Component) GetName() string {
+	return c.Name
 }
 
-func (i *GRPC) SetName(name string) {
-	i.Name = name
+func (c *Component) SetName(name string) {
+	c.Name = name
 }
 
-func (i *GRPC) GetHealth(ctx context.Context) *ph.HealthCheckResponse {
-	log := utils.ContextLogger(ctx, slog.String("provider", TypeGRPC), slog.Any("instance", i))
+func (c *Component) GetHealth(ctx context.Context) *ph.HealthCheckResponse {
+	log := utils.ContextLogger(ctx, slog.String("provider", ProviderType), slog.Any("instance", c))
 	log.Debug("checking")
 
 	component := &ph.HealthCheckResponse{
-		Type: TypeGRPC,
-		Name: i.Name,
+		Type: ProviderType,
+		Name: c.Name,
 	}
 	defer component.LogStatus(log)
 
 	// query the standard grpc health service on host:port
 	// to check if the service is healthy
 
-	ctx, cancel := context.WithTimeout(ctx, i.Timeout)
+	ctx, cancel := context.WithTimeout(ctx, c.Timeout)
 	defer cancel()
 
-	if i.Port == 443 {
-		i.TLS = true
+	if c.Port == 443 {
+		c.TLS = true
 	}
 
 	dialOptions := []grpc.DialOption{}
-	if i.TLS {
+	if c.TLS {
 		tlsConf := &tls.Config{
-			ServerName: i.Host,
+			ServerName: c.Host,
 		}
-		if i.Insecure {
+		if c.Insecure {
 			tlsConf.InsecureSkipVerify = true
 		}
 		dialOptions = append(dialOptions, grpc.WithTransportCredentials(credentials.NewTLS(tlsConf)))
@@ -96,7 +96,7 @@ func (i *GRPC) GetHealth(ctx context.Context) *ph.HealthCheckResponse {
 		dialOptions = append(dialOptions, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	}
 
-	address := net.JoinHostPort(i.Host, fmt.Sprint(i.Port))
+	address := net.JoinHostPort(c.Host, fmt.Sprint(c.Port))
 	conn, err := grpc.NewClient(address, dialOptions...)
 	if err != nil {
 		return component.Unhealthy(err.Error())
@@ -104,7 +104,7 @@ func (i *GRPC) GetHealth(ctx context.Context) *ph.HealthCheckResponse {
 	defer func() { _ = conn.Close() }()
 
 	client := grpc_health_v1.NewHealthClient(conn)
-	request := &grpc_health_v1.HealthCheckRequest{Service: i.Service}
+	request := &grpc_health_v1.HealthCheckRequest{Service: c.Service}
 	response, err := client.Check(ctx, request)
 	if err != nil {
 		return component.Unhealthy(err.Error())
