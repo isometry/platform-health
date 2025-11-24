@@ -31,8 +31,7 @@ var (
 func main() {
 	cmd := root.New()
 	cmd.Version = fmt.Sprintf("%s-%s (built %s)", version, commit, date)
-	err := cmd.Execute()
-	if err != nil {
+	if err := cmd.Execute(); err != nil {
 		os.Exit(1)
 	}
 }

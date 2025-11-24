@@ -10,24 +10,22 @@ import (
 
 	"github.com/isometry/platform-health/pkg/commands/check"
 	"github.com/isometry/platform-health/pkg/commands/client"
+	"github.com/isometry/platform-health/pkg/commands/context"
 	"github.com/isometry/platform-health/pkg/commands/flags"
+	"github.com/isometry/platform-health/pkg/commands/migrate"
 	"github.com/isometry/platform-health/pkg/commands/server"
 	"github.com/isometry/platform-health/pkg/utils"
 )
 
 func New() *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "ph",
-		Short: "Platform Health - unified health check tool",
-		Long: `Platform Health provides health checking capabilities for distributed systems.
-
-Use 'ph server' to run the gRPC health check server.
-Use 'ph client' to query a health check server.
-Use 'ph check' to perform one-shot health checks locally.`,
-		SilenceErrors: true,
+		Use:           "ph",
+		Short:         "Platform Health - unified health check tool",
+		Long:          `Platform Health provides health checking capabilities for distributed systems.`,
+		SilenceErrors: false,
 		SilenceUsage:  true,
 		PersistentPreRun: func(cmd *cobra.Command, args []string) {
-			flags.BindFlags(cmd, "")
+			flags.BindFlags(cmd)
 			setupLogging()
 		},
 	}
@@ -47,6 +45,8 @@ Use 'ph check' to perform one-shot health checks locally.`,
 	cmd.AddCommand(client.New())
 	cmd.AddCommand(server.New())
 	cmd.AddCommand(check.New())
+	cmd.AddCommand(context.New())
+	cmd.AddCommand(migrate.New())
 
 	return cmd
 }

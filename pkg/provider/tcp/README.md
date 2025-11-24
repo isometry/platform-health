@@ -6,9 +6,15 @@ The TCP Provider extends the platform-health server to enable monitoring the hea
 
 Once the TCP Provider is configured, any query to the platform health server will trigger validation of the configured TCP service(s). The server will attempt to establish a TCP connection to each service, and it will report each component as "healthy" if the connection is successful, or "unhealthy" otherwise.
 
+### Ad-hoc Check
+
+```bash
+ph check tcp --host example.com --port 80
+```
+
 ## Configuration
 
-The TCP Provider is configured through the platform-health server's configuration file. Each instance is defined with its name as the YAML key.
+The TCP Provider is configured through the platform-health server's configuration file. Each instance is defined with its name as the YAML key under `components`.
 
 - `type` (required): Must be `tcp`.
 - `host` (required): The hostname or IP address of the TCP service to monitor.
@@ -19,11 +25,12 @@ The TCP Provider is configured through the platform-health server's configuratio
 ### Example
 
 ```yaml
-example:
-  type: tcp
-  host: example.com
-  port: 80
-  timeout: 1s
+components:
+  example:
+    type: tcp
+    host: example.com
+    port: 80
+    timeout: 1s
 ```
 
 In this example, the TCP Provider will establish a TCP connection to example.com on port 80 and it will wait for 1s before timing out.

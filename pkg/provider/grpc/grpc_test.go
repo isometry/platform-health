@@ -14,7 +14,7 @@ import (
 	"google.golang.org/grpc/resolver"
 
 	ph "github.com/isometry/platform-health/pkg/platform_health"
-	provider_grpc "github.com/isometry/platform-health/pkg/provider/grpc"
+	grpcProvider "github.com/isometry/platform-health/pkg/provider/grpc"
 )
 
 func init() {
@@ -45,13 +45,13 @@ func TestGetHealth(t *testing.T) {
 
 	tests := []struct {
 		name     string
-		grpc     *provider_grpc.GRPC
+		grpc     *grpcProvider.Component
 		status   grpc_health_v1.HealthCheckResponse_ServingStatus
 		expected ph.Status
 	}{
 		{
 			name: "HealthyService",
-			grpc: &provider_grpc.GRPC{
+			grpc: &grpcProvider.Component{
 				Name:    "test",
 				Host:    "localhost",
 				Port:    listenPort,
@@ -62,7 +62,7 @@ func TestGetHealth(t *testing.T) {
 		},
 		{
 			name: "UnhealthyService",
-			grpc: &provider_grpc.GRPC{
+			grpc: &grpcProvider.Component{
 				Name:    "test",
 				Host:    "localhost",
 				Port:    listenPort,
@@ -73,7 +73,7 @@ func TestGetHealth(t *testing.T) {
 		},
 		{
 			name: "UnknownService",
-			grpc: &provider_grpc.GRPC{
+			grpc: &grpcProvider.Component{
 				Name:    "test",
 				Host:    "localhost",
 				Port:    listenPort,
@@ -84,7 +84,7 @@ func TestGetHealth(t *testing.T) {
 		},
 		{
 			name: "InvalidTarget",
-			grpc: &provider_grpc.GRPC{
+			grpc: &grpcProvider.Component{
 				Name:    "test",
 				Host:    "localhost",
 				Port:    1,

@@ -70,7 +70,7 @@ func TestTCP(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			instance := &tcp.TCP{
+			instance := &tcp.Component{
 				Name:    tt.name,
 				Host:    "localhost",
 				Port:    tt.port,
@@ -83,7 +83,7 @@ func TestTCP(t *testing.T) {
 			result := instance.GetHealth(context.Background())
 
 			assert.NotNil(t, result)
-			assert.Equal(t, tcp.TypeTCP, result.GetType())
+			assert.Equal(t, tcp.ProviderType, result.GetType())
 			assert.Equal(t, tt.name, result.GetName())
 			assert.Equal(t, tt.expected, result.GetStatus())
 		})

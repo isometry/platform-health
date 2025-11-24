@@ -41,8 +41,8 @@ func TestGetInstances(t *testing.T) {
 			name: "SingleProvider",
 			config: &concreteConfig{
 				"mock": []provider.Instance{
-					&mock.Mock{Name: "comp1"},
-					&mock.Mock{Name: "comp2"},
+					&mock.Component{Name: "comp1"},
+					&mock.Component{Name: "comp2"},
 				},
 			},
 			expected: 2,
@@ -51,11 +51,11 @@ func TestGetInstances(t *testing.T) {
 			name: "MultipleProviders",
 			config: &concreteConfig{
 				"mock": []provider.Instance{
-					&mock.Mock{Name: "a"},
-					&mock.Mock{Name: "b"},
+					&mock.Component{Name: "a"},
+					&mock.Component{Name: "b"},
 				},
 				"other": []provider.Instance{
-					&mock.Mock{Name: "c"},
+					&mock.Component{Name: "c"},
 				},
 			},
 			expected: 3,
@@ -157,16 +157,16 @@ func TestHardenDurationParsing(t *testing.T) {
 	result := abstract.harden()
 	assert.Equal(t, 1, len((*result)["mock"]))
 
-	instance := findInstanceByName((*result)["mock"], "test").(*mock.Mock)
+	instance := findInstanceByName((*result)["mock"], "test").(*mock.Component)
 	assert.Equal(t, 5*time.Second, instance.Sleep)
 }
 
 func TestCountByProvider(t *testing.T) {
 	config := &concreteConfig{
 		"mock": []provider.Instance{
-			&mock.Mock{Name: "a"},
-			&mock.Mock{Name: "b"},
-			&mock.Mock{Name: "c"},
+			&mock.Component{Name: "a"},
+			&mock.Component{Name: "b"},
+			&mock.Component{Name: "c"},
 		},
 	}
 
@@ -189,12 +189,12 @@ func TestTotalInstances(t *testing.T) {
 			name: "Multiple Providers",
 			config: &concreteConfig{
 				"mock": []provider.Instance{
-					&mock.Mock{},
-					&mock.Mock{},
+					&mock.Component{},
+					&mock.Component{},
 				},
 				"other": []provider.Instance{
-					&mock.Mock{},
-					&mock.Mock{},
+					&mock.Component{},
+					&mock.Component{},
 				},
 			},
 			expected: 4,

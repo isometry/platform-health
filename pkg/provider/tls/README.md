@@ -6,9 +6,15 @@ The TLS Provider extends the platform-health server to enable monitoring the hea
 
 Once the TLS Provider is configured, any query to the platform health server will trigger validation of the configured TLS service(s). The server will attempt to establish a TLS connection to each instance, and it will report each instance as "healthy" if the connection is successful, or "unhealthy" if the connection fails or times out. If the `detail` option is set to true, the server will also return detailed information about the TLS connection.
 
+### Ad-hoc Check
+
+```bash
+ph check tls --host example.com --port 443
+```
+
 ## Configuration
 
-The TLS Provider is configured through the platform-health server's configuration file. Each instance is defined with its name as the YAML key.
+The TLS Provider is configured through the platform-health server's configuration file. Each instance is defined with its name as the YAML key under `components`.
 
 - `type` (required): Must be `tls`.
 - `host` (required): The hostname or IP address of the TLS service to monitor.
@@ -22,14 +28,15 @@ The TLS Provider is configured through the platform-health server's configuratio
 ### Example
 
 ```yaml
-example:
-  type: tls
-  host: tls.example.com
-  port: 465
-  timeout: 1s
-  insecure: false
-  minValidity: 336h # 14 days
-  detail: true
+components:
+  example:
+    type: tls
+    host: tls.example.com
+    port: 465
+    timeout: 1s
+    insecure: false
+    minValidity: 336h # 14 days
+    detail: true
 ```
 
 In this example, the TLS Provider will establish a TLS connection to `tls.example.com` on port 465, it will wait for 1s before timing out, it will provide detailed information about the TLS connection, it will report the service as "unhealthy" if the remaining validity of the certificate is less than 14 days, and it will not establish connections if the TLS certificate of the service is invalid or untrusted.

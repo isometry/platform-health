@@ -89,7 +89,7 @@ func TestLocalHTTP(t *testing.T) {
 				server.Close()
 			})
 
-			instance := &httpProvider.HTTP{
+			instance := &httpProvider.Component{
 				Name:    "TestService",
 				URL:     server.URL,
 				Method:  tt.method,
@@ -154,7 +154,7 @@ func TestRemoteHTTP(t *testing.T) {
 			ctx, cancel := context.WithTimeout(context.Background(), tt.timeout)
 			defer cancel()
 
-			instance := &httpProvider.HTTP{
+			instance := &httpProvider.Component{
 				Name:    "TestHTTP",
 				URL:     tt.url,
 				Method:  tt.method,

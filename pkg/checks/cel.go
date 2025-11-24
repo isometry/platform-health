@@ -81,8 +81,8 @@ func (c *CEL) getOrCompile(expr string, env *cel.Env) (cel.Program, error) {
 
 // Expression represents a CEL expression validation rule
 type Expression struct {
-	Expression   string `mapstructure:"expression"`
-	ErrorMessage string `mapstructure:"errorMessage"`
+	Expression string `mapstructure:"expr"`
+	Message    string `mapstructure:"message"`
 }
 
 // Evaluator holds compiled CEL programs for evaluation
@@ -133,8 +133,8 @@ func (e *Evaluator) Evaluate(ctx map[string]any) error {
 
 		// Check if result is boolean true
 		if boolResult, ok := value.(bool); !ok || !boolResult {
-			if e.exprs[idx].ErrorMessage != "" {
-				return fmt.Errorf("%s", e.exprs[idx].ErrorMessage)
+			if e.exprs[idx].Message != "" {
+				return fmt.Errorf("%s", e.exprs[idx].Message)
 			}
 			return fmt.Errorf("CEL expression failed: %s", e.exprs[idx].Expression)
 		}

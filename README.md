@@ -34,7 +34,7 @@ brew install isometry/tap/platform-health
 ```
 
 ```console
-$ phs -l & sleep 1 && phc && kill %1
+$ ph server -l & sleep 1 && ph client && kill %1
 {"status":"HEALTHY", "duration":"0.000004833s"}
 ```
 
@@ -53,6 +53,7 @@ helm upgrade \
 
 ```bash
 kubectl create configmap platform-health --from-file=platform-health.yaml=/dev/stdin <<-EOF
+components:
   ssh@localhost:
     type: tcp
     host: localhost
@@ -94,16 +95,16 @@ kubectl create service loadbalancer platform-health --tcp=8080:8080
 
 ```bash
 # Check all components
-phc
+ph client
 
 # Check specific components
-phc -c google -c github
+ph client -c google -c github
 
 # Check with hierarchical path (system/component)
-phc -c fluxcd/source-controller
+ph client -c fluxcd/source-controller
 
 # Connect to remote server
-phc prod:8080 -c google
+ph client prod:8080 -c google
 ```
 
 ### One-Shot Mode
@@ -111,12 +112,10 @@ phc prod:8080 -c google
 Run health checks once and exit without starting a server:
 
 ```bash
-phs -o
-# or
-phs --one-shot
+ph check
 
 # Check specific components only
-phs -o -c google -c fluxcd/source-controller
+ph check -c google -c fluxcd/source-controller
 ```
 
 This is useful for:
@@ -125,42 +124,96 @@ This is useful for:
 - CI/CD pipeline integration
 - Testing specific components
 
+### Ad-hoc Checks
+
+Create and run health checks without a configuration file:
+
+```bash
+# TCP connectivity check
+ph check tcp --host example.com --port 443
+
+# HTTP health check
+ph check http --url https://api.example.com/health
+
+# HTTP check with CEL expression
+ph check http --url https://api.example.com/health \
+  --check 'response.status == 200'
+
+# TLS certificate check
+ph check tls --host example.com --port 443
+```
+
+### Context Inspection
+
+Inspect the CEL evaluation context for debugging expressions:
+
+```bash
+# View context for a configured component
+ph context my-app
+
+# View context for nested system components
+ph context fluxcd/source-controller
+
+# View context for ad-hoc provider
+ph context http --url https://api.example.com/health
+```
+
 ## Configuration
 
-The Platform Health server reads a simple configuration file, defaulting to `platform-health.yaml` with the following structure:
+The Platform Health server reads configuration from a YAML file. By default, it searches for `platform-health.yaml` in standard config paths (`/config` and `.`).
+
+You can customize this with:
+- `--config-path`: Override config file search paths (can be specified multiple times)
+- `--config-name`: Change the config file name (without extension)
+
+```bash
+# Use custom config file
+ph server --config-name myconfig
+
+# Add search paths
+ph server --config-path /custom/path --config-path ./local
+```
+
+### Configuration Structure
+
+All health check components are defined under the `components` key:
 
 ```yaml
-<instance-name>:
-  type: <provider-type>
-  <provider-specific-config>
+components:
+  <component-name>:
+    type: <provider-type>
+    <provider-specific-config>
 ```
+
+Component names can contain any characters valid in YAML keys, but should avoid `/` which is used for path-filtered queries. The `type` field specifies which provider to use, and the remaining fields are provider-specific configuration.
 
 ### Example
 
 The following configuration will monitor that /something/ is listening on `tcp/22` of localhost; validate connectivity and TLS handshake to the Gmail SSL mail-submission port; and validate that Google is accessible and returning a 200 status code:
 
 ```yaml
-ssh@localhost:
-  type: tcp
-  host: localhost
-  port: 22
-gmail:
-  type: tls
-  host: smtp.gmail.com
-  port: 465
-google:
-  type: http
-  url: https://google.com
-api-health:
-  type: rest
-  request:
-    url: https://api.example.com/health
-    method: GET
-  checks:
-    - expression: 'response.status == 200'
-      errorMessage: "Expected HTTP 200"
-    - expression: 'response.json.status == "healthy"'
-      errorMessage: "Service unhealthy"
+components:
+  ssh@localhost:
+    type: tcp
+    host: localhost
+    port: 22
+  gmail:
+    type: tls
+    host: smtp.gmail.com
+    port: 465
+  google:
+    type: http
+    url: https://google.com
+  api-health:
+    type: rest
+    request:
+      url: https://api.example.com/health
+      method: GET
+    checks:
+      - expr: 'response.status == 200'
+        message: "Expected HTTP 200"
+      - expr: 'response.json.status == "healthy"'
+        message: "Service unhealthy"
 ```
 
 ### Hierarchical Grouping
@@ -168,21 +221,32 @@ api-health:
 Use the `system` provider to group related checks:
 
 ```yaml
-fluxcd:
-  type: system
-  components:
-    source-controller:
-      type: kubernetes
-      resource:
-        kind: deployment
-        namespace: flux-system
-        name: source-controller
-    kustomize-controller:
-      type: kubernetes
-      resource:
-        kind: deployment
-        namespace: flux-system
-        name: kustomize-controller
+components:
+  fluxcd:
+    type: system
+    components:
+      source-controller:
+        type: kubernetes
+        resource:
+          kind: deployment
+          namespace: flux-system
+          name: source-controller
+      kustomize-controller:
+        type: kubernetes
+        resource:
+          kind: deployment
+          namespace: flux-system
+          name: kustomize-controller
 ```
 
-The system is reported "healthy" only if all child components are healthy.
+The system is reported "healthy" only if all sub-components are healthy.
+
+### CEL Expressions
+
+Several providers support CEL (Common Expression Language) expressions for custom health check validation:
+
+- [`rest`](pkg/provider/rest): Full HTTP response with JSON parsing
+- [`kubernetes`](pkg/provider/kubernetes): Full resource(s), including metadata, spec, status, etc.
+- [`helm`](pkg/provider/helm): Release info, chart metadata, values and manifests
+
+Use `ph context` to inspect the evaluation context available to your expressions. See [pkg/checks/README.md](pkg/checks/README.md) for CEL syntax examples and patterns.

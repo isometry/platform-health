@@ -24,26 +24,27 @@ replicaCount: 1
 
 # Arguments to pass to the platform-health server
 serverArgs: &args
+  - server
   - --log-level=2
 
 # Define the health checks for the application
-# config: {provider: [target]}
 # @see the provider specific README.md for more information on how it can be configured
 #
 ## Example: basic health checks
 #
 # serverConfig:
-#   ssh@localhost:
-#     type: localhost
-#     host: localhost
-#     port: 22
-#   gmail-smtps:
-#     type: tls
-#     host: smtp.gmail.com
-#     port: 465
-#   google:
-#     type: http
-#     url: https://google.com
+#   components:
+#     ssh@localhost:
+#       type: localhost
+#       host: localhost
+#       port: 22
+#     gmail-smtps:
+#       type: tls
+#       host: smtp.gmail.com
+#       port: 465
+#     google:
+#       type: http
+#       url: https://google.com
 #
 # Explicitly passing nil (i.e. `serverConfig: ~`) disables ConfigMap generation,
 # leaving it to the user.

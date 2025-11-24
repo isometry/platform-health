@@ -13,9 +13,9 @@ import (
 	"github.com/isometry/platform-health/pkg/utils"
 )
 
-const TypeVault = "vault"
+const ProviderType = "vault"
 
-type Vault struct {
+type Component struct {
 	Name     string        `mapstructure:"-"`
 	Address  string        `mapstructure:"address"`
 	Timeout  time.Duration `mapstructure:"timeout" default:"1s"`
@@ -23,54 +23,54 @@ type Vault struct {
 }
 
 func init() {
-	provider.Register(TypeVault, new(Vault))
+	provider.Register(ProviderType, new(Component))
 }
 
-func (i *Vault) LogValue() slog.Value {
+func (c *Component) LogValue() slog.Value {
 	logAttr := []slog.Attr{
-		slog.String("name", i.Name),
-		slog.String("address", i.Address),
-		slog.Any("timeout", i.Timeout),
-		slog.Bool("insecure", i.Insecure),
+		slog.String("name", c.Name),
+		slog.String("address", c.Address),
+		slog.Any("timeout", c.Timeout),
+		slog.Bool("insecure", c.Insecure),
 	}
 	return slog.GroupValue(logAttr...)
 }
 
-func (i *Vault) Setup() error {
-	defaults.SetDefaults(i)
+func (c *Component) Setup() error {
+	defaults.SetDefaults(c)
 
 	return nil
 }
 
-func (i *Vault) GetType() string {
-	return TypeVault
+func (c *Component) GetType() string {
+	return ProviderType
 }
 
-func (i *Vault) GetName() string {
-	return i.Name
+func (c *Component) GetName() string {
+	return c.Name
 }
 
-func (i *Vault) SetName(name string) {
-	i.Name = name
+func (c *Component) SetName(name string) {
+	c.Name = name
 }
 
-func (i *Vault) GetHealth(ctx context.Context) *ph.HealthCheckResponse {
-	log := utils.ContextLogger(ctx, slog.String("provider", TypeVault), slog.Any("instance", i))
+func (c *Component) GetHealth(ctx context.Context) *ph.HealthCheckResponse {
+	log := utils.ContextLogger(ctx, slog.String("provider", ProviderType), slog.Any("instance", c))
 	log.Debug("checking")
 
-	ctx, cancel := context.WithTimeout(ctx, i.Timeout)
+	ctx, cancel := context.WithTimeout(ctx, c.Timeout)
 	defer cancel()
 
 	component := &ph.HealthCheckResponse{
-		Type: TypeVault,
-		Name: i.Name,
+		Type: ProviderType,
+		Name: c.Name,
 	}
 	defer component.LogStatus(log)
 
 	config := vault.DefaultConfig()
-	config.Address = i.Address
-	config.Timeout = i.Timeout
-	if err := config.ConfigureTLS(&vault.TLSConfig{Insecure: i.Insecure}); err != nil {
+	config.Address = c.Address
+	config.Timeout = c.Timeout
+	if err := config.ConfigureTLS(&vault.TLSConfig{Insecure: c.Insecure}); err != nil {
 		return component.Unhealthy(err.Error())
 	}
 

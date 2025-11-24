@@ -8,7 +8,7 @@ Once the Vault Provider is configured, any query to the platform-health server w
 
 ## Configuration
 
-The Vault Provider is configured through the platform-health server's configuration file. Each instance is defined with its name as the YAML key.
+The Vault Provider is configured through the platform-health server's configuration file. Each instance is defined with its name as the YAML key under `components`.
 
 - `type` (required): Must be `vault`.
 - `address` (required): The address of the Vault instance in standard `VAULT_ADDR` format.
@@ -18,9 +18,10 @@ The Vault Provider is configured through the platform-health server's configurat
 ### Example
 
 ```yaml
-example:
-  type: vault
-  address: https://vault.example.com
+components:
+  example:
+    type: vault
+    address: https://vault.example.com
 ```
 
 In this example, the platform-health server will validate that the Vault cluster running at `https://vault.example.com` is up, initialized and unsealed.

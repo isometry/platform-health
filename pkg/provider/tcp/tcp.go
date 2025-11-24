@@ -14,9 +14,9 @@ import (
 	"github.com/isometry/platform-health/pkg/utils"
 )
 
-const TypeTCP = "tcp"
+const ProviderType = "tcp"
 
-type TCP struct {
+type Component struct {
 	Name    string        `mapstructure:"-"`
 	Host    string        `mapstructure:"host"`
 	Port    int           `mapstructure:"port" default:"80"`
@@ -25,63 +25,63 @@ type TCP struct {
 }
 
 func init() {
-	provider.Register(TypeTCP, new(TCP))
+	provider.Register(ProviderType, new(Component))
 }
 
-func (i *TCP) LogValue() slog.Value {
+func (c *Component) LogValue() slog.Value {
 	logAttr := []slog.Attr{
-		slog.String("name", i.Name),
-		slog.String("host", i.Host),
-		slog.Int("port", i.Port),
-		slog.Bool("closed", i.Closed),
-		slog.Any("timeout", i.Timeout),
+		slog.String("name", c.Name),
+		slog.String("host", c.Host),
+		slog.Int("port", c.Port),
+		slog.Bool("closed", c.Closed),
+		slog.Any("timeout", c.Timeout),
 	}
 	return slog.GroupValue(logAttr...)
 }
 
-func (i *TCP) Setup() error {
-	defaults.SetDefaults(i)
+func (c *Component) Setup() error {
+	defaults.SetDefaults(c)
 
 	return nil
 }
 
-func (i *TCP) GetType() string {
-	return TypeTCP
+func (c *Component) GetType() string {
+	return ProviderType
 }
 
-func (i *TCP) GetName() string {
-	return i.Name
+func (c *Component) GetName() string {
+	return c.Name
 }
 
-func (i *TCP) SetName(name string) {
-	i.Name = name
+func (c *Component) SetName(name string) {
+	c.Name = name
 }
 
-func (i *TCP) GetHealth(ctx context.Context) *ph.HealthCheckResponse {
-	log := utils.ContextLogger(ctx, slog.String("provider", TypeTCP), slog.Any("instance", i))
+func (c *Component) GetHealth(ctx context.Context) *ph.HealthCheckResponse {
+	log := utils.ContextLogger(ctx, slog.String("provider", ProviderType), slog.Any("instance", c))
 	log.Debug("checking")
 
-	ctx, cancel := context.WithTimeout(ctx, i.Timeout)
+	ctx, cancel := context.WithTimeout(ctx, c.Timeout)
 	defer cancel()
 
 	component := &ph.HealthCheckResponse{
-		Type: TypeTCP,
-		Name: i.Name,
+		Type: ProviderType,
+		Name: c.Name,
 	}
 	defer component.LogStatus(log)
 
-	address := net.JoinHostPort(i.Host, fmt.Sprint(i.Port))
+	address := net.JoinHostPort(c.Host, fmt.Sprint(c.Port))
 	dialer := &net.Dialer{}
 	conn, err := dialer.DialContext(ctx, "tcp", address)
 	if err != nil {
-		if i.Closed {
+		if c.Closed {
 			return component.Healthy()
 		} else {
 			return component.Unhealthy(err.Error())
 		}
 	} else {
 		_ = conn.Close()
-		if i.Closed {
+		if c.Closed {
 			return component.Unhealthy("port open")
 		} else {
 			return component.Healthy()

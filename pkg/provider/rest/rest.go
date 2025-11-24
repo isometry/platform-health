@@ -57,9 +57,19 @@ import (
 )
 
 const (
-	TypeREST    = "rest"
-	maxBodySize = 10 * 1024 * 1024 // 10MB max response size
+	ProviderType = "rest"
+	maxBodySize  = 10 * 1024 * 1024 // 10MB max response size
 )
+
+// Component provider extends HTTP provider with response validation capabilities
+type Component struct {
+	provider.BaseWithChecks `mapstructure:",squash"`
+
+	Name     string        `mapstructure:"-"`
+	Request  Request       `mapstructure:"request" flag:",inline"`
+	Insecure bool          `mapstructure:"insecure"`
+	Timeout  time.Duration `mapstructure:"timeout" default:"10s"`
+}
 
 // Request represents HTTP request configuration
 type Request struct {
@@ -69,17 +79,7 @@ type Request struct {
 	Headers map[string]string `mapstructure:"headers"`
 }
 
-// REST provider extends HTTP provider with response validation capabilities
-type REST struct {
-	Name     string              `mapstructure:"-"`
-	Request  Request             `mapstructure:"request"`
-	Insecure bool                `mapstructure:"insecure"`
-	Checks   []checks.Expression `mapstructure:"checks"`
-	Timeout  time.Duration       `mapstructure:"timeout" default:"10s"`
-
-	// Compiled CEL evaluator (cached after Setup)
-	evaluator *checks.Evaluator
-}
+var _ provider.InstanceWithChecks = (*Component)(nil)
 
 var certPool *x509.CertPool
 
@@ -90,114 +90,118 @@ var celConfig = checks.NewCEL(
 )
 
 func init() {
-	provider.Register(TypeREST, new(REST))
+	provider.Register(ProviderType, new(Component))
 	if systemCertPool, err := x509.SystemCertPool(); err == nil {
 		certPool = systemCertPool
 	}
 }
 
-func (i *REST) LogValue() slog.Value {
+func (c *Component) LogValue() slog.Value {
 	logAttr := []slog.Attr{
-		slog.String("name", i.Name),
-		slog.String("url", i.Request.URL),
-		slog.String("method", i.Request.Method),
-		slog.Any("timeout", i.Timeout),
-		slog.Bool("insecure", i.Insecure),
-		slog.Bool("hasRequestBody", i.Request.Body != ""),
-		slog.Int("requestHeaders", len(i.Request.Headers)),
-		slog.Int("checks", len(i.Checks)),
+		slog.String("name", c.Name),
+		slog.String("url", c.Request.URL),
+		slog.String("method", c.Request.Method),
+		slog.Any("timeout", c.Timeout),
+		slog.Bool("insecure", c.Insecure),
+		slog.Bool("hasRequestBody", c.Request.Body != ""),
+		slog.Int("requestHeaders", len(c.Request.Headers)),
+		slog.Int("checks", len(c.GetChecks())),
 	}
 	return slog.GroupValue(logAttr...)
 }
 
-func (i *REST) Setup() error {
-	defaults.SetDefaults(i)
-
-	// Pre-compile CEL evaluator if checks exist (using package-level cache)
-	if len(i.Checks) > 0 {
-		evaluator, err := celConfig.NewEvaluator(i.Checks)
-		if err != nil {
-			return fmt.Errorf("invalid CEL expression: %w", err)
-		}
-		i.evaluator = evaluator
-	}
-	return nil
+func (c *Component) Setup() error {
+	defaults.SetDefaults(c)
+	return c.SetupChecks(celConfig)
 }
 
-func (i *REST) GetType() string {
-	return TypeREST
+// GetCheckConfig returns the REST provider's CEL variable declarations.
+func (c *Component) GetCheckConfig() *checks.CEL {
+	return celConfig
 }
 
-func (i *REST) GetName() string {
-	return i.Name
-}
-
-func (i *REST) SetName(name string) {
-	i.Name = name
-}
-
-func (i *REST) GetHealth(ctx context.Context) *ph.HealthCheckResponse {
-	log := utils.ContextLogger(ctx, slog.String("provider", TypeREST), slog.Any("instance", i))
-	log.Debug("checking")
-
-	ctx, cancel := context.WithTimeout(ctx, i.Timeout)
+// GetCheckContext performs the HTTP request and returns the CEL evaluation context.
+func (c *Component) GetCheckContext(ctx context.Context) (map[string]any, error) {
+	ctx, cancel := context.WithTimeout(ctx, c.Timeout)
 	defer cancel()
 
-	component := &ph.HealthCheckResponse{
-		Type: TypeREST,
-		Name: i.Name,
-	}
-	defer component.LogStatus(log)
-
-	// Execute single HTTP request
-	response, body, err := i.executeHTTPRequest(ctx)
+	response, body, err := c.executeHTTPRequest(ctx)
 	if err != nil {
-		return component.Unhealthy(err.Error())
+		return nil, err
 	}
 	defer func() { _ = response.Body.Close() }()
 
-	// Apply CEL checks if configured
-	if len(i.Checks) > 0 {
-		if err := i.validateCEL(response, body); err != nil {
-			return component.Unhealthy(err.Error())
-		}
+	return c.buildCheckContext(response, body), nil
+}
+
+func (c *Component) GetType() string {
+	return ProviderType
+}
+
+func (c *Component) GetName() string {
+	return c.Name
+}
+
+func (c *Component) SetName(name string) {
+	c.Name = name
+}
+
+func (c *Component) GetHealth(ctx context.Context) *ph.HealthCheckResponse {
+	log := utils.ContextLogger(ctx, slog.String("provider", ProviderType), slog.Any("instance", c))
+	log.Debug("checking")
+
+	component := &ph.HealthCheckResponse{
+		Type: ProviderType,
+		Name: c.Name,
+	}
+	defer component.LogStatus(log)
+
+	// Get check context (executes HTTP request)
+	checkCtx, err := c.GetCheckContext(ctx)
+	if err != nil {
+		return component.Unhealthy(err.Error())
+	}
+
+	// Apply CEL checks
+	if err := c.EvaluateChecks(checkCtx); err != nil {
+		return component.Unhealthy(err.Error())
 	}
 
 	return component.Healthy()
 }
 
 // executeHTTPRequest performs a single HTTP request and returns response with body
-func (i *REST) executeHTTPRequest(ctx context.Context) (*http.Response, []byte, error) {
+func (c *Component) executeHTTPRequest(ctx context.Context) (*http.Response, []byte, error) {
 	// Create request with optional body
 	var bodyReader io.Reader
-	if i.Request.Body != "" {
-		bodyReader = strings.NewReader(i.Request.Body)
+	if c.Request.Body != "" {
+		bodyReader = strings.NewReader(c.Request.Body)
 	}
 
-	request, err := http.NewRequestWithContext(ctx, i.Request.Method, i.Request.URL, bodyReader)
+	request, err := http.NewRequestWithContext(ctx, c.Request.Method, c.Request.URL, bodyReader)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to create request: %w", err)
 	}
 
 	// Set custom headers from configuration
-	for key, value := range i.Request.Headers {
+	for key, value := range c.Request.Headers {
 		request.Header.Set(key, value)
 	}
 
 	// Set default Content-Type for POST/PUT with body if not already set
-	if i.Request.Body != "" && (i.Request.Method == "POST" || i.Request.Method == "PUT") {
+	if c.Request.Body != "" && (c.Request.Method == "POST" || c.Request.Method == "PUT") {
 		if request.Header.Get("Content-Type") == "" {
 			request.Header.Set("Content-Type", "application/json")
 		}
 	}
 
 	// Configure HTTP client with TLS
-	client := &http.Client{Timeout: i.Timeout}
+	client := &http.Client{Timeout: c.Timeout}
 	tlsConf := &tls.Config{
 		ServerName: request.URL.Hostname(),
 		RootCAs:    certPool,
 	}
-	if i.Insecure {
+	if c.Insecure {
 		tlsConf.InsecureSkipVerify = true
 	}
 	client.Transport = &http.Transport{TLSClientConfig: tlsConf}
@@ -228,29 +232,8 @@ func (i *REST) executeHTTPRequest(ctx context.Context) (*http.Response, []byte, 
 	return response, body, nil
 }
 
-// validateCEL evaluates CEL expressions against response using cached evaluator
-func (i *REST) validateCEL(response *http.Response, body []byte) error {
-	if len(i.Checks) == 0 {
-		return nil
-	}
-
-	// Ensure CEL evaluator is compiled
-	if i.evaluator == nil {
-		evaluator, err := celConfig.NewEvaluator(i.Checks)
-		if err != nil {
-			return fmt.Errorf("failed to compile CEL programs: %w", err)
-		}
-		i.evaluator = evaluator
-	}
-
-	// Build CEL context with request and response
-	celCtx := i.buildCELContext(response, body)
-
-	return i.evaluator.Evaluate(celCtx)
-}
-
-// buildCELContext creates CEL evaluation context from HTTP request and response
-func (i *REST) buildCELContext(response *http.Response, body []byte) map[string]any {
+// buildCheckContext creates CEL evaluation context from HTTP request and response
+func (c *Component) buildCheckContext(response *http.Response, body []byte) map[string]any {
 	bodyText := string(body)
 
 	// Parse JSON body if possible (ignore error, jsonData remains nil for non-JSON)
@@ -266,17 +249,17 @@ func (i *REST) buildCELContext(response *http.Response, body []byte) map[string]
 	}
 
 	// Build request headers map with lowercase keys
-	reqHeaders := make(map[string]string, len(i.Request.Headers))
-	for key, value := range i.Request.Headers {
+	reqHeaders := make(map[string]string, len(c.Request.Headers))
+	for key, value := range c.Request.Headers {
 		reqHeaders[strings.ToLower(key)] = value
 	}
 
 	return map[string]any{
 		"request": map[string]any{
-			"method":  i.Request.Method,
-			"body":    i.Request.Body,
+			"method":  c.Request.Method,
+			"body":    c.Request.Body,
 			"headers": reqHeaders,
-			"url":     i.Request.URL,
+			"url":     c.Request.URL,
 		},
 		"response": map[string]any{
 			"json":    jsonData,

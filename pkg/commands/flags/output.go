@@ -6,6 +6,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/spf13/viper"
 	"google.golang.org/protobuf/encoding/protojson"
 
 	ph "github.com/isometry/platform-health/pkg/platform_health"
@@ -15,7 +16,20 @@ import (
 type OutputConfig struct {
 	Flat       bool
 	Quiet      int
+	Compact    bool
 	Components []string // requested components for filtering flat output
+}
+
+// OutputConfigFromViper creates an OutputConfig from viper settings.
+// This is the standard way to build OutputConfig for commands that use
+// the common output flags (flat, quiet, compact, component).
+func OutputConfigFromViper() OutputConfig {
+	return OutputConfig{
+		Flat:       viper.GetBool("flat"),
+		Quiet:      viper.GetInt("quiet"),
+		Compact:    viper.GetBool("compact"),
+		Components: viper.GetStringSlice("component"),
+	}
 }
 
 // FormatAndPrintStatus handles common output formatting for health check responses
@@ -36,7 +50,12 @@ func FormatAndPrintStatus(status *ph.HealthCheckResponse, cfg OutputConfig) erro
 		}
 	}
 
-	pjson, err := protojson.Marshal(status)
+	opts := protojson.MarshalOptions{}
+	if !cfg.Compact {
+		opts.Multiline = true
+		opts.Indent = "  "
+	}
+	pjson, err := opts.Marshal(status)
 	if err != nil {
 		return err
 	}

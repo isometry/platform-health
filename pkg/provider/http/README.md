@@ -6,9 +6,15 @@ The HTTP Provider extends the platform-health server to enable monitoring the he
 
 Once the HTTP Provider is configured, any query to the platform-health server will trigger validation of the configured HTTP(S) service(s). The server will attempt to send an HTTP request to each service, and it will report each service as "healthy" if the request is successful and the status code matches one of the expected status codes, or "unhealthy" otherwise.
 
+### Ad-hoc Check
+
+```bash
+ph check http --url https://example.com
+```
+
 ## Configuration
 
-The HTTP Provider is configured through the platform-health server's configuration file. Each instance is defined with its name as the YAML key.
+The HTTP Provider is configured through the platform-health server's configuration file. Each instance is defined with its name as the YAML key under `components`.
 
 * `type` (required): Must be `http`.
 * `url` (required): The URL of the HTTP service to monitor.
@@ -21,11 +27,12 @@ The HTTP Provider is configured through the platform-health server's configurati
 ### Example
 
 ```yaml
-example:
-  type: http
-  url: https://example.com
-  method: GET
-  detail: true
+components:
+  example:
+    type: http
+    url: https://example.com
+    method: GET
+    detail: true
 ```
 
 In this example, the platform-health server will send a `GET` request to `https://example.com`; it will allow the default `10s` before timing out; it will expect the HTTP status code to be `200`; it will not establish connections if the HTTP certificate of the service is invalid or untrusted; and it will provide additional detailed information about the HTTP connection.

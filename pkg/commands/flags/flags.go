@@ -1,6 +1,7 @@
 package flags
 
 import (
+	"log/slog"
 	"maps"
 	"time"
 
@@ -33,17 +34,52 @@ func (f FlagValues) Register(flagSet *pflag.FlagSet, sort bool) {
 func (f *FlagValue) BuildFlag(flagSet *pflag.FlagSet, flagName string) {
 	switch f.Kind {
 	case "bool":
-		flagSet.BoolP(flagName, f.Shorthand, f.DefaultValue.(bool), f.Usage)
+		defaultVal := false
+		if f.DefaultValue != nil {
+			defaultVal = f.DefaultValue.(bool)
+		}
+		flagSet.BoolP(flagName, f.Shorthand, defaultVal, f.Usage)
 	case "count":
 		flagSet.CountP(flagName, f.Shorthand, f.Usage)
 	case "int":
-		flagSet.IntP(flagName, f.Shorthand, f.DefaultValue.(int), f.Usage)
+		defaultVal := 0
+		if f.DefaultValue != nil {
+			defaultVal = f.DefaultValue.(int)
+		}
+		flagSet.IntP(flagName, f.Shorthand, defaultVal, f.Usage)
 	case "string":
-		flagSet.StringP(flagName, f.Shorthand, f.DefaultValue.(string), f.Usage)
+		defaultVal := ""
+		if f.DefaultValue != nil {
+			defaultVal = f.DefaultValue.(string)
+		}
+		flagSet.StringP(flagName, f.Shorthand, defaultVal, f.Usage)
 	case "stringSlice":
-		flagSet.StringSliceP(flagName, f.Shorthand, f.DefaultValue.([]string), f.Usage)
+		var defaultVal []string
+		if f.DefaultValue != nil {
+			defaultVal = f.DefaultValue.([]string)
+		}
+		flagSet.StringSliceP(flagName, f.Shorthand, defaultVal, f.Usage)
+	case "intSlice":
+		var defaultVal []int
+		if f.DefaultValue != nil {
+			defaultVal = f.DefaultValue.([]int)
+		}
+		flagSet.IntSliceP(flagName, f.Shorthand, defaultVal, f.Usage)
 	case "duration":
-		flagSet.DurationP(flagName, f.Shorthand, f.DefaultValue.(time.Duration), f.Usage)
+		var defaultVal time.Duration
+		if f.DefaultValue != nil {
+			switch v := f.DefaultValue.(type) {
+			case time.Duration:
+				defaultVal = v
+			case string:
+				var err error
+				defaultVal, err = time.ParseDuration(v)
+				if err != nil {
+					slog.Warn("invalid duration default value", "flag", flagName, "value", v, "error", err)
+				}
+			}
+		}
+		flagSet.DurationP(flagName, f.Shorthand, defaultVal, f.Usage)
 	}
 
 	if f.NoOptDefault != "" {
@@ -61,22 +97,19 @@ func Merge(flagSets ...FlagValues) FlagValues {
 	return result
 }
 
-// BindFlags binds all command flags to Viper with an optional namespace prefix.
-// For example, namespace "server" makes flag "port" accessible as "server.port"
-// and via env var PH_SERVER_PORT (assuming PH_ prefix is set).
-func BindFlags(cmd *cobra.Command, namespace string) {
-	bindFlagSet := func(fs *pflag.FlagSet) {
-		fs.VisitAll(func(f *pflag.Flag) {
-			key := f.Name
-			if namespace != "" {
-				key = namespace + "." + f.Name
-			}
-			_ = viper.BindPFlag(key, f)
-		})
-	}
+// BindFlags binds all command flags to Viper without namespace prefix.
+// This includes local flags and inherited persistent flags from parent commands.
+// All flags are accessible directly by name (e.g., viper.GetBool("flat")).
+func BindFlags(cmd *cobra.Command) {
+	cmd.Flags().VisitAll(func(f *pflag.Flag) {
+		_ = viper.BindPFlag(f.Name, f)
+	})
+}
 
-	bindFlagSet(cmd.Flags())
-	bindFlagSet(cmd.PersistentFlags())
+// ConfigPaths returns the config-path and config-name values from viper.
+// Use this to call config.Load with consistent settings.
+func ConfigPaths() (paths []string, name string) {
+	return viper.GetStringSlice("config-path"), viper.GetString("config-name")
 }
 
 // Common flag definitions that can be reused across commands
@@ -122,6 +155,11 @@ func OutputFlags() FlagValues {
 			Kind:         "count",
 			DefaultValue: 0,
 			Usage:        "quiet output (-q: hide healthy, -qq: summary only, -qqq: exit code only)",
+		},
+		"compact": {
+			Kind:         "bool",
+			DefaultValue: false,
+			Usage:        "compact JSON output",
 		},
 	}
 }

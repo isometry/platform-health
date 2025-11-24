@@ -96,7 +96,7 @@ func TestSystemGetHealth(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			s := &system.System{
+			s := &system.Component{
 				Name:       "TestSystem",
 				Components: tt.components,
 			}
@@ -106,7 +106,7 @@ func TestSystemGetHealth(t *testing.T) {
 			result := s.GetHealth(context.Background())
 
 			assert.NotNil(t, result)
-			assert.Equal(t, system.TypeSystem, result.GetType())
+			assert.Equal(t, system.ProviderType, result.GetType())
 			assert.Equal(t, "TestSystem", result.GetName())
 			assert.Equal(t, tt.expected, result.GetStatus())
 			assert.Equal(t, tt.childCount, len(result.GetComponents()))
@@ -115,7 +115,7 @@ func TestSystemGetHealth(t *testing.T) {
 }
 
 func TestSystemChildName(t *testing.T) {
-	s := &system.System{
+	s := &system.Component{
 		Name: "ParentSystem",
 		Components: map[string]any{
 			"child": map[string]any{
@@ -138,7 +138,7 @@ func TestSystemChildName(t *testing.T) {
 
 func TestSystemNestedSystems(t *testing.T) {
 	// Test nested system structure
-	s := &system.System{
+	s := &system.Component{
 		Name: "OuterSystem",
 		Components: map[string]any{
 			"inner": map[string]any{
@@ -166,23 +166,23 @@ func TestSystemNestedSystems(t *testing.T) {
 	// Check inner system
 	inner := findComponent(result.GetComponents(), "inner")
 	require.NotNil(t, inner)
-	assert.Equal(t, system.TypeSystem, inner.GetType())
+	assert.Equal(t, system.ProviderType, inner.GetType())
 	assert.Equal(t, "inner", inner.GetName())
 	assert.Equal(t, 1, len(inner.GetComponents()))
 
 	// Check leaf component
 	leaf := findComponent(inner.GetComponents(), "leaf")
 	require.NotNil(t, leaf)
-	assert.Equal(t, mock.TypeMock, leaf.GetType())
+	assert.Equal(t, mock.ProviderType, leaf.GetType())
 	assert.Equal(t, "leaf", leaf.GetName())
 }
 
 func TestSystemInterface(t *testing.T) {
-	s := &system.System{
+	s := &system.Component{
 		Name: "Test",
 	}
 	s.SetName("Test")
 
-	assert.Equal(t, system.TypeSystem, s.GetType())
+	assert.Equal(t, system.ProviderType, s.GetType())
 	assert.Equal(t, "Test", s.GetName())
 }

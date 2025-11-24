@@ -37,7 +37,7 @@ func New() *cobra.Command {
 }
 
 func setup(cmd *cobra.Command, args []string) (err error) {
-	flags.BindFlags(cmd, "client")
+	flags.BindFlags(cmd)
 
 	log = slog.Default()
 
@@ -47,32 +47,32 @@ func setup(cmd *cobra.Command, args []string) (err error) {
 		if err != nil {
 			return err
 		}
-		viper.Set("client.server", host)
-		viper.Set("client.port", port)
+		viper.Set("server", host)
+		viper.Set("port", port)
 	}
 
 	return nil
 }
 
 func query(cmd *cobra.Command, _ []string) (err error) {
-	targetHost := viper.GetString("client.server")
-	targetPort := viper.GetInt("client.port")
+	targetHost := viper.GetString("server")
+	targetPort := viper.GetInt("port")
 	address := net.JoinHostPort(targetHost, fmt.Sprint(targetPort))
 
-	ctx, cancel := context.WithTimeout(context.Background(), viper.GetDuration("client.timeout"))
+	ctx, cancel := context.WithTimeout(context.Background(), viper.GetDuration("timeout"))
 	defer cancel()
 
 	ctx = slogctx.NewCtx(ctx, log)
 	cmd.SetContext(ctx)
 
-	tlsEnabled := viper.GetBool("client.tls") || targetPort == 443 || targetPort == 8443
+	tlsEnabled := viper.GetBool("tls") || targetPort == 443 || targetPort == 8443
 
 	dialOptions := []grpc.DialOption{}
 	if tlsEnabled {
 		tlsConf := &tls.Config{
 			ServerName: targetHost,
 		}
-		if viper.GetBool("client.insecure") {
+		if viper.GetBool("insecure") {
 			tlsConf.InsecureSkipVerify = true
 		}
 		dialOptions = append(dialOptions, grpc.WithTransportCredentials(credentials.NewTLS(tlsConf)))
@@ -89,16 +89,12 @@ func query(cmd *cobra.Command, _ []string) (err error) {
 	health := ph.NewHealthClient(conn)
 
 	status, err := health.Check(ctx, &ph.HealthCheckRequest{
-		Components: viper.GetStringSlice("client.component"),
+		Components: viper.GetStringSlice("component"),
 	})
 	if err != nil {
 		log.Info("failed to check", slog.Any("error", err))
 		return err
 	}
 
-	return flags.FormatAndPrintStatus(status, flags.OutputConfig{
-		Flat:       viper.GetBool("client.flat"),
-		Quiet:      viper.GetInt("client.quiet"),
-		Components: viper.GetStringSlice("client.component"),
-	})
+	return flags.FormatAndPrintStatus(status, flags.OutputConfigFromViper())
 }

@@ -8,7 +8,7 @@ Once the gRPC Provider is configured, any query to the platform-health server wi
 
 ## Configuration
 
-The gRPC Provider is configured through the platform-health server's configuration file. Each instance is defined with its name as the YAML key.
+The gRPC Provider is configured through the platform-health server's configuration file. Each instance is defined with its name as the YAML key under `components`.
 
 - `type` (required): Must be `grpc`.
 - `host` (required): The hostname or IP address of the gRPC service to monitor.
@@ -20,11 +20,12 @@ The gRPC Provider is configured through the platform-health server's configurati
 ### Example
 
 ```yaml
-example:
-  type: grpc
-  host: grpc.example.com
-  port: 443
-  service: "foo"
+components:
+  example:
+    type: grpc
+    host: grpc.example.com
+    port: 443
+    service: "foo"
 ```
 
 In this example, the gRPC Provider will establish a connection to `grpc.example.com` on port 443 (which automatically enables TLS mode), returning "healthy" only if the "foo" service reports "SERVING".

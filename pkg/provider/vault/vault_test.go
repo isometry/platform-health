@@ -77,7 +77,7 @@ func TestVaultGetHealth(t *testing.T) {
 				server.Close()
 			})
 
-			instance := &vaultProvider.Vault{
+			instance := &vaultProvider.Component{
 				Name:    "TestService",
 				Address: server.URL,
 				Timeout: tt.timeout,

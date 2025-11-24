@@ -16,8 +16,8 @@ func TestRegisterAuto(t *testing.T) {
 		provider provider.Instance
 	}{
 		{
-			name:     mock.TypeMock,
-			provider: new(mock.Mock),
+			name:     mock.ProviderType,
+			provider: new(mock.Component),
 		},
 	}
 
@@ -37,7 +37,7 @@ func TestRegisterManual(t *testing.T) {
 	}{
 		{
 			name:     "mock_manual",
-			provider: new(mock.Mock),
+			provider: new(mock.Component),
 		},
 	}
 
