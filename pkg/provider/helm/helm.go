@@ -66,6 +66,9 @@ func (i *Helm) GetCheckConfig() *checks.CEL {
 
 // GetCheckContext fetches the Helm release and returns the CEL evaluation context.
 func (i *Helm) GetCheckContext(ctx context.Context) (map[string]any, error) {
+	ctx, cancel := context.WithTimeout(ctx, i.Timeout)
+	defer cancel()
+
 	log := utils.ContextLogger(ctx, slog.String("provider", TypeHelm), slog.Any("instance", i))
 
 	statusRunner, err := client.ClientFactory.GetStatusRunner(i.Namespace, log)
@@ -73,21 +76,9 @@ func (i *Helm) GetCheckContext(ctx context.Context) (map[string]any, error) {
 		return nil, fmt.Errorf("failed to get status runner: %w", err)
 	}
 
-	resultChan := make(chan releaseResult)
-	go func() {
-		rel, err := statusRunner.Run(i.Release)
-		resultChan <- releaseResult{release: rel, err: err}
-	}()
-
-	var rel *release.Release
-	select {
-	case <-time.After(i.Timeout):
-		return nil, fmt.Errorf("timeout")
-	case result := <-resultChan:
-		if result.err != nil {
-			return nil, result.err
-		}
-		rel = result.release
+	rel, err := statusRunner.Run(ctx, i.Release)
+	if err != nil {
+		return nil, err
 	}
 
 	releaseMap, chartMap := releaseToMaps(rel)
@@ -107,12 +98,6 @@ func (i *Helm) GetName() string {
 
 func (i *Helm) SetName(name string) {
 	i.Name = name
-}
-
-// releaseResult holds the result of a status check
-type releaseResult struct {
-	release *release.Release
-	err     error
 }
 
 func (i *Helm) GetHealth(ctx context.Context) *ph.HealthCheckResponse {

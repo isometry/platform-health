@@ -169,7 +169,7 @@ func TestHelm_Timeout(t *testing.T) {
 
 	result := provider.GetHealth(context.Background())
 	assert.Equal(t, ph.Status_UNHEALTHY, result.Status)
-	assert.Equal(t, "timeout", result.Message)
+	assert.Equal(t, "context deadline exceeded", result.Message)
 }
 
 func TestSetup_DefaultTimeout(t *testing.T) {
@@ -455,7 +455,11 @@ type slowStatusRunner struct {
 	err     error
 }
 
-func (s *slowStatusRunner) Run(name string) (*release.Release, error) {
-	time.Sleep(s.delay)
-	return s.release, s.err
+func (s *slowStatusRunner) Run(ctx context.Context, name string) (*release.Release, error) {
+	select {
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	case <-time.After(s.delay):
+		return s.release, s.err
+	}
 }

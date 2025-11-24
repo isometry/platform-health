@@ -118,12 +118,14 @@ func (i *Kubernetes) GetCheckConfig() *checks.CEL {
 // For single resource (by name): returns {"resource": resourceMap}
 // For multiple resources (by selector): returns {"items": []resourceMap}
 func (i *Kubernetes) GetCheckContext(ctx context.Context) (map[string]any, error) {
+	ctx, cancel := context.WithTimeout(ctx, i.Timeout)
+	defer cancel()
+
 	clients, err := client.ClientFactory.GetClients()
 	if err != nil {
 		return nil, err
 	}
 
-	clients.Config.Timeout = i.Timeout
 	dynClient := clients.Dynamic
 	mapper := clients.Mapper
 

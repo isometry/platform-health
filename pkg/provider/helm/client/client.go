@@ -1,6 +1,7 @@
 package client
 
 import (
+	"context"
 	"fmt"
 	"log/slog"
 	"regexp"
@@ -18,7 +19,7 @@ const StatusDeployed = common.StatusDeployed
 
 // StatusRunner abstracts the helm status action for testing
 type StatusRunner interface {
-	Run(name string) (*release.Release, error)
+	Run(ctx context.Context, name string) (*release.Release, error)
 }
 
 // HelmClientFactory creates helm status runners
@@ -66,21 +67,37 @@ type listRunner struct {
 	namespace string
 }
 
-func (l *listRunner) Run(name string) (*release.Release, error) {
+func (l *listRunner) Run(ctx context.Context, name string) (*release.Release, error) {
 	// Set filter for exact release name match
 	l.action.Filter = "^" + regexp.QuoteMeta(name) + "$"
 
-	releases, err := l.action.Run()
-	if err != nil {
-		return nil, err
+	// Run in goroutine since Helm SDK doesn't support context cancellation
+	type result struct {
+		rel *release.Release
+		err error
 	}
+	resultChan := make(chan result, 1)
 
-	if len(releases) == 0 {
-		return nil, fmt.Errorf("release %q not found in namespace %q", name, l.namespace)
+	go func() {
+		releases, err := l.action.Run()
+		if err != nil {
+			resultChan <- result{err: err}
+			return
+		}
+		if len(releases) == 0 {
+			resultChan <- result{err: fmt.Errorf("release %q not found in namespace %q", name, l.namespace)}
+			return
+		}
+		// Type assert from release.Releaser interface to concrete type
+		resultChan <- result{rel: releases[0].(*release.Release)}
+	}()
+
+	select {
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	case res := <-resultChan:
+		return res.rel, res.err
 	}
-
-	// Type assert from release.Releaser interface to concrete type
-	return releases[0].(*release.Release), nil
 }
 
 // MockStatusRunner for testing
@@ -89,7 +106,7 @@ type MockStatusRunner struct {
 	Err     error
 }
 
-func (m *MockStatusRunner) Run(name string) (*release.Release, error) {
+func (m *MockStatusRunner) Run(ctx context.Context, name string) (*release.Release, error) {
 	return m.Release, m.Err
 }
 
