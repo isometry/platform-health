@@ -52,7 +52,7 @@ Use a provider subcommand for ad-hoc checks without config.`,
 
 			// Add --check flag for inline CEL expressions only if provider supports checks
 			if provider.SupportsChecks(instance) {
-				cmd.Flags().StringSlice("check", nil, "CEL expression to evaluate (can be specified multiple times)")
+				cmd.Flags().StringArray("check", nil, "CEL expression to evaluate (can be specified multiple times)")
 			}
 
 			// Add output flags for formatting
@@ -77,7 +77,7 @@ func runProviderCheck(cmd *cobra.Command, providerType string) error {
 
 	// Handle inline --check expressions for providers that support checks
 	if checkProvider := provider.AsInstanceWithChecks(instance); checkProvider != nil {
-		checkExprs, err := cmd.Flags().GetStringSlice("check")
+		checkExprs, err := cmd.Flags().GetStringArray("check")
 		if err != nil {
 			return fmt.Errorf("failed to get check expressions: %w", err)
 		}
