@@ -40,7 +40,7 @@ var celConfig = checks.NewCEL(
 )
 
 type Kubernetes struct {
-	provider.BaseInstanceWithChecks `mapstructure:",squash"`
+	provider.BaseWithChecks `mapstructure:",squash"`
 
 	Name     string        `mapstructure:"-"`
 	Resource Resource      `mapstructure:"resource" flag:",inline"`

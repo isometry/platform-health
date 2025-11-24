@@ -29,7 +29,7 @@ var celConfig = checks.NewCEL(
 )
 
 type Helm struct {
-	provider.BaseInstanceWithChecks `mapstructure:",squash"`
+	provider.BaseWithChecks `mapstructure:",squash"`
 
 	Name      string        `mapstructure:"-"`
 	Release   string        `mapstructure:"release"`

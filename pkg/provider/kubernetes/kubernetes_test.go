@@ -211,7 +211,7 @@ func TestCheckBySelector_RequireAtLeastOne(t *testing.T) {
 			Namespace:     "default",
 			LabelSelector: "app=nonexistent",
 		},
-		BaseInstanceWithChecks: provider.BaseInstanceWithChecks{Checks: []checks.Expression{
+		BaseWithChecks: provider.BaseWithChecks{Checks: []checks.Expression{
 			{Expression: "items.size() >= 1", Message: "No resources found"},
 		}},
 	}
@@ -251,7 +251,7 @@ func TestCELChecks_SingleResource(t *testing.T) {
 			Namespace: "default",
 			Name:      "my-app",
 		},
-		BaseInstanceWithChecks: provider.BaseInstanceWithChecks{Checks: []checks.Expression{
+		BaseWithChecks: provider.BaseWithChecks{Checks: []checks.Expression{
 			{Expression: "resource.status.readyReplicas >= resource.spec.replicas"},
 		}},
 	}
@@ -273,7 +273,7 @@ func TestCELChecks_ItemsList(t *testing.T) {
 			Kind:      "Deployment",
 			Namespace: "default",
 		},
-		BaseInstanceWithChecks: provider.BaseInstanceWithChecks{Checks: []checks.Expression{
+		BaseWithChecks: provider.BaseWithChecks{Checks: []checks.Expression{
 			{Expression: "items.size() >= 3", Message: "Need at least 3 deployments"},
 		}},
 	}
@@ -293,7 +293,7 @@ func TestCELChecks_ItemsListFails(t *testing.T) {
 			Kind:      "Deployment",
 			Namespace: "default",
 		},
-		BaseInstanceWithChecks: provider.BaseInstanceWithChecks{Checks: []checks.Expression{
+		BaseWithChecks: provider.BaseWithChecks{Checks: []checks.Expression{
 			{Expression: "items.size() >= 3", Message: "Need at least 3 deployments"},
 		}},
 	}

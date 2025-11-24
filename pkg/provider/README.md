@@ -37,12 +37,12 @@ This enables:
 - Context inspection via `ph context` command
 - Rich evaluation contexts with provider-specific data
 
-#### BaseInstanceWithChecks
+#### BaseWithChecks
 
-The `BaseInstanceWithChecks` struct provides reusable CEL handling that can be embedded by providers:
+The `BaseWithChecks` struct provides reusable CEL handling that can be embedded by providers:
 
 ```go
-type BaseInstanceWithChecks struct {
+type BaseWithChecks struct {
     Checks    []checks.Expression `mapstructure:"checks"`
     evaluator *checks.Evaluator
 }

@@ -28,16 +28,16 @@ type InstanceWithChecks interface {
 	SetChecks([]checks.Expression)
 }
 
-// BaseInstanceWithChecks provides reusable CEL handling that can be embedded by providers.
+// BaseWithChecks provides reusable CEL handling that can be embedded by providers.
 // It manages CEL expression storage, compilation, and evaluation.
-type BaseInstanceWithChecks struct {
+type BaseWithChecks struct {
 	Checks    []checks.Expression `mapstructure:"checks"`
 	evaluator *checks.Evaluator
 }
 
 // SetupChecks compiles CEL expressions using the provided configuration.
 // Call this from the provider's Setup() method.
-func (b *BaseInstanceWithChecks) SetupChecks(checkConfig *checks.CEL) error {
+func (b *BaseWithChecks) SetupChecks(checkConfig *checks.CEL) error {
 	if len(b.Checks) == 0 {
 		return nil
 	}
@@ -52,7 +52,7 @@ func (b *BaseInstanceWithChecks) SetupChecks(checkConfig *checks.CEL) error {
 // EvaluateChecks runs all checks against the provided context.
 // Call this from the provider's GetHealth() method.
 // Returns nil if all expressions pass, or an error describing the first failure.
-func (b *BaseInstanceWithChecks) EvaluateChecks(ctx map[string]any) error {
+func (b *BaseWithChecks) EvaluateChecks(ctx map[string]any) error {
 	if b.evaluator == nil {
 		return nil
 	}
@@ -60,19 +60,19 @@ func (b *BaseInstanceWithChecks) EvaluateChecks(ctx map[string]any) error {
 }
 
 // GetChecks returns configured CEL expressions.
-func (b *BaseInstanceWithChecks) GetChecks() []checks.Expression {
+func (b *BaseWithChecks) GetChecks() []checks.Expression {
 	return b.Checks
 }
 
 // SetChecks sets CEL expressions for dynamic configuration.
 // This clears the compiled evaluator, requiring SetupChecks to be called again.
-func (b *BaseInstanceWithChecks) SetChecks(exprs []checks.Expression) {
+func (b *BaseWithChecks) SetChecks(exprs []checks.Expression) {
 	b.Checks = exprs
 	b.evaluator = nil // Force recompilation on next SetupChecks
 }
 
 // HasChecks returns true if any CEL expressions are configured.
-func (b *BaseInstanceWithChecks) HasChecks() bool {
+func (b *BaseWithChecks) HasChecks() bool {
 	return len(b.Checks) > 0
 }
 

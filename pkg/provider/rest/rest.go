@@ -71,7 +71,7 @@ type Request struct {
 
 // REST provider extends HTTP provider with response validation capabilities
 type REST struct {
-	provider.BaseInstanceWithChecks `mapstructure:",squash"`
+	provider.BaseWithChecks `mapstructure:",squash"`
 
 	Name     string        `mapstructure:"-"`
 	Request  Request       `mapstructure:"request" flag:",inline"`

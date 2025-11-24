@@ -15,7 +15,7 @@ import (
 
 // mockCheckProvider is a test implementation of InstanceWithChecks
 type mockCheckProvider struct {
-	provider.BaseInstanceWithChecks
+	provider.BaseWithChecks
 	name      string
 	celConfig *checks.CEL
 }
@@ -74,9 +74,9 @@ func (m *mockNonCheckProvider) GetHealth(ctx context.Context) *ph.HealthCheckRes
 	return &ph.HealthCheckResponse{Name: m.name, Status: ph.Status_HEALTHY}
 }
 
-// testableCheckProvider wraps BaseInstanceWithChecks for testing
+// testableCheckProvider wraps BaseWithChecks for testing
 type testableCheckProvider struct {
-	provider.BaseInstanceWithChecks
+	provider.BaseWithChecks
 	name      string
 	celConfig *checks.CEL
 }
@@ -95,7 +95,7 @@ func (t *testableCheckProvider) GetHealth(ctx context.Context) *ph.HealthCheckRe
 	return &ph.HealthCheckResponse{Name: t.name, Status: ph.Status_HEALTHY}
 }
 
-func TestBaseInstanceWithChecks_SetupChecks(t *testing.T) {
+func TestBaseWithChecks_SetupChecks(t *testing.T) {
 	celConfig := checks.NewCEL(
 		cel.Variable("value", cel.IntType),
 	)
@@ -147,7 +147,7 @@ func TestBaseInstanceWithChecks_SetupChecks(t *testing.T) {
 	}
 }
 
-func TestBaseInstanceWithChecks_EvaluateChecks(t *testing.T) {
+func TestBaseWithChecks_EvaluateChecks(t *testing.T) {
 	celConfig := checks.NewCEL(
 		cel.Variable("value", cel.IntType),
 	)
@@ -212,7 +212,7 @@ func TestBaseInstanceWithChecks_EvaluateChecks(t *testing.T) {
 	}
 }
 
-func TestBaseInstanceWithChecks_GetSetChecks(t *testing.T) {
+func TestBaseWithChecks_GetSetChecks(t *testing.T) {
 	celConfig := checks.NewCEL(cel.Variable("value", cel.IntType))
 	p := newTestableCheckProvider(celConfig)
 

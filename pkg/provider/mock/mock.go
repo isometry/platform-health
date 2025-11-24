@@ -21,7 +21,7 @@ var celConfig = checks.NewCEL(
 )
 
 type Mock struct {
-	provider.BaseInstanceWithChecks `mapstructure:",squash"`
+	provider.BaseWithChecks `mapstructure:",squash"`
 
 	Name   string        `mapstructure:"-"`
 	Health ph.Status     `mapstructure:"health" default:"HEALTHY"`
