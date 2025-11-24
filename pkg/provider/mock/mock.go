@@ -51,8 +51,18 @@ func (i *Mock) SetName(name string) {
 }
 
 func (i *Mock) GetHealth(ctx context.Context) *ph.HealthCheckResponse {
-	// simulate a delay
-	time.Sleep(i.Sleep)
+	// simulate a delay, respecting context cancellation
+	select {
+	case <-time.After(i.Sleep):
+		// normal completion
+	case <-ctx.Done():
+		return &ph.HealthCheckResponse{
+			Type:    TypeMock,
+			Name:    i.Name,
+			Status:  ph.Status_UNHEALTHY,
+			Message: ctx.Err().Error(),
+		}
+	}
 
 	component := &ph.HealthCheckResponse{
 		Type:   TypeMock,
