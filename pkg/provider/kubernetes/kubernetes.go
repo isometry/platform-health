@@ -7,16 +7,12 @@ import (
 	"fmt"
 	"log/slog"
 	"strings"
-	"time"
 
 	"github.com/google/cel-go/cel"
 	"github.com/mcuadros/go-defaults"
 	"google.golang.org/protobuf/types/known/anypb"
 	"k8s.io/apimachinery/pkg/api/meta"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-	"k8s.io/apimachinery/pkg/runtime/schema"
-	"k8s.io/client-go/dynamic"
 	"sigs.k8s.io/cli-utils/pkg/kstatus/status"
 
 	"github.com/isometry/platform-health/pkg/checks"
@@ -27,61 +23,60 @@ import (
 	"github.com/isometry/platform-health/pkg/provider/kubernetes/client"
 )
 
-const ProviderType = "kubernetes"
+const ProviderKind = "kubernetes"
 
-// AllNamespaces is the special value for namespace to query all namespaces
-const AllNamespaces = "*"
-
-// CEL configuration for Kubernetes provider
-var celConfig = checks.NewCEL(
-	cel.Variable("resource", cel.MapType(cel.StringType, cel.DynType)),
-	cel.Variable("items", cel.ListType(cel.MapType(cel.StringType, cel.DynType))),
-)
+// AllNamespaces is re-exported from client for convenience
+const AllNamespaces = client.AllNamespaces
 
 type Component struct {
-	provider.BaseWithChecks `mapstructure:",squash"`
+	provider.Base
+	provider.BaseWithChecks
 
-	Name     string        `mapstructure:"-"`
-	Resource Resource      `mapstructure:"resource" flag:",inline"`
-	KStatus  *bool         `mapstructure:"kstatus"`
-	Detail   bool          `mapstructure:"detail"`
-	Timeout  time.Duration `mapstructure:"timeout" default:"10s"`
-}
-
-var _ provider.InstanceWithChecks = (*Component)(nil)
-
-// Resource represents a Kubernetes resource to check
-type Resource struct {
+	Context       string `mapstructure:"context"`
 	Group         string `mapstructure:"group"`
 	Version       string `mapstructure:"version"` // Optional: if empty, uses API server's preferred version
 	Kind          string `mapstructure:"kind"`
 	Namespace     string `mapstructure:"namespace"`
 	Name          string `mapstructure:"name"`
 	LabelSelector string `mapstructure:"labelSelector"` // Mutually exclusive with Name
+	KStatus       *bool  `mapstructure:"kstatus" default:"true"`
+	Detail        bool   `mapstructure:"detail"`
+	Summarize     bool   `mapstructure:"summarize"` // In labelSelector mode, accumulate errors into messages instead of sub-components
 }
 
+var _ provider.InstanceWithChecks = (*Component)(nil)
+
+// CEL configuration for Kubernetes provider
+var celConfig = checks.NewCEL(
+	cel.Variable("resource", cel.MapType(cel.StringType, cel.DynType)),
+	cel.Variable("items", cel.ListType(cel.MapType(cel.StringType, cel.DynType))),
+	KubernetesGetDeclaration(),
+)
+
 func init() {
-	provider.Register(ProviderType, new(Component))
+	provider.Register(ProviderKind, new(Component))
 }
 
 func (c *Component) LogValue() slog.Value {
 	logAttr := []slog.Attr{
-		slog.String("name", c.Name),
-		slog.String("group", c.Resource.Group),
-		slog.String("kind", c.Resource.Kind),
-		slog.String("namespace", c.Resource.Namespace),
-		slog.Any("timeout", c.Timeout),
+		slog.String("name", c.GetName()),
+		slog.String("group", c.Group),
+		slog.String("kind", c.Kind),
+		slog.String("namespace", c.Namespace),
 		slog.Int("checks", len(c.GetChecks())),
 		slog.Bool("detail", c.Detail),
 	}
-	if c.Resource.Name != "" {
-		logAttr = append(logAttr, slog.String("resourceName", c.Resource.Name))
+	if c.Context != "" {
+		logAttr = append(logAttr, slog.String("context", c.Context))
 	}
-	if c.Resource.LabelSelector != "" {
-		logAttr = append(logAttr, slog.String("labelSelector", c.Resource.LabelSelector))
+	if c.Name != "" {
+		logAttr = append(logAttr, slog.String("resourceName", c.Name))
 	}
-	if c.Resource.Version != "" {
-		logAttr = append(logAttr, slog.String("version", c.Resource.Version))
+	if c.LabelSelector != "" {
+		logAttr = append(logAttr, slog.String("labelSelector", c.LabelSelector))
+	}
+	if c.Version != "" {
+		logAttr = append(logAttr, slog.String("version", c.Version))
 	}
 	return slog.GroupValue(logAttr...)
 }
@@ -89,23 +84,41 @@ func (c *Component) LogValue() slog.Value {
 func (c *Component) Setup() error {
 	defaults.SetDefaults(c)
 
+	// defaults.SetDefaults doesn't allocate pointer types, so handle *bool default
+	if c.KStatus == nil {
+		t := true
+		c.KStatus = &t
+	}
+
+	// Validate required fields
+	if c.Kind == "" {
+		return fmt.Errorf("kind is required")
+	}
+
+	// Default group based on kind for common resources
+	if c.Group == "" {
+		k := strings.ToLower(c.Kind)
+		if g, ok := commonKindToGroup[k]; ok {
+			c.Group = g
+		}
+	}
+
 	// Validate mutually exclusive Name/LabelSelector
-	if c.Resource.Name != "" && c.Resource.LabelSelector != "" {
-		return fmt.Errorf("resource.name and resource.labelSelector are mutually exclusive")
+	if c.Name != "" && c.LabelSelector != "" {
+		return fmt.Errorf("name and labelSelector are mutually exclusive")
 	}
 
 	// Validate that name + all-namespaces is invalid
-	if c.Resource.Name != "" && c.Resource.Namespace == AllNamespaces {
+	if c.Name != "" && c.Namespace == AllNamespaces {
 		return fmt.Errorf("cannot get resource by name across all namespaces; use labelSelector instead")
 	}
 
-	// Default kstatus to true if not set
-	if c.KStatus == nil {
-		kstatusDefault := true
-		c.KStatus = &kstatusDefault
-	}
+	return nil
+}
 
-	return c.SetupChecks(celConfig)
+// SetChecks sets and compiles CEL expressions.
+func (c *Component) SetChecks(exprs []checks.Expression) error {
+	return c.SetChecksAndCompile(exprs, celConfig)
 }
 
 // GetCheckConfig returns the Kubernetes provider's CEL variable declarations.
@@ -117,46 +130,24 @@ func (c *Component) GetCheckConfig() *checks.CEL {
 // For single resource (by name): returns {"resource": resourceMap}
 // For multiple resources (by selector): returns {"items": []resourceMap}
 func (c *Component) GetCheckContext(ctx context.Context) (map[string]any, error) {
-	ctx, cancel := context.WithTimeout(ctx, c.Timeout)
-	defer cancel()
-
-	clients, err := client.ClientFactory.GetClients()
+	clients, err := client.ClientFactory.GetClients(c.Context)
 	if err != nil {
 		return nil, err
 	}
 
-	dynClient := clients.Dynamic
-	mapper := clients.Mapper
-
-	// Default group based on kind for common resources
-	group := c.Resource.Group
-	if group == "" {
-		k := strings.ToLower(c.Resource.Kind)
-		if g, ok := commonKindToGroup[k]; ok {
-			group = g
-		}
+	fetcher := clients.NewFetcher()
+	query := client.ResourceQuery{
+		Group:         c.Group,
+		Version:       c.Version,
+		Kind:          c.Kind,
+		Namespace:     c.Namespace,
+		Name:          c.Name,
+		LabelSelector: c.LabelSelector,
 	}
-
-	gk := schema.GroupKind{
-		Group: group,
-		Kind:  c.Resource.Kind,
-	}
-
-	var mapping *meta.RESTMapping
-	if c.Resource.Version != "" {
-		mapping, err = mapper.RESTMapping(gk, c.Resource.Version)
-	} else {
-		mapping, err = mapper.RESTMapping(gk)
-	}
-	if err != nil {
-		return nil, err
-	}
-
-	gvr := mapping.Resource
 
 	// Branch based on Name vs selector mode
-	if c.Resource.Name != "" {
-		blob, err := dynClient.Resource(gvr).Namespace(c.Resource.Namespace).Get(ctx, c.Resource.Name, metav1.GetOptions{})
+	if query.Mode() == client.QueryModeGet {
+		blob, err := fetcher.Get(ctx, query)
 		if err != nil {
 			return nil, err
 		}
@@ -166,18 +157,7 @@ func (c *Component) GetCheckContext(ctx context.Context) (map[string]any, error)
 	}
 
 	// Selector mode - list resources
-	listOpts := metav1.ListOptions{
-		LabelSelector: c.Resource.LabelSelector,
-	}
-
-	var list *unstructured.UnstructuredList
-	if mapping.Scope.Name() == meta.RESTScopeNameRoot {
-		list, err = dynClient.Resource(gvr).List(ctx, listOpts)
-	} else if c.Resource.Namespace == AllNamespaces {
-		list, err = dynClient.Resource(gvr).List(ctx, listOpts)
-	} else {
-		list, err = dynClient.Resource(gvr).Namespace(c.Resource.Namespace).List(ctx, listOpts)
-	}
+	list, err := fetcher.List(ctx, query)
 	if err != nil {
 		return nil, err
 	}
@@ -192,75 +172,51 @@ func (c *Component) GetCheckContext(ctx context.Context) (map[string]any, error)
 	}, nil
 }
 
-func (c *Component) GetType() string {
-	return ProviderType
-}
-
-func (c *Component) GetName() string {
-	return c.Name
-}
-
-func (c *Component) SetName(name string) {
-	c.Name = name
+func (c *Component) GetKind() string {
+	return ProviderKind
 }
 
 func (c *Component) GetHealth(ctx context.Context) *ph.HealthCheckResponse {
-	log := phctx.Logger(ctx, slog.String("provider", ProviderType), slog.Any("instance", c))
+	log := phctx.Logger(ctx, slog.String("provider", ProviderKind), slog.Any("instance", c))
 	log.Debug("checking")
 
 	component := &ph.HealthCheckResponse{
-		Type: ProviderType,
+		Kind: ProviderKind,
 		Name: c.GetName(),
 	}
 	defer component.LogStatus(log)
 
-	clients, err := client.ClientFactory.GetClients()
+	clients, err := client.ClientFactory.GetClients(c.Context)
 	if err != nil {
 		return component.Unhealthy(err.Error())
 	}
 
-	clients.Config.Timeout = c.Timeout
-	client := clients.Dynamic
-	mapper := clients.Mapper
-
-	// Default group based on kind for common resources
-	group := c.Resource.Group
-	if group == "" {
-		k := strings.ToLower(c.Resource.Kind)
-		if g, ok := commonKindToGroup[k]; ok {
-			group = g
-		}
+	fetcher := clients.NewFetcher()
+	query := client.ResourceQuery{
+		Group:         c.Group,
+		Version:       c.Version,
+		Kind:          c.Kind,
+		Namespace:     c.Namespace,
+		Name:          c.Name,
+		LabelSelector: c.LabelSelector,
 	}
 
-	gk := schema.GroupKind{
-		Group: group,
-		Kind:  c.Resource.Kind,
-	}
-
-	// Use explicit version if provided, otherwise let RESTMapper discover preferred version
-	var mapping *meta.RESTMapping
-	if c.Resource.Version != "" {
-		mapping, err = mapper.RESTMapping(gk, c.Resource.Version)
-	} else {
-		mapping, err = mapper.RESTMapping(gk)
-	}
+	mapping, err := fetcher.ResolveMapping(query)
 	if err != nil {
 		return component.Unhealthy(err.Error())
 	}
-
-	gvr := mapping.Resource
 
 	// Branch based on Name vs selector mode (empty selector = all resources)
-	if c.Resource.Name == "" {
-		return c.checkBySelector(ctx, client, gvr, mapping, component, log)
+	if query.Mode() == client.QueryModeList {
+		return c.checkBySelector(ctx, clients, fetcher, query, mapping, component, log)
 	}
 
-	return c.checkByName(ctx, client, gvr, component)
+	return c.checkByName(ctx, clients, fetcher, query, component)
 }
 
 // checkByName checks a single resource by name
-func (c *Component) checkByName(ctx context.Context, client dynamic.Interface, gvr schema.GroupVersionResource, component *ph.HealthCheckResponse) *ph.HealthCheckResponse {
-	blob, err := client.Resource(gvr).Namespace(c.Resource.Namespace).Get(ctx, c.Resource.Name, metav1.GetOptions{})
+func (c *Component) checkByName(ctx context.Context, clients *client.KubeClients, fetcher *client.ResourceFetcher, query client.ResourceQuery, component *ph.HealthCheckResponse) *ph.HealthCheckResponse {
+	blob, err := fetcher.Get(ctx, query)
 	if err != nil {
 		return component.Unhealthy(err.Error())
 	}
@@ -276,32 +232,20 @@ func (c *Component) checkByName(ctx context.Context, client dynamic.Interface, g
 		"resource": blob.Object,
 	}
 
-	if err := c.EvaluateChecks(celCtx); err != nil {
-		return component.Unhealthy(err.Error())
+	// Create resource cache and runtime binding for kubernetes.Get
+	cache := NewResourceCache()
+	binding := KubernetesGetBinding(ctx, clients, cache)
+
+	if msgs := c.EvaluateChecksWithBindings(ctx, celCtx, binding); len(msgs) > 0 {
+		return component.Unhealthy(msgs...)
 	}
 
 	return component
 }
 
 // checkBySelector lists resources matching the label selector and checks each
-func (c *Component) checkBySelector(ctx context.Context, client dynamic.Interface, gvr schema.GroupVersionResource, mapping *meta.RESTMapping, component *ph.HealthCheckResponse, log *slog.Logger) *ph.HealthCheckResponse {
-	listOpts := metav1.ListOptions{
-		LabelSelector: c.Resource.LabelSelector,
-	}
-
-	// Handle cluster-scoped vs namespaced resources
-	var list *unstructured.UnstructuredList
-	var err error
-	if mapping.Scope.Name() == meta.RESTScopeNameRoot {
-		// Cluster-scoped resources (e.g., nodes, namespaces)
-		list, err = client.Resource(gvr).List(ctx, listOpts)
-	} else if c.Resource.Namespace == AllNamespaces {
-		// All namespaces mode
-		list, err = client.Resource(gvr).List(ctx, listOpts)
-	} else {
-		// Specific namespace
-		list, err = client.Resource(gvr).Namespace(c.Resource.Namespace).List(ctx, listOpts)
-	}
+func (c *Component) checkBySelector(ctx context.Context, clients *client.KubeClients, fetcher *client.ResourceFetcher, query client.ResourceQuery, mapping *meta.RESTMapping, component *ph.HealthCheckResponse, log *slog.Logger) *ph.HealthCheckResponse {
+	list, err := fetcher.List(ctx, query)
 	if err != nil {
 		return component.Unhealthy(err.Error())
 	}
@@ -338,19 +282,61 @@ func (c *Component) checkBySelector(ctx context.Context, client dynamic.Interfac
 
 	// Check each matched resource
 	var components []*ph.HealthCheckResponse
+	var summarizedMessages []string
+	var items []any
 	worstStatus := ph.Status_HEALTHY
+
+	// Get pre-compiled per-item checks
+	eachChecks := c.Checks(checks.ModeEach)
+
+	// Create resource cache and runtime binding for kubernetes.Get
+	cache := NewResourceCache()
+	binding := KubernetesGetBinding(ctx, clients, cache)
 
 	for idx := range list.Items {
 		item := &list.Items[idx]
 		resourceName := item.GetName()
+		resourceNS := item.GetNamespace()
 
 		childComponent := &ph.HealthCheckResponse{
-			Type: ProviderType,
 			Name: resourceName,
+			// Kind omitted - inherits from parent in hierarchical view, populated by Flatten() for flat mode
 		}
 
 		result := c.applyKStatus(item, childComponent)
-		components = append(components, result)
+
+		// Apply per-item checks (mode: each)
+		if len(eachChecks) > 0 {
+			celCtx := map[string]any{"resource": item.Object}
+			for _, check := range eachChecks {
+				if msg, err := check.EvaluateWithBindings(celCtx, binding); err != nil {
+					result.Status = ph.Status_UNHEALTHY
+					result.Messages = append(result.Messages, err.Error())
+				} else if msg != "" {
+					result.Status = ph.Status_UNHEALTHY
+					result.Messages = append(result.Messages, msg)
+				}
+			}
+		}
+
+		if c.Summarize {
+			// Summarize mode: collect error messages instead of sub-components
+			if result.Status > ph.Status_HEALTHY {
+				resourceID := formatResourceID(resourceName, resourceNS)
+				if len(result.Messages) > 0 {
+					for _, msg := range result.Messages {
+						summarizedMessages = append(summarizedMessages, msg+": "+resourceID)
+					}
+				} else {
+					// No specific message but unhealthy, add status
+					summarizedMessages = append(summarizedMessages, result.Status.String()+": "+resourceID)
+				}
+			}
+		} else {
+			components = append(components, result)
+		}
+
+		items = append(items, item.Object)
 
 		if result.Status > worstStatus {
 			worstStatus = result.Status
@@ -361,20 +347,26 @@ func (c *Component) checkBySelector(ctx context.Context, client dynamic.Interfac
 	}
 
 	component.Status = worstStatus
-	component.Components = components
-
-	// Apply CEL checks against items list (selector mode)
-	var items []any
-	for idx := range list.Items {
-		items = append(items, list.Items[idx].Object)
+	if c.Summarize {
+		component.Messages = summarizedMessages
+	} else {
+		component.Components = components
 	}
 
-	celCtx := map[string]any{
-		"items": items,
-	}
-
-	if err := c.EvaluateChecks(celCtx); err != nil {
-		return component.Unhealthy(err.Error())
+	// Apply default CEL checks against items list (selector mode)
+	if defaultChecks := c.Checks(checks.ModeDefault); len(defaultChecks) > 0 {
+		celCtx := map[string]any{"items": items}
+		var msgs []string
+		for _, check := range defaultChecks {
+			if msg, err := check.EvaluateWithBindings(celCtx, binding); err != nil {
+				msgs = append(msgs, err.Error())
+			} else if msg != "" {
+				msgs = append(msgs, msg)
+			}
+		}
+		if len(msgs) > 0 {
+			return component.Unhealthy(msgs...)
+		}
 	}
 
 	return component
@@ -404,10 +396,10 @@ func (c *Component) applyKStatus(blob *unstructured.Unstructured, component *ph.
 				for _, condRaw := range conditionsRaw {
 					if cond, ok := condRaw.(map[string]any); ok {
 						kstatusDetail.Conditions = append(kstatusDetail.Conditions, &details.Condition{
-							Type:    getString(cond, "type"),
-							Status:  getString(cond, "status"),
-							Reason:  getString(cond, "reason"),
-							Message: getString(cond, "message"),
+							Type:    client.GetString(cond, "type"),
+							Status:  client.GetString(cond, "status"),
+							Reason:  client.GetString(cond, "reason"),
+							Message: client.GetString(cond, "message"),
 						})
 					}
 				}
@@ -435,10 +427,13 @@ func (c *Component) applyKStatus(blob *unstructured.Unstructured, component *ph.
 	return component.Healthy()
 }
 
-// getString safely extracts a string value from a map
-func getString(m map[string]any, key string) string {
-	if v, ok := m[key].(string); ok {
-		return v
+
+// formatResourceID creates a human-readable resource identifier for summarized output.
+// Format: {group}/{version}/{kind}/{name}@{namespace} or {version}/{kind}/{name} for core API
+// Cluster-scoped resources omit the @namespace suffix.
+func formatResourceID(name, namespace string) string {
+	if namespace == "" {
+		return name
 	}
-	return ""
+	return name + "@" + namespace
 }

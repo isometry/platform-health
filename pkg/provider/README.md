@@ -10,7 +10,7 @@ To create a new provider, there are a few requirements:
 
 ```go
 type Instance interface {
-    GetType() string
+    GetKind() string
     GetName() string
     SetName(string)
     GetHealth(context.Context) *ph.HealthCheckResponse
@@ -20,7 +20,7 @@ type Instance interface {
 
 Methods:
 
-- `GetType()`: Returns provider type (e.g., "tcp", "http", "system", etc.)
+- `GetKind()`: Returns provider kind (e.g., "tcp", "http", "system", etc.)
 - `GetName()`: Returns instance name (from config key)
 - `SetName()`: Sets the instance name
 - `GetHealth()`: Performs the actual health check

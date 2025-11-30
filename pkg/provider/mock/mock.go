@@ -12,7 +12,7 @@ import (
 	"github.com/isometry/platform-health/pkg/provider"
 )
 
-const ProviderType = "mock"
+const ProviderKind = "mock"
 
 var _ provider.InstanceWithChecks = (*Component)(nil)
 
@@ -21,33 +21,38 @@ var celConfig = checks.NewCEL(
 )
 
 type Component struct {
-	provider.BaseWithChecks `mapstructure:",squash"`
+	provider.Base
+	provider.BaseWithChecks
 
-	Name   string        `mapstructure:"-"`
-	Health ph.Status     `mapstructure:"health" default:"HEALTHY"`
-	Sleep  time.Duration `mapstructure:"sleep" default:"1ns"`
+	InstanceName string        // Instance name (exported for test struct literals)
+	Health       ph.Status     `mapstructure:"health" default:"HEALTHY"`
+	Sleep        time.Duration `mapstructure:"sleep" default:"1ns"`
 }
 
 func init() {
-	provider.Register(ProviderType, new(Component))
+	provider.Register(ProviderKind, new(Component))
 }
 
 func (c *Component) Setup() error {
 	defaults.SetDefaults(c)
-
-	return c.SetupChecks(celConfig)
+	return nil
 }
 
-func (c *Component) GetType() string {
-	return ProviderType
+// SetChecks sets and compiles CEL expressions.
+func (c *Component) SetChecks(exprs []checks.Expression) error {
+	return c.SetChecksAndCompile(exprs, celConfig)
+}
+
+func (c *Component) GetKind() string {
+	return ProviderKind
 }
 
 func (c *Component) GetName() string {
-	return c.Name
+	return c.InstanceName
 }
 
 func (c *Component) SetName(name string) {
-	c.Name = name
+	c.InstanceName = name
 }
 
 func (c *Component) GetHealth(ctx context.Context) *ph.HealthCheckResponse {
@@ -57,16 +62,16 @@ func (c *Component) GetHealth(ctx context.Context) *ph.HealthCheckResponse {
 		// normal completion
 	case <-ctx.Done():
 		return &ph.HealthCheckResponse{
-			Type:    ProviderType,
-			Name:    c.Name,
-			Status:  ph.Status_UNHEALTHY,
-			Message: ctx.Err().Error(),
+			Kind:     ProviderKind,
+			Name:     c.GetName(),
+			Status:   ph.Status_UNHEALTHY,
+			Messages: []string{ctx.Err().Error()},
 		}
 	}
 
 	component := &ph.HealthCheckResponse{
-		Type:   ProviderType,
-		Name:   c.Name,
+		Kind:   ProviderKind,
+		Name:   c.GetName(),
 		Status: c.Health,
 	}
 
@@ -74,13 +79,13 @@ func (c *Component) GetHealth(ctx context.Context) *ph.HealthCheckResponse {
 	checkCtx, err := c.GetCheckContext(ctx)
 	if err != nil {
 		component.Status = ph.Status_UNHEALTHY
-		component.Message = err.Error()
+		component.Messages = append(component.Messages, err.Error())
 		return component
 	}
 
-	if err := c.EvaluateChecks(checkCtx); err != nil {
+	if msgs := c.EvaluateChecks(ctx, checkCtx); len(msgs) > 0 {
 		component.Status = ph.Status_UNHEALTHY
-		component.Message = err.Error()
+		component.Messages = append(component.Messages, msgs...)
 	}
 
 	return component

@@ -27,7 +27,7 @@ CEL expressions must evaluate to a boolean (`true` for healthy, `false` for unhe
 
 ```yaml
 checks:
-  - expr: "data.ready == true"
+  - check: "data.ready == true"
     message: "Service not ready"
 ```
 
@@ -35,7 +35,7 @@ checks:
 
 ```yaml
 checks:
-  - expr: "data.services.database.connected == true"
+  - check: "data.services.database.connected == true"
     message: "Database not connected"
 ```
 
@@ -43,7 +43,7 @@ checks:
 
 ```yaml
 checks:
-  - expr: "data.activeConnections < 1000"
+  - check: "data.activeConnections < 1000"
     message: "Too many active connections"
 ```
 
@@ -51,9 +51,9 @@ checks:
 
 ```yaml
 checks:
-  - expr: "size(data.errors) == 0"
+  - check: "size(data.errors) == 0"
     message: "System has reported errors"
-  - expr: "size(data.items) > 0"
+  - check: "size(data.items) > 0"
     message: "No items in response"
 ```
 
@@ -61,9 +61,9 @@ checks:
 
 ```yaml
 checks:
-  - expr: 'data.message.contains("SUCCESS")'
+  - check: 'data.message.contains("SUCCESS")'
     message: "Success message not found"
-  - expr: 'data.version.startsWith("2.")'
+  - check: 'data.version.startsWith("2.")'
     message: "Wrong API version"
 ```
 
@@ -71,9 +71,9 @@ checks:
 
 ```yaml
 checks:
-  - expr: "data.value >= 200 && data.value < 300"
+  - check: "data.value >= 200 && data.value < 300"
     message: "Value outside expected range"
-  - expr: 'data.state == "active" || data.state == "standby"'
+  - check: 'data.state == "active" || data.state == "standby"'
     message: "Service in unexpected state"
 ```
 
@@ -81,9 +81,9 @@ checks:
 
 ```yaml
 checks:
-  - expr: 'data.id.matches("\\d{3}-\\d{2}-\\d{4}")'
+  - check: 'data.id.matches("\\d{3}-\\d{2}-\\d{4}")'
     message: "Invalid format in response"
-  - expr: 'data.status.matches("(?i)success|ok|healthy")'
+  - check: 'data.status.matches("(?i)success|ok|healthy")'
     message: "No success indicator found"
 ```
 
@@ -91,7 +91,7 @@ checks:
 
 ```yaml
 checks:
-  - expr: "data.conditions.exists(c, c.type == 'Ready' && c.status == 'True')"
+  - check: "data.conditions.exists(c, c.type == 'Ready' && c.status == 'True')"
     message: "Ready condition not met"
 ```
 
@@ -99,7 +99,7 @@ checks:
 
 ```yaml
 checks:
-  - expr: "'required_key' in data.config"
+  - check: "'required_key' in data.config"
     message: "Required key missing from config"
 ```
 

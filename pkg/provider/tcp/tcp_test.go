@@ -10,6 +10,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	ph "github.com/isometry/platform-health/pkg/platform_health"
+	"github.com/isometry/platform-health/pkg/provider"
 	"github.com/isometry/platform-health/pkg/provider/tcp"
 )
 
@@ -70,19 +71,21 @@ func TestTCP(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			instance := &tcp.Component{
-				Name:    tt.name,
-				Host:    "localhost",
-				Port:    tt.port,
-				Closed:  tt.closed,
-				Timeout: tt.timeout,
+				Host:   "localhost",
+				Port:   tt.port,
+				Closed: tt.closed,
 			}
 			instance.SetName(tt.name)
+			if tt.timeout > 0 {
+				instance.SetTimeout(tt.timeout)
+			}
 			require.NoError(t, instance.Setup())
 
-			result := instance.GetHealth(t.Context())
+			// Use GetHealthWithDuration which applies the timeout
+			result := provider.GetHealthWithDuration(t.Context(), instance)
 
 			assert.NotNil(t, result)
-			assert.Equal(t, tcp.ProviderType, result.GetType())
+			assert.Equal(t, tcp.ProviderKind, result.GetKind())
 			assert.Equal(t, tt.name, result.GetName())
 			assert.Equal(t, tt.expected, result.GetStatus())
 		})

@@ -104,12 +104,11 @@ func TestSatelliteGetHealth(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			instance := &satellite.Component{
-				Name:    "TestSatellite",
-				Host:    "localhost",
-				Port:    tt.port,
-				Timeout: time.Second,
+				Host: "localhost",
+				Port: tt.port,
 			}
 			instance.SetName("TestSatellite")
+			instance.SetTimeout(time.Second)
 			require.NoError(t, instance.Setup())
 
 			*config = tt.config
@@ -119,7 +118,7 @@ func TestSatelliteGetHealth(t *testing.T) {
 			result := instance.GetHealth(ctx)
 
 			assert.NotNil(t, result)
-			assert.Equal(t, satellite.ProviderType, result.GetType())
+			assert.Equal(t, satellite.ProviderKind, result.GetKind())
 			assert.Equal(t, "TestSatellite", result.GetName())
 			assert.Equal(t, tt.expected, result.GetStatus())
 		})
@@ -173,12 +172,12 @@ func TestSatelliteComponents(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			instance := &satellite.Component{
-				Name:       "test",
 				Host:       "localhost",
 				Port:       port,
-				Timeout:    time.Second,
 				Components: tt.components,
 			}
+			instance.SetName("test")
+			instance.SetTimeout(time.Second)
 			require.NoError(t, instance.Setup())
 
 			ctx := t.Context()
@@ -189,7 +188,8 @@ func TestSatelliteComponents(t *testing.T) {
 			result := instance.GetHealth(ctx)
 			assert.Equal(t, tt.expectedStatus, result.Status)
 			if tt.expectMessage != "" {
-				assert.Contains(t, result.Message, tt.expectMessage)
+				require.NotEmpty(t, result.Messages)
+				assert.Contains(t, result.Messages[0], tt.expectMessage)
 			}
 		})
 	}
@@ -235,12 +235,12 @@ func TestSatelliteComponentFiltering(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			instance := &satellite.Component{
-				Name:       "test",
 				Host:       "localhost",
 				Port:       port,
-				Timeout:    time.Second,
 				Components: tt.components,
 			}
+			instance.SetName("test")
+			instance.SetTimeout(time.Second)
 			require.NoError(t, instance.Setup())
 
 			result := instance.GetHealth(t.Context())

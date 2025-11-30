@@ -25,9 +25,9 @@ func (s *HealthCheckResponse) Healthy() *HealthCheckResponse {
 	return s
 }
 
-func (s *HealthCheckResponse) Unhealthy(msg string) *HealthCheckResponse {
+func (s *HealthCheckResponse) Unhealthy(msgs ...string) *HealthCheckResponse {
 	s.Status = Status_UNHEALTHY
-	s.Message = msg
+	s.Messages = append(s.Messages, msgs...)
 	return s
 }
 
@@ -38,20 +38,27 @@ func (s *HealthCheckResponse) IsHealthy() error {
 	return nil
 }
 
-func (s *HealthCheckResponse) Flatten(parent string) (components []*HealthCheckResponse) {
+func (s *HealthCheckResponse) Flatten(parentPath, parentKind string) (components []*HealthCheckResponse) {
 	components = make([]*HealthCheckResponse, 0, 1+len(s.Components))
 
+	// Determine effective kind (own kind, or inherit from parent)
+	effectiveKind := s.Kind
+	if effectiveKind == "" {
+		effectiveKind = parentKind
+	}
+
 	pathName := s.Name
-	if s.Type != "" {
-		if parent != "" {
-			pathName = fmt.Sprintf("%s/%s", strings.TrimSuffix(parent, "/"), pathName)
+	if effectiveKind != "" {
+		if parentPath != "" {
+			pathName = fmt.Sprintf("%s/%s", strings.TrimSuffix(parentPath, "/"), pathName)
 		}
 
-		if s.Type != "satellite" {
+		if effectiveKind != "satellite" {
 			components = append(components, &HealthCheckResponse{
+				Kind:     effectiveKind,
 				Name:     pathName,
 				Status:   s.Status,
-				Message:  s.Message,
+				Messages: s.Messages,
 				Details:  s.Details,
 				Duration: s.Duration,
 			})
@@ -59,7 +66,8 @@ func (s *HealthCheckResponse) Flatten(parent string) (components []*HealthCheckR
 	}
 
 	for _, component := range s.Components {
-		components = append(components, component.Flatten(pathName)...)
+		components = append(components, component.Flatten(pathName, effectiveKind)...)
 	}
 	return components
 }
+

@@ -1,0 +1,5 @@
+components:
+  test:
+    spec:
+      sleep: 1s
+    # missing required 'kind' key

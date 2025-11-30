@@ -16,7 +16,7 @@ func TestRegisterAuto(t *testing.T) {
 		provider provider.Instance
 	}{
 		{
-			name:     mock.ProviderType,
+			name:     mock.ProviderKind,
 			provider: new(mock.Component),
 		},
 	}

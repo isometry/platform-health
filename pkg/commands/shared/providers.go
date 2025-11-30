@@ -15,16 +15,17 @@ type ProviderSubcommandOptions struct {
 	RequireChecks bool
 	// SetupFlags adds extra flags to the subcommand (e.g., --check, --output)
 	SetupFlags func(*cobra.Command, provider.Instance)
-	// RunFunc is the command handler
-	RunFunc func(cmd *cobra.Command, providerType string) error
+	// RunFunc is the command handler (args contains positional arguments)
+	RunFunc func(cmd *cobra.Command, providerKind string, args []string) error
 }
 
 // AddProviderSubcommands creates a subcommand for each qualifying provider.
 func AddProviderSubcommands(parent *cobra.Command, opts ProviderSubcommandOptions) {
-	for _, providerType := range provider.ProviderList() {
-		instance := provider.NewInstance(providerType)
-		if instance == nil {
-			continue
+	for _, providerKind := range provider.ProviderList() {
+		// Create a raw instance to check capabilities (no Setup/validation)
+		instance, err := provider.New(providerKind)
+		if err != nil {
+			continue // Unknown provider - skip silently
 		}
 
 		// Check capability check
@@ -33,22 +34,22 @@ func AddProviderSubcommands(parent *cobra.Command, opts ProviderSubcommandOption
 		}
 
 		// Create subcommand
-		providerCmd := createProviderSubcommand(providerType, instance, opts)
+		providerCmd := createProviderSubcommand(providerKind, instance, opts)
 		parent.AddCommand(providerCmd)
 	}
 }
 
-// createProviderSubcommand creates a subcommand for a specific provider type.
+// createProviderSubcommand creates a subcommand for a specific provider kind.
 func createProviderSubcommand(
-	providerType string,
+	providerKind string,
 	instance provider.Instance,
 	opts ProviderSubcommandOptions,
 ) *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   providerType,
-		Short: fmt.Sprintf("Ad-hoc %s provider", providerType),
+		Use:   providerKind,
+		Short: fmt.Sprintf("Ad-hoc %s provider", providerKind),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return opts.RunFunc(cmd, providerType)
+			return opts.RunFunc(cmd, providerKind, args)
 		},
 	}
 
@@ -65,18 +66,7 @@ func createProviderSubcommand(
 }
 
 // CreateAndConfigureProvider creates a provider instance and configures it from flags.
-// Note: caller must call instance.Setup() after any additional configuration.
-func CreateAndConfigureProvider(cmd *cobra.Command, providerType string) (provider.Instance, error) {
-	// Create new provider instance
-	instance := provider.NewInstance(providerType)
-	if instance == nil {
-		return nil, fmt.Errorf("provider type %q not registered", providerType)
-	}
-
-	// Configure from flags (via reflection)
-	if err := provider.ConfigureFromFlags(instance, cmd.Flags()); err != nil {
-		return nil, fmt.Errorf("failed to configure provider from flags: %w", err)
-	}
-
-	return instance, nil
+// The instance is fully configured and Setup() has been called.
+func CreateAndConfigureProvider(cmd *cobra.Command, providerKind string) (provider.Instance, error) {
+	return provider.NewInstance(providerKind, provider.WithFlags(cmd.Flags()))
 }

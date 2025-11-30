@@ -1,0 +1,31 @@
+{
+  "apiVersion": "apps/v1",
+  "kind": "Deployment",
+  "metadata": {
+    "name": "my-app",
+    "namespace": "default",
+    "generation": 1
+  },
+  "spec": {
+    "replicas": 3
+  },
+  "status": {
+    "observedGeneration": 1,
+    "replicas": 3,
+    "readyReplicas": 3,
+    "availableReplicas": 3,
+    "updatedReplicas": 3,
+    "conditions": [
+      {
+        "type": "Available",
+        "status": "True",
+        "reason": "MinimumReplicasAvailable"
+      },
+      {
+        "type": "Progressing",
+        "status": "True",
+        "reason": "NewReplicaSetAvailable"
+      }
+    ]
+  }
+}

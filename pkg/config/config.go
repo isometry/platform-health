@@ -2,8 +2,10 @@ package config
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
+	"path/filepath"
 
 	"github.com/fsnotify/fsnotify"
 	"github.com/spf13/viper"
@@ -13,50 +15,73 @@ import (
 )
 
 // abstractConfig holds raw YAML before provider type resolution
-// Structure: map[instanceName]instanceConfigWithType
-// Each instance config must have a "type" field specifying the provider type
+// Structure: map[instanceName]instanceConfigWithKindAndSpec
+// Each instance config must have a "kind" field specifying the provider type
+// Provider-specific config goes under "spec" key
+// Framework fields (kind, checks, includes, components) stay at top level
 type abstractConfig map[string]any
 
 // concreteConfig holds resolved provider instances
 // Structure: map[providerType][]provider.Instance
 type concreteConfig map[string][]provider.Instance
 
-var log *slog.Logger
-
-func Load(ctx context.Context, configPaths []string, configName string) (*concreteConfig, error) {
-	log = phctx.Logger(ctx)
-
-	conf := &concreteConfig{}
-	if err := conf.initialize(configPaths, configName); err != nil {
-		return nil, err
-	}
-	return conf, nil
+// LoadResult wraps config with validation errors from loading
+type LoadResult struct {
+	config           concreteConfig
+	ValidationErrors []error
+	v                *viper.Viper // viper instance for config reloading
 }
 
-func (c *concreteConfig) GetInstances() []provider.Instance {
-	flatInstances := make([]provider.Instance, 0, c.totalInstances())
+var log *slog.Logger
 
-	for _, instances := range *c {
+// Load loads and validates configuration from the specified paths.
+// If strict is true, validation errors are collected; otherwise invalid instances are skipped with warnings.
+func Load(ctx context.Context, configPaths []string, configName string, strict bool) (*LoadResult, error) {
+	log = phctx.Logger(ctx)
+
+	result := &LoadResult{
+		config: make(concreteConfig),
+		v:      phctx.Viper(ctx), // use viper from context (has :: delimiter)
+	}
+
+	if err := result.initialize(configPaths, configName, strict); err != nil {
+		return nil, err
+	}
+	return result, nil
+}
+
+// HasErrors returns true if any validation errors were collected.
+func (r *LoadResult) HasErrors() bool {
+	return len(r.ValidationErrors) > 0
+}
+
+// GetInstances returns a flat slice of all loaded provider instances.
+func (r *LoadResult) GetInstances() []provider.Instance {
+	flatInstances := make([]provider.Instance, 0, r.totalInstances())
+
+	for _, instances := range r.config {
 		flatInstances = append(flatInstances, instances...)
 	}
 
 	return flatInstances
 }
 
-// function to initialize provider configuration using viper
-func (c *concreteConfig) initialize(configPaths []string, configName string) (err error) {
+// initialize sets up provider configuration using viper
+func (r *LoadResult) initialize(configPaths []string, configName string, strict bool) (err error) {
 	log.Debug("initializing server configuration")
+
+	// r.v is already set from context with :: delimiter
 
 	if configName != "" {
 		if configPaths == nil {
 			configPaths = []string{"."}
 		}
 		for _, configPath := range configPaths {
-			viper.AddConfigPath(configPath)
+			r.v.AddConfigPath(configPath)
 		}
-		viper.SetConfigName(configName)
+		r.v.SetConfigName(configName)
 
-		if err = viper.ReadInConfig(); err != nil {
+		if err = r.v.ReadInConfig(); err != nil {
 			if _, ok := err.(viper.ConfigFileNotFoundError); ok {
 				log.Info("no configuration file found - using defaults")
 			} else {
@@ -64,111 +89,146 @@ func (c *concreteConfig) initialize(configPaths []string, configName string) (er
 				return err
 			}
 		} else {
-			log.Info("read config", slog.String("file", viper.ConfigFileUsed()))
-			viper.WatchConfig()
-			viper.OnConfigChange(func(e fsnotify.Event) {
+			log.Info("read config", slog.String("file", r.v.ConfigFileUsed()))
+			r.v.WatchConfig()
+			r.v.OnConfigChange(func(e fsnotify.Event) {
 				log.Debug("config change")
-				if err = viper.ReadInConfig(); err != nil {
+				if err = r.v.ReadInConfig(); err != nil {
 					log.Error("failed to read config", "error", err)
 					return
 				}
-				if err = c.update(); err != nil {
+				// strict is captured in closure
+				if err = r.update(strict); err != nil {
 					log.Error("failed to load config", "error", err)
 				}
 
-				log.Info("config reloaded", slog.Any("instances", c.countByProvider()))
+				log.Info("config reloaded", slog.Any("instances", r.countByProvider()))
 			})
 		}
 	}
 
-	if err := c.update(); err != nil {
+	if err := r.update(strict); err != nil {
 		log.Error("failed to load config", "error", err)
 		return err
-
 	}
 
-	log.Info("config loaded", slog.Any("instances", c.countByProvider()))
+	log.Info("config loaded", slog.Any("instances", r.countByProvider()))
 
 	return nil
 }
 
-func (c *concreteConfig) update() error {
+func (r *LoadResult) update(strict bool) error {
 	raw := make(map[string]any)
 
-	if err := viper.Unmarshal(&raw); err != nil {
+	if err := r.v.Unmarshal(&raw); err != nil {
 		log.Error("failed to unmarshal config", "error", err)
 		return err
 	}
 
+	// Get base path from loaded config file for resolving relative includes
+	basePath := "."
+	if configFile := r.v.ConfigFileUsed(); configFile != "" {
+		basePath = filepath.Dir(configFile)
+	}
+
+	// Process includes before extracting components
+	processed, err := ProcessIncludes(raw, basePath, nil)
+	if err != nil {
+		log.Error("failed to process includes", "error", err)
+		return fmt.Errorf("failed to process includes: %w", err)
+	}
+
 	// Extract components from top-level key
-	components, ok := raw["components"].(map[string]any)
+	components, ok := processed["components"].(map[string]any)
 	if !ok {
 		return fmt.Errorf("config must have a 'components' key containing all component definitions")
 	}
 
 	abstract := abstractConfig(components)
-	*c = *abstract.harden()
+	r.config, r.ValidationErrors = abstract.harden(strict)
 
 	return nil
 }
 
-func (a abstractConfig) harden() *concreteConfig {
+func (a abstractConfig) harden(strict bool) (concreteConfig, []error) {
 	concrete := make(concreteConfig)
+	var validationErrors []error
 
 	// Iterate over instances
 	for instanceName, instanceConfig := range a {
 		instanceLog := log.With(slog.String("instance", instanceName))
 
-		// Convert instance config to map
-		configMap, ok := instanceConfig.(map[string]any)
-		if !ok {
-			instanceLog.Warn("invalid instance configuration: expected map")
-			continue
+		// Extract provider kind for error context and logging
+		providerKind := extractKind(instanceConfig)
+
+		// Collect validation warnings
+		var validationWarnings []error
+		instance, err := provider.ResolveComponentConfig(instanceName, instanceConfig, &validationWarnings)
+
+		// Handle validation warnings based on strict mode
+		for _, warning := range validationWarnings {
+			if strict {
+				validationErrors = append(validationErrors, provider.NewInstanceError(providerKind, instanceName, warning))
+			} else {
+				instanceLog.Warn(warning.Error())
+			}
 		}
 
-		// Extract provider type from config
-		providerType, ok := configMap["type"].(string)
-		if !ok {
-			instanceLog.Warn("missing or invalid 'type' field")
-			continue
-		}
-
-		// Check if this is a registered provider type
-		registeredType, isRegistered := provider.Providers[providerType]
-		if !isRegistered {
-			instanceLog.Warn("unknown provider type, skipping", slog.String("type", providerType))
-			continue
-		}
-
-		// Initialize provider slice if needed
-		if concrete[providerType] == nil {
-			concrete[providerType] = make([]provider.Instance, 0)
-		}
-
-		instance, err := provider.NewInstanceFromConfig(registeredType, instanceName, configMap)
 		if err != nil {
-			instanceLog.Warn("failed to create instance", slog.Any("error", err))
-			continue
+			// Check if it's just a warning about unused keys (instance still created)
+			var unusedWarning *provider.UnusedKeysWarning
+			if errors.As(err, &unusedWarning) {
+				// Instance was created successfully, but has unused spec keys
+				if strict {
+					validationErrors = append(validationErrors, provider.NewInstanceError(providerKind, instanceName, err))
+				} else {
+					instanceLog.Warn(unusedWarning.Error())
+				}
+				// Continue to add the instance (don't skip)
+			} else {
+				// Real error - instance creation failed
+				instErr := provider.NewInstanceError(providerKind, instanceName, err)
+				if strict {
+					validationErrors = append(validationErrors, instErr)
+				} else {
+					instanceLog.Warn("failed to create instance", slog.Any("error", err))
+				}
+				continue
+			}
 		}
 
-		instanceLog.Debug("loaded instance", slog.String("type", providerType))
-		concrete[providerType] = append(concrete[providerType], instance)
+		// Initialize provider slice if needed and add instance
+		if concrete[providerKind] == nil {
+			concrete[providerKind] = make([]provider.Instance, 0, 1)
+		}
+		instanceLog.Debug("loaded instance", slog.String("kind", providerKind))
+		concrete[providerKind] = append(concrete[providerKind], instance)
 	}
 
-	return &concrete
+	return concrete, validationErrors
 }
 
-func (c *concreteConfig) totalInstances() (count int) {
-	for _, instances := range *c {
+// extractKind extracts the provider kind from raw config for error reporting.
+func extractKind(rawConfig any) string {
+	if configMap, ok := rawConfig.(map[string]any); ok {
+		if kindVal, hasKind := configMap["kind"].(string); hasKind {
+			return kindVal
+		}
+	}
+	return "unknown"
+}
+
+func (r *LoadResult) totalInstances() (count int) {
+	for _, instances := range r.config {
 		count += len(instances)
 	}
 	return count
 }
 
-func (c *concreteConfig) countByProvider() map[string]int {
+func (r *LoadResult) countByProvider() map[string]int {
 	counts := make(map[string]int)
 
-	for providerType, instances := range *c {
+	for providerType, instances := range r.config {
 		counts[providerType] = len(instances)
 	}
 

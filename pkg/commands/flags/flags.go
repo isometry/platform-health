@@ -98,19 +98,19 @@ func Merge(flagSets ...FlagValues) FlagValues {
 	return result
 }
 
-// BindFlags binds all command flags to Viper without namespace prefix.
+// BindFlags binds all command flags to the given viper instance.
 // This includes local flags and inherited persistent flags from parent commands.
-// All flags are accessible directly by name (e.g., viper.GetBool("flat")).
-func BindFlags(cmd *cobra.Command) {
+// All flags are accessible directly by name (e.g., v.GetBool("flat")).
+func BindFlags(cmd *cobra.Command, v *viper.Viper) {
 	cmd.Flags().VisitAll(func(f *pflag.Flag) {
-		_ = viper.BindPFlag(f.Name, f)
+		_ = v.BindPFlag(f.Name, f)
 	})
 }
 
-// ConfigPaths returns the config-path and config-name values from viper.
+// ConfigPaths returns the config-path and config-name values from the given viper.
 // Use this to call config.Load with consistent settings.
-func ConfigPaths() (paths []string, name string) {
-	return viper.GetStringSlice("config-path"), viper.GetString("config-name")
+func ConfigPaths(v *viper.Viper) (paths []string, name string) {
+	return v.GetStringSlice("config-path"), v.GetString("config-name")
 }
 
 // Common flag definitions that can be reused across commands
@@ -120,7 +120,7 @@ func ConfigFlags() FlagValues {
 	return FlagValues{
 		"config-path": {
 			Kind:         "stringSlice",
-			DefaultValue: []string{"/config", "."},
+			DefaultValue: []string{".", "/config"},
 			Usage:        "configuration paths",
 		},
 		"config-name": {
@@ -146,6 +146,12 @@ func ComponentFlags() FlagValues {
 // OutputFlags returns flags for output formatting
 func OutputFlags() FlagValues {
 	return FlagValues{
+		"output-format": {
+			Shorthand:    "o",
+			Kind:         "string",
+			DefaultValue: DefaultFormat,
+			Usage:        "output format (json, junit, yaml)",
+		},
 		"flat": {
 			Kind:         "bool",
 			DefaultValue: false,
@@ -161,6 +167,11 @@ func OutputFlags() FlagValues {
 			Kind:         "bool",
 			DefaultValue: false,
 			Usage:        "compact JSON output",
+		},
+		"color": {
+			Kind:         "string",
+			DefaultValue: "auto",
+			Usage:        "colorize output: auto, always, never",
 		},
 	}
 }
@@ -185,6 +196,18 @@ func ParallelismFlags() FlagValues {
 			Kind:         "int",
 			DefaultValue: runtime.GOMAXPROCS(0),
 			Usage:        "max concurrent health checks (0 = GOMAXPROCS, -1 = unlimited)",
+		},
+	}
+}
+
+// TimeoutFlags returns flags for timeout control
+func TimeoutFlags() FlagValues {
+	return FlagValues{
+		"timeout": {
+			Shorthand:    "t",
+			Kind:         "duration",
+			DefaultValue: 10 * time.Second,
+			Usage:        "timeout for health check operations",
 		},
 	}
 }

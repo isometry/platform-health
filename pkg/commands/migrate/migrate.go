@@ -9,6 +9,7 @@ import (
 	"go.yaml.in/yaml/v3"
 
 	"github.com/isometry/platform-health/pkg/commands/flags"
+	"github.com/isometry/platform-health/pkg/phctx"
 )
 
 func New() *cobra.Command {
@@ -26,7 +27,8 @@ func New() *cobra.Command {
 }
 
 func run(cmd *cobra.Command, args []string) error {
-	flags.BindFlags(cmd)
+	v := phctx.Viper(cmd.Context())
+	flags.BindFlags(cmd, v)
 
 	inputPath := args[0]
 	outputPath, _ := cmd.Flags().GetString("output")
@@ -45,12 +47,12 @@ func run(cmd *cobra.Command, args []string) error {
 
 	// First pass: collect all instances and track name usage
 	type instanceData struct {
-		providerType string
+		providerKind string
 		config       map[string]any
 	}
 	nameToInstances := make(map[string][]instanceData)
 
-	for providerType, value := range oldConfig {
+	for providerKind, value := range oldConfig {
 		// Check if value is a slice (old format)
 		instances, ok := value.([]any)
 		if !ok {
@@ -61,21 +63,21 @@ func run(cmd *cobra.Command, args []string) error {
 		for _, instance := range instances {
 			instanceMap, ok := instance.(map[string]any)
 			if !ok {
-				return fmt.Errorf("invalid instance in provider %s: expected map", providerType)
+				return fmt.Errorf("invalid instance in provider %s: expected map", providerKind)
 			}
 
 			// Extract name
 			nameValue, ok := instanceMap["name"]
 			if !ok {
-				return fmt.Errorf("instance in provider %s missing 'name' field", providerType)
+				return fmt.Errorf("instance in provider %s missing 'name' field", providerKind)
 			}
 			name, ok := nameValue.(string)
 			if !ok {
-				return fmt.Errorf("instance name in provider %s is not a string", providerType)
+				return fmt.Errorf("instance name in provider %s is not a string", providerKind)
 			}
 
 			nameToInstances[name] = append(nameToInstances[name], instanceData{
-				providerType: providerType,
+				providerKind: providerKind,
 				config:       instanceMap,
 			})
 		}
@@ -92,13 +94,13 @@ func run(cmd *cobra.Command, args []string) error {
 			// Determine final name
 			finalName := name
 			if needsRename {
-				finalName = fmt.Sprintf("%s-%s", name, inst.providerType)
-				renames = append(renames, fmt.Sprintf("  %s -> %s (%s)", name, finalName, inst.providerType))
+				finalName = fmt.Sprintf("%s-%s", name, inst.providerKind)
+				renames = append(renames, fmt.Sprintf("  %s -> %s (%s)", name, finalName, inst.providerKind))
 			}
 
 			// Build new instance config
 			newInstance := make(map[string]any)
-			newInstance["type"] = inst.providerType
+			newInstance["kind"] = inst.providerKind
 
 			// Copy all fields except "name"
 			for key, val := range inst.config {

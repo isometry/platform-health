@@ -1,0 +1,24 @@
+components:
+  google:
+    kind: http
+    spec:
+      url: https://google.com
+
+  fluxcd:
+    includes:
+      - includes/fluxcd
+    components:
+      helm-controller:
+        kind: mock
+        spec:
+          health: 0
+
+  tls-check:
+    kind: tls
+    includes:
+      - includes/base-checks
+    checks:
+      - check: 'tls.protocol == "h2"'
+        message: "HTTP/2 required"
+    spec:
+      host: example.com

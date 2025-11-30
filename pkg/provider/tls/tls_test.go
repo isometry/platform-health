@@ -86,20 +86,19 @@ func TestTLS(t *testing.T) {
 			defer cancel()
 
 			instance := &tls.Component{
-				Name:        "TestTLS",
 				Host:        tt.host,
 				Port:        tt.port,
 				MinValidity: tt.validity,
 				SANs:        tt.sans,
-				Timeout:     tt.timeout,
 			}
 			instance.SetName("TestTLS")
+			instance.SetTimeout(tt.timeout)
 			require.NoError(t, instance.Setup())
 
 			result := instance.GetHealth(ctx)
 
 			assert.NotNil(t, result)
-			assert.Equal(t, tls.ProviderType, result.GetType())
+			assert.Equal(t, tls.ProviderKind, result.GetKind())
 			assert.Equal(t, "TestTLS", result.GetName())
 			assert.Equal(t, tt.expected, result.GetStatus())
 		})

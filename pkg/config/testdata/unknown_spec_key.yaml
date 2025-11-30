@@ -1,0 +1,5 @@
+components:
+  test:
+    kind: mock
+    spec:
+      unknown_field: value  # unknown field in spec

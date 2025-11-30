@@ -1,17 +1,18 @@
 package check
 
 import (
+	"context"
 	"fmt"
 	"log/slog"
 
 	"github.com/spf13/cobra"
-	"github.com/spf13/viper"
 	slogctx "github.com/veqryn/slog-context"
 
 	"github.com/isometry/platform-health/pkg/checks"
 	"github.com/isometry/platform-health/pkg/commands/flags"
 	"github.com/isometry/platform-health/pkg/commands/shared"
 	"github.com/isometry/platform-health/pkg/config"
+	"github.com/isometry/platform-health/pkg/phctx"
 	ph "github.com/isometry/platform-health/pkg/platform_health"
 	"github.com/isometry/platform-health/pkg/provider"
 	"github.com/isometry/platform-health/pkg/server"
@@ -50,13 +51,17 @@ Use a provider subcommand for ad-hoc checks without config.`,
 			cmd.Short = fmt.Sprintf("Perform ad-hoc health check for %s provider", cmd.Use)
 			cmd.Long = fmt.Sprintf("Create an ad-hoc %s provider instance and perform a health check.", cmd.Use)
 
-			// Add --check flag for inline CEL expressions only if provider supports checks
+			// Add --check and --check-each flags for inline CEL expressions only if provider supports checks
 			if provider.SupportsChecks(instance) {
 				cmd.Flags().StringArray("check", nil, "CEL expression to evaluate (can be specified multiple times)")
+				cmd.Flags().StringArray("check-each", nil, "CEL expression evaluated per-item (can be specified multiple times)")
 			}
 
 			// Add output flags for formatting
 			flags.OutputFlags().Register(cmd.Flags(), true)
+
+			// Add timeout flag for ad-hoc checks
+			flags.TimeoutFlags().Register(cmd.Flags(), true)
 		},
 		RunFunc: runProviderCheck,
 	})
@@ -65,76 +70,111 @@ Use a provider subcommand for ad-hoc checks without config.`,
 }
 
 // runProviderCheck creates an ad-hoc provider instance and performs a health check.
-func runProviderCheck(cmd *cobra.Command, providerType string) error {
+func runProviderCheck(cmd *cobra.Command, providerKind string, _ []string) error {
 	// Bind common flags without namespace
-	flags.BindFlags(cmd)
+	v := phctx.Viper(cmd.Context())
+	flags.BindFlags(cmd, v)
+
+	// Apply global timeout
+	ctx, cancel := context.WithTimeout(cmd.Context(), v.GetDuration("timeout"))
+	defer cancel()
 
 	// Create and configure provider from flags
-	instance, err := shared.CreateAndConfigureProvider(cmd, providerType)
+	instance, err := shared.CreateAndConfigureProvider(cmd, providerKind)
 	if err != nil {
 		return err
 	}
 
-	// Handle inline --check expressions for providers that support checks
+	// Setup the provider first (sets defaults)
+	if err := instance.Setup(); err != nil {
+		return fmt.Errorf("failed to setup provider: %w", err)
+	}
+
+	// Handle inline --check and --check-each expressions for providers that support checks
 	if checkProvider := provider.AsInstanceWithChecks(instance); checkProvider != nil {
 		checkExprs, err := cmd.Flags().GetStringArray("check")
 		if err != nil {
 			return fmt.Errorf("failed to get check expressions: %w", err)
 		}
-		if len(checkExprs) > 0 {
-			exprs := make([]checks.Expression, len(checkExprs))
-			for i, expr := range checkExprs {
-				exprs[i] = checks.Expression{Expression: expr}
+		checkEachExprs, err := cmd.Flags().GetStringArray("check-each")
+		if err != nil {
+			return fmt.Errorf("failed to get check-each expressions: %w", err)
+		}
+
+		if len(checkExprs) > 0 || len(checkEachExprs) > 0 {
+			exprs := make([]checks.Expression, 0, len(checkExprs)+len(checkEachExprs))
+			for _, expr := range checkExprs {
+				exprs = append(exprs, checks.Expression{Expression: expr})
 			}
-			checkProvider.SetChecks(exprs)
+			for _, expr := range checkEachExprs {
+				exprs = append(exprs, checks.Expression{Expression: expr, Mode: "each"})
+			}
+			if err := checkProvider.SetChecks(exprs); err != nil {
+				return fmt.Errorf("invalid check expression: %w", err)
+			}
 		}
 	}
 
-	// Setup the provider (compiles CEL expressions if applicable)
-	if err := instance.Setup(); err != nil {
-		return fmt.Errorf("failed to setup provider: %w", err)
-	}
-
-	// Perform health check
-	response := instance.GetHealth(cmd.Context())
+	// Perform health check with duration tracking
+	response := provider.GetHealthWithDuration(ctx, instance)
 
 	// Format and print output
-	return flags.FormatAndPrintStatus(response, flags.OutputConfigFromViper())
+	return flags.FormatAndPrintStatus(response, flags.OutputConfigFromViper(v))
 }
 
 func setup(cmd *cobra.Command, _ []string) (err error) {
-	flags.BindFlags(cmd)
+	v := phctx.Viper(cmd.Context())
+	flags.BindFlags(cmd, v)
 
 	log = slog.Default()
 	cmd.SetContext(slogctx.NewCtx(cmd.Context(), log))
 
 	log.Info("providers registered", slog.Any("providers", provider.ProviderList()))
 
-	paths, name := flags.ConfigPaths()
-	conf, err = config.Load(cmd.Context(), paths, name)
-	return err
+	paths, name := flags.ConfigPaths(v)
+	strict := v.GetBool("strict")
+
+	result, err := config.Load(cmd.Context(), paths, name, strict)
+	if err != nil {
+		return err
+	}
+
+	// In strict mode, fail if any configuration errors were found
+	if strict && result.HasErrors() {
+		for _, e := range result.ValidationErrors {
+			log.Error("configuration error", slog.Any("error", e))
+		}
+		return fmt.Errorf("configuration validation failed with %d error(s)", len(result.ValidationErrors))
+	}
+
+	conf = result
+	return nil
 }
 
 func run(cmd *cobra.Command, _ []string) error {
-	cmd.SilenceErrors = true
+	v := phctx.Viper(cmd.Context())
+
+	// Apply global timeout
+	ctx, cancel := context.WithTimeout(cmd.Context(), v.GetDuration("timeout"))
+	defer cancel()
 
 	serverId := "oneshot"
 	srv, err := server.NewPlatformHealthServer(&serverId, conf,
-		server.WithParallelism(viper.GetInt("parallelism")),
+		server.WithParallelism(v.GetInt("parallelism")),
 	)
 	if err != nil {
 		log.Error("failed to create server", "error", err)
 		return err
 	}
 
-	status, err := srv.Check(cmd.Context(), &ph.HealthCheckRequest{
-		Components: viper.GetStringSlice("component"),
-		FailFast:   viper.GetBool("fail-fast"),
+	status, err := srv.Check(ctx, &ph.HealthCheckRequest{
+		Components: v.GetStringSlice("component"),
+		FailFast:   v.GetBool("fail-fast"),
 	})
 	if err != nil {
 		slog.Info("failed to check", slog.Any("error", err))
 		return err
 	}
 
-	return flags.FormatAndPrintStatus(status, flags.OutputConfigFromViper())
+	return flags.FormatAndPrintStatus(status, flags.OutputConfigFromViper(v))
 }

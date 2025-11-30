@@ -1,0 +1,5 @@
+components:
+  test:
+    kind: mock
+    spec:
+      sleep: 1s

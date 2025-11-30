@@ -1,0 +1,7 @@
+inner:
+  kind: system
+  components:
+    leaf:
+      kind: mock
+      spec:
+        health: 0

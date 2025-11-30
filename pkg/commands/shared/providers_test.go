@@ -20,7 +20,7 @@ func TestAddProviderSubcommands(t *testing.T) {
 		parent := &cobra.Command{Use: "test"}
 
 		shared.AddProviderSubcommands(parent, shared.ProviderSubcommandOptions{
-			RunFunc: func(cmd *cobra.Command, providerType string) error {
+			RunFunc: func(cmd *cobra.Command, providerType string, _ []string) error {
 				return nil
 			},
 		})
@@ -35,7 +35,7 @@ func TestAddProviderSubcommands(t *testing.T) {
 		parent := &cobra.Command{Use: "test"}
 
 		shared.AddProviderSubcommands(parent, shared.ProviderSubcommandOptions{
-			RunFunc: func(cmd *cobra.Command, providerType string) error {
+			RunFunc: func(cmd *cobra.Command, providerType string, _ []string) error {
 				return nil
 			},
 		})
@@ -56,7 +56,7 @@ func TestAddProviderSubcommands(t *testing.T) {
 
 		shared.AddProviderSubcommands(parent, shared.ProviderSubcommandOptions{
 			RequireChecks: true,
-			RunFunc: func(cmd *cobra.Command, providerType string) error {
+			RunFunc: func(cmd *cobra.Command, providerType string, _ []string) error {
 				return nil
 			},
 		})
@@ -79,7 +79,7 @@ func TestAddProviderSubcommands(t *testing.T) {
 				// Add a custom flag to verify this was called
 				cmd.Flags().Bool("custom-flag", false, "test flag")
 			},
-			RunFunc: func(cmd *cobra.Command, providerType string) error {
+			RunFunc: func(cmd *cobra.Command, providerType string, _ []string) error {
 				return nil
 			},
 		})
@@ -100,7 +100,7 @@ func TestAddProviderSubcommands(t *testing.T) {
 		var receivedProviderType string
 
 		shared.AddProviderSubcommands(parent, shared.ProviderSubcommandOptions{
-			RunFunc: func(cmd *cobra.Command, providerType string) error {
+			RunFunc: func(cmd *cobra.Command, providerType string, _ []string) error {
 				runFuncCalled = true
 				receivedProviderType = providerType
 				return nil
@@ -121,7 +121,7 @@ func TestAddProviderSubcommands(t *testing.T) {
 		expectedErr := errors.New("test error")
 
 		shared.AddProviderSubcommands(parent, shared.ProviderSubcommandOptions{
-			RunFunc: func(cmd *cobra.Command, providerType string) error {
+			RunFunc: func(cmd *cobra.Command, providerType string, _ []string) error {
 				return expectedErr
 			},
 		})
@@ -142,7 +142,7 @@ func TestCreateAndConfigureProvider(t *testing.T) {
 		instance, err := shared.CreateAndConfigureProvider(cmd, "mock")
 		require.NoError(t, err)
 		assert.NotNil(t, instance)
-		assert.Equal(t, "mock", instance.GetType())
+		assert.Equal(t, "mock", instance.GetKind())
 		assert.True(t, provider.SupportsChecks(instance), "mock should be check-capable")
 	})
 
@@ -167,7 +167,7 @@ func TestCreateAndConfigureProvider(t *testing.T) {
 		instance, err := shared.CreateAndConfigureProvider(cmd, "unknown-provider")
 		assert.Error(t, err)
 		assert.Nil(t, instance)
-		assert.Contains(t, err.Error(), "not registered")
+		assert.Contains(t, err.Error(), "unknown provider kind")
 	})
 
 	t.Run("InvalidEnumValue", func(t *testing.T) {
@@ -217,7 +217,7 @@ func TestProviderSubcommandShortDescription(t *testing.T) {
 	parent := &cobra.Command{Use: "test"}
 
 	shared.AddProviderSubcommands(parent, shared.ProviderSubcommandOptions{
-		RunFunc: func(cmd *cobra.Command, providerType string) error {
+		RunFunc: func(cmd *cobra.Command, providerKind string, _ []string) error {
 			return nil
 		},
 	})

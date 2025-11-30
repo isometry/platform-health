@@ -1,0 +1,7 @@
+components:
+  test:
+    kind: mock
+    spec:
+      sleep: 1s
+    sepc: should-be-spec   # typo of "spec"
+    checkz: should-be-checks  # typo of "checks"

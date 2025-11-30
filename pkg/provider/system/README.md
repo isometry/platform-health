@@ -12,31 +12,36 @@ Sub-components appear nested in the system's response, making it easy to identif
 
 The System Provider is configured through the platform-health server's configuration file. Each instance is defined with its name as the YAML key under `components`.
 
-- `type` (required): Must be `system`.
-- `components`: A map of sub-components. Each sub-component is defined with its name as the key and must include a `type` field specifying its provider type.
+- `kind` (required): Must be `system`.
+- `components`: A map of sub-components. Each sub-component is defined with its name as the key and must include a `kind` field specifying its provider type.
 
-### Example
+## Examples
+
+### FluxCD System Check
 
 ```yaml
 components:
   fluxcd:
-    type: system
+    kind: system
     components:
       source-controller:
-        type: kubernetes
-        kind: deployment
-        resource: source-controller
-        namespace: flux-system
+        kind: kubernetes
+        spec:
+          kind: Deployment
+          name: source-controller
+          namespace: flux-system
       kustomize-controller:
-        type: kubernetes
-        kind: deployment
-        resource: kustomize-controller
-        namespace: flux-system
+        kind: kubernetes
+        spec:
+          kind: Deployment
+          name: kustomize-controller
+          namespace: flux-system
       helm-controller:
-        type: kubernetes
-        kind: deployment
-        resource: helm-controller
-        namespace: flux-system
+        kind: kubernetes
+        spec:
+          kind: Deployment
+          name: helm-controller
+          namespace: flux-system
 ```
 
 In this example, the System Provider creates a `fluxcd` system containing three Kubernetes deployment checks. The `fluxcd` system will be reported "healthy" only if all three controllers are running.
@@ -48,21 +53,24 @@ Systems can be nested to create deeper hierarchies:
 ```yaml
 components:
   infrastructure:
-    type: system
+    kind: system
     components:
       monitoring:
-        type: system
+        kind: system
         components:
           prometheus:
-            type: http
-            url: https://prometheus.example.com/health
+            kind: http
+            spec:
+              url: https://prometheus.example.com/health
           grafana:
-            type: http
-            url: https://grafana.example.com/api/health
+            kind: http
+            spec:
+              url: https://grafana.example.com/api/health
       database:
-        type: tcp
-        host: postgres.example.com
-        port: 5432
+        kind: tcp
+        spec:
+          host: postgres.example.com
+          port: 5432
 ```
 
 This creates a hierarchy where `infrastructure` contains a `monitoring` subsystem and a database check. The nested structure is reflected in the response, with each system aggregating its sub-components' status.
