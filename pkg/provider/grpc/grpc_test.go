@@ -51,7 +51,6 @@ func TestGetHealth(t *testing.T) {
 		{
 			name: "HealthyService",
 			grpc: &grpcProvider.Component{
-				Name:    "test",
 				Host:    "localhost",
 				Port:    listenPort,
 				Service: "",
@@ -62,7 +61,6 @@ func TestGetHealth(t *testing.T) {
 		{
 			name: "UnhealthyService",
 			grpc: &grpcProvider.Component{
-				Name:    "test",
 				Host:    "localhost",
 				Port:    listenPort,
 				Service: "",
@@ -73,7 +71,6 @@ func TestGetHealth(t *testing.T) {
 		{
 			name: "UnknownService",
 			grpc: &grpcProvider.Component{
-				Name:    "test",
 				Host:    "localhost",
 				Port:    listenPort,
 				Service: "unknown",
@@ -84,7 +81,6 @@ func TestGetHealth(t *testing.T) {
 		{
 			name: "InvalidTarget",
 			grpc: &grpcProvider.Component{
-				Name:    "test",
 				Host:    "localhost",
 				Port:    1,
 				Service: "",
@@ -96,6 +92,7 @@ func TestGetHealth(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			tt.grpc.SetName("test")
 			healthServer.SetServingStatus(tt.grpc.Service, tt.status)
 			require.NoError(t, tt.grpc.Setup())
 			service := tt.grpc.GetHealth(t.Context())

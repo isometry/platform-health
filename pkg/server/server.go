@@ -192,8 +192,8 @@ func (s *PlatformHealthServer) Check(ctx context.Context, req *ph.HealthCheckReq
 	// Return error for invalid components
 	if len(invalidComponents) > 0 {
 		return &ph.HealthCheckResponse{
-			Status:  ph.Status_UNHEALTHY,
-			Message: fmt.Sprintf("invalid components: %s", strings.Join(invalidComponents, ", ")),
+			Status:   ph.Status_UNHEALTHY,
+			Messages: []string{fmt.Sprintf("invalid components: %s", strings.Join(invalidComponents, ", "))},
 		}, nil
 	}
 
@@ -215,7 +215,7 @@ func (s *PlatformHealthServer) Check(ctx context.Context, req *ph.HealthCheckReq
 	// Fail-fast triggered if enabled and something failed
 	if req.GetFailFast() && health > ph.Status_HEALTHY {
 		component.FailFastTriggered = true
-		component.Message = "Results may be incomplete due to fail-fast mode"
+		component.Messages = append(component.Messages, "Results may be incomplete due to fail-fast mode")
 	}
 
 	return &component, nil

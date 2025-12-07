@@ -3,32 +3,60 @@ package flags
 import (
 	"fmt"
 	"net"
+	"os"
 	"strconv"
 	"strings"
 
 	"github.com/spf13/viper"
-	"google.golang.org/protobuf/encoding/protojson"
+	"golang.org/x/term"
 
 	ph "github.com/isometry/platform-health/pkg/platform_health"
 )
 
 // OutputConfig holds configuration for formatting health check output
 type OutputConfig struct {
+	Format     string // output format (json, junit, etc.)
 	Flat       bool
 	Quiet      int
 	Compact    bool
-	Components []string // requested components for filtering flat output
+	Colorize   bool           // colorize output (for supported formats)
+	Colors     ResolvedColors // resolved ANSI color codes
+	Components []string       // requested components for filtering flat output
 }
 
 // OutputConfigFromViper creates an OutputConfig from viper settings.
 // This is the standard way to build OutputConfig for commands that use
-// the common output flags (flat, quiet, compact, component).
-func OutputConfigFromViper() OutputConfig {
+// the common output flags (flat, quiet, compact, component, output-format).
+func OutputConfigFromViper(v *viper.Viper) OutputConfig {
+	format := v.GetString("output-format")
+	if format == "" {
+		format = DefaultFormat
+	}
+
+	// Load color configuration with defaults
+	colorCfg := DefaultColorConfig()
+	_ = v.UnmarshalKey("colors", &colorCfg)
+
 	return OutputConfig{
-		Flat:       viper.GetBool("flat"),
-		Quiet:      viper.GetInt("quiet"),
-		Compact:    viper.GetBool("compact"),
-		Components: viper.GetStringSlice("component"),
+		Format:     format,
+		Flat:       v.GetBool("flat"),
+		Quiet:      v.GetInt("quiet"),
+		Compact:    v.GetBool("compact"),
+		Colorize:   shouldColorize(v.GetString("color")),
+		Colors:     colorCfg.Resolve(),
+		Components: v.GetStringSlice("component"),
+	}
+}
+
+// shouldColorize determines whether to colorize output based on the color flag value
+func shouldColorize(colorFlag string) bool {
+	switch colorFlag {
+	case "always":
+		return true
+	case "never":
+		return false
+	default: // "auto"
+		return term.IsTerminal(int(os.Stdout.Fd()))
 	}
 }
 
@@ -44,23 +72,23 @@ func FormatAndPrintStatus(status *ph.HealthCheckResponse, cfg OutputConfig) erro
 	}
 
 	if cfg.Flat {
-		status.Components = status.Flatten(status.Name)
+		status.Components = status.Flatten(status.Name, status.Type)
 		if len(cfg.Components) > 0 {
 			status.Components = filterToRequested(status.Components, cfg.Components)
 		}
 	}
 
-	opts := protojson.MarshalOptions{}
-	if !cfg.Compact {
-		opts.Multiline = true
-		opts.Indent = "  "
+	formatter, ok := GetFormatter(cfg.Format)
+	if !ok {
+		return fmt.Errorf("unknown output format %q (available: %s)", cfg.Format, strings.Join(FormatNames(), ", "))
 	}
-	pjson, err := opts.Marshal(status)
+
+	output, err := formatter.Format(status, cfg)
 	if err != nil {
 		return err
 	}
 
-	fmt.Println(string(pjson))
+	fmt.Println(string(output))
 
 	return status.IsHealthy()
 }

@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/isometry/platform-health/pkg/phctx"
 	ph "github.com/isometry/platform-health/pkg/platform_health"
@@ -74,9 +75,9 @@ func TestCheckAll(t *testing.T) {
 
 func TestServiceWithDuration(t *testing.T) {
 	instance := &mock.Component{
-		Name:   "test",
-		Health: ph.Status_HEALTHY,
-		Sleep:  10 * time.Millisecond,
+		InstanceName: "test",
+		Health:       ph.Status_HEALTHY,
+		Sleep:        10 * time.Millisecond,
 	}
 
 	result := provider.GetHealthWithDuration(t.Context(), instance)
@@ -93,9 +94,9 @@ func TestServiceWithDuration(t *testing.T) {
 func TestCheckVaryingDelays(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		instances := []provider.Instance{
-			&mock.Component{Name: "fast", Health: ph.Status_HEALTHY, Sleep: 100 * time.Millisecond},
-			&mock.Component{Name: "medium", Health: ph.Status_UNHEALTHY, Sleep: 500 * time.Millisecond},
-			&mock.Component{Name: "slow", Health: ph.Status_HEALTHY, Sleep: time.Second},
+			&mock.Component{InstanceName: "fast", Health: ph.Status_HEALTHY, Sleep: 100 * time.Millisecond},
+			&mock.Component{InstanceName: "medium", Health: ph.Status_UNHEALTHY, Sleep: 500 * time.Millisecond},
+			&mock.Component{InstanceName: "slow", Health: ph.Status_HEALTHY, Sleep: time.Second},
 		}
 
 		responses, status := provider.Check(t.Context(), instances)
@@ -124,14 +125,15 @@ func TestCheckTimeout(t *testing.T) {
 		defer cancel()
 
 		instances := []provider.Instance{
-			&mock.Component{Name: "slow", Health: ph.Status_HEALTHY, Sleep: 5 * time.Minute},
+			&mock.Component{InstanceName: "slow", Health: ph.Status_HEALTHY, Sleep: 5 * time.Minute},
 		}
 
 		responses, status := provider.Check(ctx, instances)
 
 		assert.Equal(t, ph.Status_UNHEALTHY, status)
 		assert.Len(t, responses, 1)
-		assert.Contains(t, responses[0].Message, "deadline exceeded")
+		require.NotEmpty(t, responses[0].Messages)
+		assert.Contains(t, responses[0].Messages[0], "deadline exceeded")
 	})
 }
 
@@ -142,9 +144,9 @@ func TestCheckParallelismOne(t *testing.T) {
 		// Create a "system-like" provider that internally checks multiple children
 		// by simulating what the system provider does
 		instances := []provider.Instance{
-			&mock.Component{Name: "child1", Health: ph.Status_HEALTHY, Sleep: 10 * time.Millisecond},
-			&mock.Component{Name: "child2", Health: ph.Status_HEALTHY, Sleep: 10 * time.Millisecond},
-			&mock.Component{Name: "child3", Health: ph.Status_UNHEALTHY, Sleep: 10 * time.Millisecond},
+			&mock.Component{InstanceName: "child1", Health: ph.Status_HEALTHY, Sleep: 10 * time.Millisecond},
+			&mock.Component{InstanceName: "child2", Health: ph.Status_HEALTHY, Sleep: 10 * time.Millisecond},
+			&mock.Component{InstanceName: "child3", Health: ph.Status_UNHEALTHY, Sleep: 10 * time.Millisecond},
 		}
 
 		// Set parallelism to 1 - should still complete without deadlock
@@ -160,8 +162,8 @@ func TestCheckParallelismOne(t *testing.T) {
 // TestCheckParallelismZero verifies that parallelism=0 uses GOMAXPROCS
 func TestCheckParallelismZero(t *testing.T) {
 	instances := []provider.Instance{
-		&mock.Component{Name: "test1", Health: ph.Status_HEALTHY},
-		&mock.Component{Name: "test2", Health: ph.Status_HEALTHY},
+		&mock.Component{InstanceName: "test1", Health: ph.Status_HEALTHY},
+		&mock.Component{InstanceName: "test2", Health: ph.Status_HEALTHY},
 	}
 
 	ctx := phctx.ContextWithParallelism(t.Context(), 0)
@@ -174,9 +176,9 @@ func TestCheckParallelismZero(t *testing.T) {
 // TestCheckParallelismUnlimited verifies that parallelism=-1 (unlimited) works
 func TestCheckParallelismUnlimited(t *testing.T) {
 	instances := []provider.Instance{
-		&mock.Component{Name: "test1", Health: ph.Status_HEALTHY},
-		&mock.Component{Name: "test2", Health: ph.Status_HEALTHY},
-		&mock.Component{Name: "test3", Health: ph.Status_HEALTHY},
+		&mock.Component{InstanceName: "test1", Health: ph.Status_HEALTHY},
+		&mock.Component{InstanceName: "test2", Health: ph.Status_HEALTHY},
+		&mock.Component{InstanceName: "test3", Health: ph.Status_HEALTHY},
 	}
 
 	ctx := phctx.ContextWithParallelism(t.Context(), -1)

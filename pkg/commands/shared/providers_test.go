@@ -167,7 +167,7 @@ func TestCreateAndConfigureProvider(t *testing.T) {
 		instance, err := shared.CreateAndConfigureProvider(cmd, "unknown-provider")
 		assert.Error(t, err)
 		assert.Nil(t, instance)
-		assert.Contains(t, err.Error(), "not registered")
+		assert.Contains(t, err.Error(), "unknown provider type")
 	})
 
 	t.Run("InvalidEnumValue", func(t *testing.T) {

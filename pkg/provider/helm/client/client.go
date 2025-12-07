@@ -24,14 +24,14 @@ type StatusRunner interface {
 
 // HelmClientFactory creates helm status runners
 type HelmClientFactory interface {
-	GetStatusRunner(namespace string, log *slog.Logger) (StatusRunner, error)
+	GetStatusRunner(kubeContext, namespace string, log *slog.Logger) (StatusRunner, error)
 }
 
 // DefaultHelmFactory creates real helm clients using kubernetes config
 type DefaultHelmFactory struct{}
 
-func (f *DefaultHelmFactory) GetStatusRunner(namespace string, log *slog.Logger) (StatusRunner, error) {
-	config, err := k8sclient.GetKubeConfig()
+func (f *DefaultHelmFactory) GetStatusRunner(kubeContext, namespace string, log *slog.Logger) (StatusRunner, error) {
+	config, err := k8sclient.GetKubeConfig(kubeContext)
 	if err != nil {
 		return nil, err
 	}
@@ -116,7 +116,7 @@ type MockHelmFactory struct {
 	Err    error
 }
 
-func (f *MockHelmFactory) GetStatusRunner(namespace string, log *slog.Logger) (StatusRunner, error) {
+func (f *MockHelmFactory) GetStatusRunner(kubeContext, namespace string, log *slog.Logger) (StatusRunner, error) {
 	return f.Runner, f.Err
 }
 

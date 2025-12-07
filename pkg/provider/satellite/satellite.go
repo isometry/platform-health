@@ -8,7 +8,6 @@ import (
 	"net"
 	"slices"
 	"strings"
-	"time"
 
 	"github.com/mcuadros/go-defaults"
 	"google.golang.org/grpc"
@@ -23,14 +22,14 @@ import (
 const ProviderType = "satellite"
 
 type Component struct {
-	Name       string        `mapstructure:"-"`
-	Host       string        `mapstructure:"host"`
-	Port       int           `mapstructure:"port"`
-	TLS        bool          `mapstructure:"tls"`
-	Insecure   bool          `mapstructure:"insecure"`
-	Timeout    time.Duration `mapstructure:"timeout" default:"30s"`
-	Components []string      `mapstructure:"components"`
-	FailFast   bool          `mapstructure:"fail_fast"`
+	provider.Base
+
+	Host       string   `mapstructure:"host"`
+	Port       int      `mapstructure:"port"`
+	TLS        bool     `mapstructure:"tls"`
+	Insecure   bool     `mapstructure:"insecure"`
+	Components []string `mapstructure:"components"`
+	FailFast   bool     `mapstructure:"fail_fast"`
 }
 
 func init() {
@@ -39,10 +38,9 @@ func init() {
 
 func (c *Component) LogValue() slog.Value {
 	logAttr := []slog.Attr{
-		slog.String("name", c.Name),
+		slog.String("name", c.GetName()),
 		slog.String("host", c.Host),
 		slog.Int("port", c.Port),
-		slog.Any("timeout", c.Timeout),
 	}
 	if len(c.Components) > 0 {
 		logAttr = append(logAttr, slog.Int("components", len(c.Components)))
@@ -63,26 +61,15 @@ func (c *Component) GetType() string {
 	return ProviderType
 }
 
-func (c *Component) GetName() string {
-	return c.Name
-}
-
-func (c *Component) SetName(name string) {
-	c.Name = name
-}
-
 func (i *Component) GetHealth(ctx context.Context) *ph.HealthCheckResponse {
 	log := phctx.Logger(ctx, slog.String("provider", ProviderType), slog.Any("instance", i))
 	log.Debug("checking")
 
 	component := &ph.HealthCheckResponse{
 		Type: ProviderType,
-		Name: i.Name,
+		Name: i.GetName(),
 	}
 	defer component.LogStatus(log)
-
-	ctx, cancel := context.WithTimeout(ctx, i.Timeout)
-	defer cancel()
 
 	if i.Port == 443 || i.Port == 8443 {
 		i.TLS = true

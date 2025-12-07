@@ -1,0 +1,9 @@
+{
+  "response": {
+    "status": 500,
+    "body": {
+      "status": "unhealthy"
+    },
+    "bodyText": "internal server error"
+  }
+}

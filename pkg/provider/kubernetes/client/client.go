@@ -1,7 +1,9 @@
 package client
 
 import (
+	"fmt"
 	"os"
+	"sync"
 
 	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/client-go/discovery"
@@ -12,15 +14,21 @@ import (
 	"k8s.io/client-go/tools/clientcmd"
 )
 
-// GetKubeConfig returns a Kubernetes client configuration
-func GetKubeConfig() (config *rest.Config, err error) {
+// GetKubeConfig returns a Kubernetes client configuration.
+// If context is non-empty, it overrides the current context from kubeconfig.
+func GetKubeConfig(context string) (config *rest.Config, err error) {
 	if os.Getenv("KUBERNETES_SERVICE_HOST") != "" && os.Getenv("KUBERNETES_SERVICE_PORT") != "" {
-		// in-cluster config
+		if context != "" {
+			return nil, fmt.Errorf("context override not supported when running in-cluster")
+		}
 		return rest.InClusterConfig()
 	}
 	// out-of-cluster config
 	loadingRules := clientcmd.NewDefaultClientConfigLoadingRules()
 	configOverrides := &clientcmd.ConfigOverrides{}
+	if context != "" {
+		configOverrides.CurrentContext = context
+	}
 	kubeconfig := clientcmd.NewNonInteractiveDeferredLoadingClientConfig(loadingRules, configOverrides)
 	return kubeconfig.ClientConfig()
 }
@@ -33,16 +41,37 @@ type KubeClients struct {
 	Mapper    meta.RESTMapper
 }
 
-// KubeClientFactory creates Kubernetes clients
-type KubeClientFactory interface {
-	GetClients() (*KubeClients, error)
+// NewFetcher creates a ResourceFetcher bound to these clients
+func (c *KubeClients) NewFetcher() *ResourceFetcher {
+	return NewFetcher(c)
 }
 
-// DefaultFactory creates real clients from kubeconfig
-type DefaultFactory struct{}
+// KubeClientFactory creates Kubernetes clients
+type KubeClientFactory interface {
+	GetClients(context string) (*KubeClients, error)
+}
 
-func (f *DefaultFactory) GetClients() (*KubeClients, error) {
-	config, err := GetKubeConfig()
+// DefaultFactory creates real clients from kubeconfig with caching by context
+type DefaultFactory struct {
+	cache sync.Map // map[string]*KubeClients
+}
+
+func (f *DefaultFactory) GetClients(context string) (*KubeClients, error) {
+	if cached, ok := f.cache.Load(context); ok {
+		return cached.(*KubeClients), nil
+	}
+
+	clients, err := f.createClients(context)
+	if err != nil {
+		return nil, err
+	}
+
+	f.cache.Store(context, clients)
+	return clients, nil
+}
+
+func (f *DefaultFactory) createClients(context string) (*KubeClients, error) {
+	config, err := GetKubeConfig(context)
 	if err != nil {
 		return nil, err
 	}
@@ -74,7 +103,7 @@ type MockFactory struct {
 	Err     error
 }
 
-func (f *MockFactory) GetClients() (*KubeClients, error) {
+func (f *MockFactory) GetClients(context string) (*KubeClients, error) {
 	return f.Clients, f.Err
 }
 

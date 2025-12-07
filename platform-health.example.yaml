@@ -2,8 +2,9 @@ components:
   # Standalone check
   self:
     type: tcp
-    host: localhost
-    port: 8080
+    spec:
+      host: localhost
+      port: 8080
 
   # Group Google services
   google:
@@ -11,42 +12,48 @@ components:
     components:
       gmail-smtp:
         type: tls
-        host: smtp.gmail.com
-        port: 465
-        detail: true
+        spec:
+          host: smtp.gmail.com
+          port: 465
+          detail: true
       google.com:
         type: http
-        url: https://google.com
-        detail: true
-#
-# remote:
-#   type: satellite
-#   address: satellite.example.com
-#   port: 8080
+        spec:
+          url: https://google.com
+          detail: true
 
-# example-grpc:
-#   type: grpc
-#   host: grpc.example.com
-#   port: 443
+  remote:
+    type: satellite
+    spec:
+      host: satellite.example.com
+      port: 8080
 
-# cluster:
-#   type: system
-#   components:
-#     podinfo:
-#       type: kubernetes
-#       resource:
-#         kind: deployment
-#         name: podinfo
-#         namespace: default
-#     cilium:
-#       type: helm
-#       release: cilium
-#       namespace: kube-system
+  example-grpc:
+    type: grpc
+    spec:
+      host: grpc.example.com
+      port: 443
 
-# Label selector example (discovers resources dynamically)
-# app-pods:
-#   type: kubernetes
-#   resource:
-#     kind: pod
-#     namespace: default
-#     labelSelector: "app=myapp"
+  cluster:
+    type: system
+    components:
+      podinfo:
+        type: kubernetes
+        spec:
+          type: deployment
+          name: podinfo
+          namespace: default
+      cilium:
+        type: helm
+        spec:
+          release: cilium
+          namespace: kube-system
+
+  # Label selector example (discovers resources dynamically)
+  app-pods:
+    type: kubernetes
+    spec:
+      type: pod
+      namespace: default
+      labelSelector: "app=myapp"
+    timeout: 1s

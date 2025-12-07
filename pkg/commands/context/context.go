@@ -5,22 +5,18 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"log/slog"
 	"strings"
 
 	"github.com/spf13/cobra"
-	"github.com/spf13/viper"
-	slogctx "github.com/veqryn/slog-context"
 	"go.yaml.in/yaml/v3"
 
+	"github.com/isometry/platform-health/pkg/checks"
 	"github.com/isometry/platform-health/pkg/commands/flags"
 	"github.com/isometry/platform-health/pkg/commands/shared"
 	"github.com/isometry/platform-health/pkg/config"
+	"github.com/isometry/platform-health/pkg/phctx"
 	"github.com/isometry/platform-health/pkg/provider"
-	"github.com/isometry/platform-health/pkg/provider/system"
 )
-
-var log *slog.Logger
 
 // New creates the context command with dynamic provider subcommands.
 func New() *cobra.Command {
@@ -30,22 +26,21 @@ func New() *cobra.Command {
 		Long: `Inspect the CEL evaluation context available to health check expressions.
 
 Provide a component name or path (e.g., '<system-name>/<component-name>') for configured components.
-Use a provider subcommand for ad-hoc context inspection.`,
+Use a provider subcommand for ad-hoc context inspection.
+
+Use --expr to evaluate CEL expressions against the full context.
+Use --expr-each to evaluate expressions per-item (for providers returning multiple items).
+If no expressions are provided, the full context is displayed.`,
 		Args: cobra.ExactArgs(1),
-		PersistentPreRun: func(cmd *cobra.Command, args []string) {
-			// Chain to root's PersistentPreRun for logging setup
-			if root := cmd.Root(); root.PersistentPreRun != nil {
-				root.PersistentPreRun(cmd, args)
-			}
-			flags.BindFlags(cmd)
-			log = slog.Default()
-			cmd.SetContext(slogctx.NewCtx(cmd.Context(), log))
-		},
 		RunE: runInstanceContext,
 	}
 
 	// Register persistent flags
 	contextFlags.Register(cmd.PersistentFlags(), false)
+
+	// Register expression evaluation flags
+	cmd.PersistentFlags().StringArray("expr", nil, "CEL expression to evaluate against context (can be specified multiple times)")
+	cmd.PersistentFlags().StringArray("expr-each", nil, "CEL expression evaluated per-item (can be specified multiple times)")
 
 	// Add dynamic provider subcommands
 	shared.AddProviderSubcommands(cmd, shared.ProviderSubcommandOptions{
@@ -64,8 +59,9 @@ Use a provider subcommand for ad-hoc context inspection.`,
 // Supports both simple instance names and component paths (e.g., "system/subsystem/instance").
 func runInstanceContext(cmd *cobra.Command, args []string) error {
 	// Load configuration
-	paths, name := flags.ConfigPaths()
-	conf, err := config.Load(cmd.Context(), paths, name)
+	v := phctx.Viper(cmd.Context())
+	paths, name := flags.ConfigPaths(v)
+	result, err := config.Load(cmd.Context(), paths, name, false)
 	if err != nil {
 		return fmt.Errorf("failed to load config: %w", err)
 	}
@@ -73,7 +69,7 @@ func runInstanceContext(cmd *cobra.Command, args []string) error {
 	instancePath := args[0]
 
 	// Resolve the instance path
-	targetInstance, err := resolveInstancePath(conf.GetInstances(), instancePath)
+	targetInstance, err := resolveInstancePath(result.GetInstances(), instancePath)
 	if err != nil {
 		return err
 	}
@@ -111,13 +107,13 @@ func resolveInstancePath(instances []provider.Instance, path string) (provider.I
 			return found, nil
 		}
 
-		// Otherwise, it must be a system provider to continue traversal
-		sys, ok := found.(*system.Component)
-		if !ok {
-			return nil, fmt.Errorf("component %q is not a system provider (cannot traverse further)", strings.Join(parts[:i+1], "/"))
+		// Otherwise, it must be a container to continue traversal
+		container := provider.AsContainer(found)
+		if container == nil {
+			return nil, fmt.Errorf("component %q does not contain sub-components (cannot traverse further)", strings.Join(parts[:i+1], "/"))
 		}
 
-		current = sys.GetResolved()
+		current = container.GetComponents()
 	}
 
 	return nil, fmt.Errorf("failed to resolve path %q", path)
@@ -136,50 +132,114 @@ func runProviderContext(cmd *cobra.Command, providerType string) error {
 		return fmt.Errorf("provider type %q does not support checks", providerType)
 	}
 
-	// Setup the provider
-	if err := instance.Setup(); err != nil {
-		return fmt.Errorf("failed to setup provider: %w", err)
-	}
-
 	return displayContext(cmd, checkProvider)
 }
 
 // displayContext fetches and displays the check context in the requested format.
+// Uses --expr and --expr-each flags for expression evaluation.
+// If no expressions are provided, the full context is displayed.
 func displayContext(cmd *cobra.Command, checkProvider provider.InstanceWithChecks) error {
-	ctx, err := checkProvider.GetCheckContext(cmd.Context())
+	celCtx, err := checkProvider.GetCheckContext(cmd.Context())
 	if err != nil {
 		return fmt.Errorf("failed to get check context: %w", err)
 	}
 
-	output := viper.GetString("output-format")
-	switch strings.ToLower(output) {
+	v := phctx.Viper(cmd.Context())
+	output := v.GetString("output-format")
+
+	// Get expressions from flags
+	defaultExprs, _ := cmd.Flags().GetStringArray("expr")
+	eachExprs, _ := cmd.Flags().GetStringArray("expr-each")
+
+	// If expressions provided, evaluate them and output results
+	if len(defaultExprs) > 0 || len(eachExprs) > 0 {
+		celConfig := checkProvider.GetCheckConfig()
+		results := make(map[string]any)
+
+		// Evaluate default expressions against full context
+		for _, expr := range defaultExprs {
+			result, err := celConfig.EvaluateAny(expr, celCtx)
+			if err != nil {
+				return fmt.Errorf("expression %q: %w", expr, err)
+			}
+			results[expr] = result
+		}
+
+		// Evaluate each-mode expressions per-item
+		for _, expr := range eachExprs {
+			itemResults, err := evaluateEachMode(celConfig, expr, celCtx)
+			if err != nil {
+				return fmt.Errorf("expression %q: %w", expr, err)
+			}
+			results[expr] = itemResults
+		}
+
+		// Single expression: output result directly; multiple: output as map
+		if len(results) == 1 {
+			for _, v := range results {
+				return outputValue(v, output)
+			}
+		}
+		return outputValue(results, output)
+	}
+
+	// No expressions: output full context
+	return outputValue(celCtx, output)
+}
+
+// evaluateEachMode evaluates a CEL expression against each item in the context.
+// Looks for "items" (slice) or "resource" (single item) in the context.
+func evaluateEachMode(celConfig *checks.CEL, expr string, celCtx map[string]any) ([]any, error) {
+	// Check for "items" slice
+	if items, ok := celCtx["items"].([]any); ok {
+		results := make([]any, len(items))
+		for i, item := range items {
+			itemCtx := map[string]any{"resource": item}
+			result, err := celConfig.EvaluateAny(expr, itemCtx)
+			if err != nil {
+				return nil, fmt.Errorf("item[%d]: %w", i, err)
+			}
+			results[i] = result
+		}
+		return results, nil
+	}
+
+	// Check for single "resource"
+	if resource, ok := celCtx["resource"]; ok {
+		itemCtx := map[string]any{"resource": resource}
+		result, err := celConfig.EvaluateAny(expr, itemCtx)
+		if err != nil {
+			return nil, err
+		}
+		return []any{result}, nil
+	}
+
+	return nil, fmt.Errorf("each mode requires 'items' or 'resource' in context")
+}
+
+// outputValue outputs any value in the requested format.
+func outputValue(value any, format string) error {
+	switch strings.ToLower(format) {
 	case "yaml", "yml":
-		return outputYAML(ctx)
+		var buf bytes.Buffer
+		encoder := yaml.NewEncoder(&buf)
+		encoder.SetIndent(2)
+		if err := encoder.Encode(value); err != nil {
+			return fmt.Errorf("failed to marshal YAML: %w", err)
+		}
+		fmt.Print(buf.String())
+		return nil
 	case "json":
-		return outputJSON(ctx)
+		var buf bytes.Buffer
+		encoder := json.NewEncoder(&buf)
+		encoder.SetEscapeHTML(false)
+		encoder.SetIndent("", "  ")
+		if err := encoder.Encode(value); err != nil {
+			return fmt.Errorf("failed to marshal JSON: %w", err)
+		}
+		fmt.Print(buf.String())
+		return nil
 	default:
-		return fmt.Errorf("unsupported output format: %q", output)
+		return fmt.Errorf("unsupported output format: %q", format)
 	}
-}
-
-// outputJSON prints context as formatted JSON.
-func outputJSON(ctx map[string]any) error {
-	data, err := json.MarshalIndent(ctx, "", "  ")
-	if err != nil {
-		return fmt.Errorf("failed to marshal JSON: %w", err)
-	}
-	fmt.Println(string(data))
-	return nil
-}
-
-// outputYAML prints context as YAML.
-func outputYAML(ctx map[string]any) error {
-	var buf bytes.Buffer
-	encoder := yaml.NewEncoder(&buf)
-	encoder.SetIndent(2)
-	if err := encoder.Encode(ctx); err != nil {
-		return fmt.Errorf("failed to marshal YAML: %w", err)
-	}
-	fmt.Print(buf.String())
-	return nil
 }

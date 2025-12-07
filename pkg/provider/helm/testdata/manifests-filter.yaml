@@ -1,0 +1,15 @@
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: config-1
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: config-2
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: my-app

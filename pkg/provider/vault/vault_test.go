@@ -12,6 +12,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	ph "github.com/isometry/platform-health/pkg/platform_health"
+	"github.com/isometry/platform-health/pkg/provider"
 	vaultProvider "github.com/isometry/platform-health/pkg/provider/vault"
 )
 
@@ -78,13 +79,14 @@ func TestVaultGetHealth(t *testing.T) {
 			})
 
 			instance := &vaultProvider.Component{
-				Name:    "TestService",
 				Address: server.URL,
-				Timeout: tt.timeout,
 			}
+			instance.SetName("TestService")
+			instance.SetTimeout(tt.timeout)
 			require.NoError(t, instance.Setup())
 
-			result := instance.GetHealth(ctx)
+			// Use GetHealthWithDuration which applies the timeout
+			result := provider.GetHealthWithDuration(ctx, instance)
 
 			assert.NotNil(t, result)
 			assert.Equal(t, tt.expected, result.GetStatus())

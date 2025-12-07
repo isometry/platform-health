@@ -1,0 +1,10 @@
+type: system
+components:
+  source-controller:
+    type: mock
+    spec:
+      health: 0
+  kustomize-controller:
+    type: mock
+    spec:
+      health: 0

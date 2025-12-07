@@ -7,19 +7,15 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/spf13/cobra"
-	"github.com/spf13/viper"
-	slogctx "github.com/veqryn/slog-context"
 
 	"github.com/isometry/platform-health/pkg/commands/flags"
 	"github.com/isometry/platform-health/pkg/config"
+	"github.com/isometry/platform-health/pkg/phctx"
 	"github.com/isometry/platform-health/pkg/provider"
 	"github.com/isometry/platform-health/pkg/server"
 )
 
-var (
-	log  *slog.Logger
-	conf provider.Config
-)
+var conf provider.Config
 
 func New() *cobra.Command {
 	cmd := &cobra.Command{
@@ -37,11 +33,11 @@ func New() *cobra.Command {
 }
 
 func setup(cmd *cobra.Command, args []string) (err error) {
-	flags.BindFlags(cmd)
+	ctx := cmd.Context()
+	v := phctx.Viper(ctx)
+	flags.BindFlags(cmd, v)
 
-	log = slog.Default()
-	cmd.SetContext(slogctx.NewCtx(cmd.Context(), log))
-
+	log := phctx.Logger(ctx)
 	log.Info("providers registered", slog.Any("providers", provider.ProviderList()))
 
 	// Override with positional argument if provided
@@ -50,19 +46,38 @@ func setup(cmd *cobra.Command, args []string) (err error) {
 		if err != nil {
 			return err
 		}
-		viper.Set("listen", host)
-		viper.Set("port", port)
+		v.Set("listen", host)
+		v.Set("port", port)
 	}
 
-	paths, name := flags.ConfigPaths()
-	conf, err = config.Load(cmd.Context(), paths, name)
-	return err
+	paths, name := flags.ConfigPaths(v)
+	strict := v.GetBool("strict")
+
+	result, err := config.Load(ctx, paths, name, strict)
+	if err != nil {
+		return err
+	}
+
+	// In strict mode, fail if any configuration errors were found
+	if strict && result.HasErrors() {
+		for _, e := range result.ValidationErrors {
+			log.Error("configuration error", slog.Any("error", e))
+		}
+		return fmt.Errorf("configuration validation failed with %d error(s)", len(result.ValidationErrors))
+	}
+
+	conf = result
+	return nil
 }
 
-func serve(_ *cobra.Command, _ []string) (err error) {
+func serve(cmd *cobra.Command, _ []string) (err error) {
+	ctx := cmd.Context()
+	v := phctx.Viper(ctx)
+	log := phctx.Logger(ctx)
+
 	address := net.JoinHostPort(
-		viper.GetString("listen"),
-		fmt.Sprint(viper.GetInt("port")))
+		v.GetString("listen"),
+		fmt.Sprint(v.GetInt("port")))
 	listener, err := net.Listen("tcp", address)
 	if err != nil {
 		log.Error("failed to open listener", slog.Any("error", err))
@@ -74,12 +89,12 @@ func serve(_ *cobra.Command, _ []string) (err error) {
 	serverId := uuid.New().String()
 
 	opts := []server.Option{
-		server.WithParallelism(viper.GetInt("parallelism")),
+		server.WithParallelism(v.GetInt("parallelism")),
 	}
-	if !viper.GetBool("no-grpc-health-v1") {
+	if !v.GetBool("no-grpc-health-v1") {
 		opts = append(opts, server.WithHealthService())
 	}
-	if viper.GetBool("grpc-reflection") {
+	if v.GetBool("grpc-reflection") {
 		opts = append(opts, server.WithReflection())
 	}
 

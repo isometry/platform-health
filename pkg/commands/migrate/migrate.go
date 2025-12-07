@@ -9,6 +9,7 @@ import (
 	"go.yaml.in/yaml/v3"
 
 	"github.com/isometry/platform-health/pkg/commands/flags"
+	"github.com/isometry/platform-health/pkg/phctx"
 )
 
 func New() *cobra.Command {
@@ -26,7 +27,8 @@ func New() *cobra.Command {
 }
 
 func run(cmd *cobra.Command, args []string) error {
-	flags.BindFlags(cmd)
+	v := phctx.Viper(cmd.Context())
+	flags.BindFlags(cmd, v)
 
 	inputPath := args[0]
 	outputPath, _ := cmd.Flags().GetString("output")

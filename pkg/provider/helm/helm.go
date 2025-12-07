@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
-	"time"
 
 	"github.com/google/cel-go/cel"
 	"github.com/mcuadros/go-defaults"
@@ -22,22 +21,22 @@ import (
 
 const ProviderType = "helm"
 
+type Component struct {
+	provider.Base
+	provider.BaseWithChecks
+
+	Context   string `mapstructure:"context"`
+	Release   string `mapstructure:"release"`
+	Namespace string `mapstructure:"namespace"`
+}
+
+var _ provider.InstanceWithChecks = (*Component)(nil)
+
 // CEL configuration for Helm provider
 var celConfig = checks.NewCEL(
 	cel.Variable("release", cel.MapType(cel.StringType, cel.DynType)),
 	cel.Variable("chart", cel.MapType(cel.StringType, cel.DynType)),
 )
-
-type Component struct {
-	provider.BaseWithChecks `mapstructure:",squash"`
-
-	Name      string        `mapstructure:"-"`
-	Release   string        `mapstructure:"release"`
-	Namespace string        `mapstructure:"namespace"`
-	Timeout   time.Duration `mapstructure:"timeout" default:"5s"`
-}
-
-var _ provider.InstanceWithChecks = (*Component)(nil)
 
 func init() {
 	provider.Register(ProviderType, new(Component))
@@ -45,18 +44,25 @@ func init() {
 
 func (c *Component) LogValue() slog.Value {
 	logAttr := []slog.Attr{
-		slog.String("name", c.Name),
+		slog.String("name", c.GetName()),
 		slog.String("release", c.Release),
 		slog.String("namespace", c.Namespace),
-		slog.Any("timeout", c.Timeout),
 		slog.Int("checks", len(c.GetChecks())),
+	}
+	if c.Context != "" {
+		logAttr = append(logAttr, slog.String("context", c.Context))
 	}
 	return slog.GroupValue(logAttr...)
 }
 
 func (c *Component) Setup() error {
 	defaults.SetDefaults(c)
-	return c.SetupChecks(celConfig)
+	return nil
+}
+
+// SetChecks sets and compiles CEL expressions.
+func (c *Component) SetChecks(exprs []checks.Expression) error {
+	return c.SetChecksAndCompile(exprs, celConfig)
 }
 
 // GetCheckConfig returns the Helm provider's CEL variable declarations.
@@ -66,19 +72,16 @@ func (c *Component) GetCheckConfig() *checks.CEL {
 
 // GetCheckContext fetches the Helm release and returns the CEL evaluation context.
 func (c *Component) GetCheckContext(ctx context.Context) (map[string]any, error) {
-	ctx, cancel := context.WithTimeout(ctx, c.Timeout)
-	defer cancel()
-
 	log := phctx.Logger(ctx, slog.String("provider", ProviderType), slog.Any("instance", c))
 
-	statusRunner, err := client.ClientFactory.GetStatusRunner(c.Namespace, log)
+	statusRunner, err := client.ClientFactory.GetStatusRunner(c.Context, c.Namespace, log)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get status runner: %w", err)
 	}
 
 	rel, err := statusRunner.Run(ctx, c.Release)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to get release %q in namespace %q: %w", c.Release, c.Namespace, err)
 	}
 
 	releaseMap, chartMap := releaseToMaps(rel)
@@ -92,21 +95,13 @@ func (c *Component) GetType() string {
 	return ProviderType
 }
 
-func (c *Component) GetName() string {
-	return c.Name
-}
-
-func (c *Component) SetName(name string) {
-	c.Name = name
-}
-
 func (c *Component) GetHealth(ctx context.Context) *ph.HealthCheckResponse {
 	log := phctx.Logger(ctx, slog.String("provider", ProviderType), slog.Any("instance", c))
 	log.Debug("checking")
 
 	component := &ph.HealthCheckResponse{
 		Type: ProviderType,
-		Name: c.Name,
+		Name: c.GetName(),
 	}
 	defer component.LogStatus(log)
 
@@ -117,15 +112,21 @@ func (c *Component) GetHealth(ctx context.Context) *ph.HealthCheckResponse {
 	}
 
 	// Check release status from context
-	releaseMap := checkCtx["release"].(map[string]any)
-	status := releaseMap["Status"].(string)
+	releaseMap, ok := checkCtx["release"].(map[string]any)
+	if !ok {
+		return component.Unhealthy(fmt.Sprintf("invalid release context: expected map[string]any, got %T", checkCtx["release"]))
+	}
+	status, ok := releaseMap["Status"].(string)
+	if !ok {
+		return component.Unhealthy(fmt.Sprintf("missing release status for %q", c.Release))
+	}
 	if status != string(client.StatusDeployed) {
 		return component.Unhealthy(fmt.Sprintf("expected status 'deployed'; actual status '%s'", status))
 	}
 
 	// Apply CEL checks
-	if err := c.EvaluateChecks(checkCtx); err != nil {
-		return component.Unhealthy(err.Error())
+	if msgs := c.EvaluateChecks(ctx, checkCtx); len(msgs) > 0 {
+		return component.Unhealthy(msgs...)
 	}
 
 	return component.Healthy()

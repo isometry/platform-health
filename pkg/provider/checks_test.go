@@ -15,8 +15,8 @@ import (
 
 // mockCheckProvider is a test implementation of InstanceWithChecks
 type mockCheckProvider struct {
+	provider.Base
 	provider.BaseWithChecks
-	name      string
 	celConfig *checks.CEL
 }
 
@@ -29,23 +29,22 @@ func newMockCheckProvider() *mockCheckProvider {
 	}
 }
 
-func (m *mockCheckProvider) GetType() string  { return "mock" }
-func (m *mockCheckProvider) GetName() string  { return m.name }
-func (m *mockCheckProvider) SetName(n string) { m.name = n }
-func (m *mockCheckProvider) Setup() error {
-	return m.SetupChecks(m.celConfig)
+func (m *mockCheckProvider) GetType() string { return "mock" }
+func (m *mockCheckProvider) Setup() error    { return nil }
+func (m *mockCheckProvider) SetChecks(exprs []checks.Expression) error {
+	return m.SetChecksAndCompile(exprs, m.celConfig)
 }
 func (m *mockCheckProvider) GetHealth(ctx context.Context) *ph.HealthCheckResponse {
 	celCtx, _ := m.GetCheckContext(ctx)
-	if err := m.EvaluateChecks(celCtx); err != nil {
+	if msgs := m.EvaluateChecks(ctx, celCtx); len(msgs) > 0 {
 		return &ph.HealthCheckResponse{
-			Name:    m.name,
-			Status:  ph.Status_UNHEALTHY,
-			Message: err.Error(),
+			Name:     m.GetName(),
+			Status:   ph.Status_UNHEALTHY,
+			Messages: msgs,
 		}
 	}
 	return &ph.HealthCheckResponse{
-		Name:   m.name,
+		Name:   m.GetName(),
 		Status: ph.Status_HEALTHY,
 	}
 }
@@ -63,21 +62,19 @@ func (m *mockCheckProvider) GetCheckContext(ctx context.Context) (map[string]any
 
 // mockNonCheckProvider is a provider that doesn't implement InstanceWithChecks
 type mockNonCheckProvider struct {
-	name string
+	provider.Base
 }
 
-func (m *mockNonCheckProvider) GetType() string  { return "nonce" }
-func (m *mockNonCheckProvider) GetName() string  { return m.name }
-func (m *mockNonCheckProvider) SetName(n string) { m.name = n }
-func (m *mockNonCheckProvider) Setup() error     { return nil }
+func (m *mockNonCheckProvider) GetType() string { return "nonce" }
+func (m *mockNonCheckProvider) Setup() error    { return nil }
 func (m *mockNonCheckProvider) GetHealth(ctx context.Context) *ph.HealthCheckResponse {
-	return &ph.HealthCheckResponse{Name: m.name, Status: ph.Status_HEALTHY}
+	return &ph.HealthCheckResponse{Name: m.GetName(), Status: ph.Status_HEALTHY}
 }
 
 // testableCheckProvider wraps BaseWithChecks for testing
 type testableCheckProvider struct {
+	provider.Base
 	provider.BaseWithChecks
-	name      string
 	celConfig *checks.CEL
 }
 
@@ -85,14 +82,13 @@ func newTestableCheckProvider(celConfig *checks.CEL) *testableCheckProvider {
 	return &testableCheckProvider{celConfig: celConfig}
 }
 
-func (t *testableCheckProvider) GetType() string  { return "testable" }
-func (t *testableCheckProvider) GetName() string  { return t.name }
-func (t *testableCheckProvider) SetName(n string) { t.name = n }
-func (t *testableCheckProvider) Setup() error {
-	return t.SetupChecks(t.celConfig)
+func (t *testableCheckProvider) GetType() string { return "testable" }
+func (t *testableCheckProvider) Setup() error    { return nil }
+func (t *testableCheckProvider) SetChecks(exprs []checks.Expression) error {
+	return t.SetChecksAndCompile(exprs, t.celConfig)
 }
 func (t *testableCheckProvider) GetHealth(ctx context.Context) *ph.HealthCheckResponse {
-	return &ph.HealthCheckResponse{Name: t.name, Status: ph.Status_HEALTHY}
+	return &ph.HealthCheckResponse{Name: t.GetName(), Status: ph.Status_HEALTHY}
 }
 
 func TestBaseWithChecks_SetupChecks(t *testing.T) {
@@ -136,8 +132,7 @@ func TestBaseWithChecks_SetupChecks(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			p := newTestableCheckProvider(celConfig)
-			p.SetChecks(tt.checks)
-			err := p.Setup()
+			err := p.SetChecks(tt.checks)
 			if tt.wantErr {
 				assert.Error(t, err)
 			} else {
@@ -153,60 +148,59 @@ func TestBaseWithChecks_EvaluateChecks(t *testing.T) {
 	)
 
 	tests := []struct {
-		name    string
-		checks  []checks.Expression
-		ctx     map[string]any
-		wantErr bool
-		errMsg  string
+		name     string
+		checks   []checks.Expression
+		celCtx   map[string]any
+		wantFail bool
+		failMsg  string
 	}{
 		{
-			name:    "no evaluator",
-			checks:  nil,
-			ctx:     map[string]any{"value": int64(10)},
-			wantErr: false,
+			name:     "no checks",
+			checks:   nil,
+			celCtx:   map[string]any{"value": int64(10)},
+			wantFail: false,
 		},
 		{
 			name: "passing check",
 			checks: []checks.Expression{
 				{Expression: "value > 0"},
 			},
-			ctx:     map[string]any{"value": int64(10)},
-			wantErr: false,
+			celCtx:   map[string]any{"value": int64(10)},
+			wantFail: false,
 		},
 		{
 			name: "failing check",
 			checks: []checks.Expression{
 				{Expression: "value > 100"},
 			},
-			ctx:     map[string]any{"value": int64(10)},
-			wantErr: true,
+			celCtx:   map[string]any{"value": int64(10)},
+			wantFail: true,
 		},
 		{
 			name: "failing check with custom message",
 			checks: []checks.Expression{
 				{Expression: "value > 100", Message: "value too small"},
 			},
-			ctx:     map[string]any{"value": int64(10)},
-			wantErr: true,
-			errMsg:  "value too small",
+			celCtx:   map[string]any{"value": int64(10)},
+			wantFail: true,
+			failMsg:  "value too small",
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			p := newTestableCheckProvider(celConfig)
-			p.SetChecks(tt.checks)
-			err := p.Setup()
+			err := p.SetChecks(tt.checks)
 			require.NoError(t, err)
 
-			err = p.EvaluateChecks(tt.ctx)
-			if tt.wantErr {
-				assert.Error(t, err)
-				if tt.errMsg != "" {
-					assert.Contains(t, err.Error(), tt.errMsg)
+			msgs := p.EvaluateChecks(context.Background(), tt.celCtx)
+			if tt.wantFail {
+				assert.NotEmpty(t, msgs)
+				if tt.failMsg != "" {
+					assert.Contains(t, msgs[0], tt.failMsg)
 				}
 			} else {
-				assert.NoError(t, err)
+				assert.Empty(t, msgs)
 			}
 		})
 	}
@@ -224,24 +218,22 @@ func TestBaseWithChecks_GetSetChecks(t *testing.T) {
 	exprs := []checks.Expression{
 		{Expression: "value > 0"},
 	}
-	p.SetChecks(exprs)
+	err := p.SetChecks(exprs)
+	require.NoError(t, err)
 
 	assert.Equal(t, exprs, p.GetChecks())
 	assert.True(t, p.HasChecks())
 
-	// SetChecks should clear evaluator - verify by checking evaluation behavior
-	err := p.Setup()
+	// Evaluation should work since SetChecks compiles immediately
+	msgs := p.EvaluateChecks(context.Background(), map[string]any{"value": int64(10)})
+	assert.Empty(t, msgs)
+
+	// After SetChecks with new checks, evaluation uses new checks
+	err = p.SetChecks([]checks.Expression{{Expression: "value < 100"}})
 	require.NoError(t, err)
-
-	// Evaluation should work
-	err = p.EvaluateChecks(map[string]any{"value": int64(10)})
-	assert.NoError(t, err)
-
-	// After SetChecks, evaluator should be cleared (evaluation should pass without checks)
-	p.SetChecks([]checks.Expression{{Expression: "value < 100"}})
-	// Without calling Setup again, EvaluateChecks should pass (no evaluator)
-	err = p.EvaluateChecks(map[string]any{"value": int64(200)})
-	assert.NoError(t, err) // Would fail if evaluator wasn't cleared
+	// Should fail because value 200 is not less than 100
+	msgs = p.EvaluateChecks(context.Background(), map[string]any{"value": int64(200)})
+	assert.NotEmpty(t, msgs)
 }
 
 func TestSupportsChecks(t *testing.T) {
@@ -268,22 +260,23 @@ func TestMockCELProvider_Integration(t *testing.T) {
 	p.SetName("test-instance")
 
 	// Test with passing check
-	p.SetChecks([]checks.Expression{
+	err := p.SetChecks([]checks.Expression{
 		{Expression: "value > 0"},
 		{Expression: "name == 'test'"},
 	})
-	require.NoError(t, p.Setup())
+	require.NoError(t, err)
 
 	response := p.GetHealth(t.Context())
 	assert.Equal(t, ph.Status_HEALTHY, response.Status)
 
 	// Test with failing check
-	p.SetChecks([]checks.Expression{
+	err = p.SetChecks([]checks.Expression{
 		{Expression: "value > 100", Message: "value must be greater than 100"},
 	})
-	require.NoError(t, p.Setup())
+	require.NoError(t, err)
 
 	response = p.GetHealth(t.Context())
 	assert.Equal(t, ph.Status_UNHEALTHY, response.Status)
-	assert.Contains(t, response.Message, "value must be greater than 100")
+	require.NotEmpty(t, response.Messages)
+	assert.Contains(t, response.Messages[0], "value must be greater than 100")
 }

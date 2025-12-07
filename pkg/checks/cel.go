@@ -9,136 +9,260 @@ import (
 
 	"github.com/google/cel-go/cel"
 	"github.com/google/cel-go/ext"
+	"google.golang.org/protobuf/types/known/structpb"
+
+	"github.com/isometry/platform-health/pkg/checks/functions"
 )
 
+// standardFunctions provides custom CEL functions available to all expressions.
+var standardFunctions = functions.All()
+
+// standardExtensions provides standard CEL library extensions available to all environments.
+var standardExtensions = []cel.EnvOption{
+	ext.Bindings(), // cel.bind()
+	ext.Strings(),  // .lowerAscii(), .upperAscii(), .trim(), .replace(), etc.
+	ext.Lists(),    // .slice(), .flatten(), etc.
+	ext.Encoders(), // base64.encode/decode, etc.
+	ext.Math(),     // math.greatest(), math.least(), etc.
+	ext.Sets(),     // sets.contains(), sets.intersects(), etc.
+}
+
 // CEL holds configuration for CEL expression evaluation including
-// variable declarations and a cache for compiled programs.
+// variable declarations and a cache for compiled ASTs.
 type CEL struct {
-	cache     sync.Map // map[string]cel.Program
+	cache     sync.Map // map[string]*cel.Ast
 	variables []cel.EnvOption
+	once      sync.Once
+	env       *cel.Env
+	err       error
 }
 
 // NewCEL creates a CEL configuration with the given variable declarations.
+// Standard functions (like `time.Now()`) are automatically included.
 // Each provider should create a package-level instance.
 func NewCEL(variables ...cel.EnvOption) *CEL {
 	return &CEL{
-		variables: variables,
+		variables: append(standardFunctions, variables...),
 	}
 }
 
-// NewEvaluator creates a CEL evaluator for the given expressions.
-func (c *CEL) NewEvaluator(exprs []Expression) (*Evaluator, error) {
+// getEnv returns the cached CEL environment, creating it if necessary.
+func (c *CEL) getEnv() (*cel.Env, error) {
+	c.once.Do(func() {
+		c.env, c.err = cel.NewEnv(append(c.variables, standardExtensions...)...)
+	})
+	if c.err != nil {
+		return nil, fmt.Errorf("failed to create CEL environment: %w", c.err)
+	}
+	return c.env, nil
+}
+
+// Mode represents a check execution mode for filtering.
+type Mode int
+
+const (
+	ModeDefault Mode = iota // checks with no mode or empty mode
+	ModeEach                // checks with mode: "each" (per-item)
+)
+
+// Check represents a single compiled CEL check.
+type Check struct {
+	env  *cel.Env
+	ast  *cel.Ast
+	expr Expression
+}
+
+// Evaluate runs this check against the context with optional runtime program options.
+// This allows injecting runtime function bindings (e.g., kubernetes.Get with client).
+// Returns ("", nil) on success, (message, nil) on check failure, ("", err) on evaluation error.
+func (c *Check) Evaluate(celCtx map[string]any, opts ...cel.ProgramOption) (string, error) {
+	program, err := c.env.Program(c.ast, opts...)
+	if err != nil {
+		return "", fmt.Errorf("CEL program creation failed: %w", err)
+	}
+
+	result, _, err := program.Eval(celCtx)
+	if err != nil {
+		return "", fmt.Errorf("CEL evaluation failed: %w", err)
+	}
+
+	value, err := result.ConvertToNative(reflect.TypeOf(false))
+	if err != nil {
+		return "", fmt.Errorf("CEL result conversion failed: %w", err)
+	}
+
+	if boolResult, ok := value.(bool); !ok || !boolResult {
+		if c.expr.Message != "" {
+			return c.expr.Message, nil
+		}
+		return fmt.Sprintf("CEL check failed: %s", c.expr.Expression), nil
+	}
+
+	return "", nil
+}
+
+// Compile compiles a single expression into a Check.
+func (c *CEL) Compile(expr Expression) (*Check, error) {
+	env, err := c.getEnv()
+	if err != nil {
+		return nil, err
+	}
+
+	ast, err := c.getOrCompileAST(expr.Expression, env)
+	if err != nil {
+		return nil, err
+	}
+
+	return &Check{env: env, ast: ast, expr: expr}, nil
+}
+
+// CompileAll compiles multiple expressions into Checks.
+func (c *CEL) CompileAll(exprs []Expression) ([]*Check, error) {
 	if len(exprs) == 0 {
 		return nil, nil
 	}
 
-	// Create CEL environment with provided variables and extensions
-	env, err := cel.NewEnv(append(c.variables, ext.Lists())...)
+	env, err := c.getEnv()
 	if err != nil {
-		return nil, fmt.Errorf("failed to create CEL environment: %w", err)
+		return nil, err
 	}
 
-	// Pre-compile all expressions
-	programs := make([]cel.Program, len(exprs))
-	for idx, expr := range exprs {
-		program, err := c.getOrCompile(expr.Expression, env)
+	compiled := make([]*Check, len(exprs))
+	for i, expr := range exprs {
+		ast, err := c.getOrCompileAST(expr.Expression, env)
 		if err != nil {
-			return nil, fmt.Errorf("CEL expression [%d] compilation error: %w", idx, err)
+			return nil, fmt.Errorf("check[%d]: %w", i, err)
 		}
-		programs[idx] = program
+		compiled[i] = &Check{env: env, ast: ast, expr: expr}
 	}
-
-	return &Evaluator{
-		programs: programs,
-		exprs:    exprs,
-	}, nil
+	return compiled, nil
 }
 
-// getOrCompile returns a cached program or compiles and caches a new one.
-func (c *CEL) getOrCompile(expr string, env *cel.Env) (cel.Program, error) {
-	// Check cache first
-	if cached, ok := c.cache.Load(expr); ok {
-		return cached.(cel.Program), nil
-	}
-
-	// Compile expression
+// compileExpr compiles an expression and validates it returns boolean.
+func compileExpr(env *cel.Env, expr string) (*cel.Ast, error) {
 	ast, issues := env.Compile(expr)
 	if issues != nil && issues.Err() != nil {
 		return nil, issues.Err()
 	}
 	if ast.OutputType() != cel.BoolType {
-		return nil, fmt.Errorf("expression must return boolean")
+		return nil, fmt.Errorf("expression must return boolean, got %v", ast.OutputType())
 	}
-	program, err := env.Program(ast)
+	return ast, nil
+}
+
+// getOrCompileAST returns a cached AST or compiles and caches a new one.
+func (c *CEL) getOrCompileAST(expr string, env *cel.Env) (*cel.Ast, error) {
+	// Check cache first
+	if cached, ok := c.cache.Load(expr); ok {
+		return cached.(*cel.Ast), nil
+	}
+
+	ast, err := compileExpr(env, expr)
 	if err != nil {
 		return nil, err
 	}
 
 	// Cache and return
-	c.cache.Store(expr, program)
-	return program, nil
+	c.cache.Store(expr, ast)
+	return ast, nil
 }
 
 // Expression represents a CEL expression validation rule
 type Expression struct {
-	Expression string `mapstructure:"expr"`
+	Expression string `mapstructure:"check"`
 	Message    string `mapstructure:"message"`
+	Mode       string `mapstructure:"mode"` // "each" for per-item evaluation, empty for default
 }
 
-// Evaluator holds compiled CEL programs for evaluation
-type Evaluator struct {
-	programs []cel.Program
-	exprs    []Expression
+// Each returns true if this expression should be evaluated per-item
+func (e Expression) Each() bool {
+	return e.Mode == "each"
+}
+
+// ParseConfig converts raw YAML config to []Expression.
+// Accepts either:
+//   - A slice of strings (simple expressions)
+//   - A slice of maps with "check" and optional "message" keys
+func ParseConfig(raw any) ([]Expression, error) {
+	rawSlice, ok := raw.([]any)
+	if !ok {
+		return nil, fmt.Errorf("checks must be an array")
+	}
+
+	exprs := make([]Expression, 0, len(rawSlice))
+	for i, item := range rawSlice {
+		switch v := item.(type) {
+		case string:
+			exprs = append(exprs, Expression{Expression: v})
+		case map[string]any:
+			expr := Expression{}
+			if e, ok := v["check"].(string); ok {
+				expr.Expression = e
+			} else {
+				return nil, fmt.Errorf("check[%d]: missing 'check' field", i)
+			}
+			if m, ok := v["message"].(string); ok {
+				expr.Message = m
+			}
+			if m, ok := v["mode"].(string); ok {
+				if m != "" && m != "each" {
+					return nil, fmt.Errorf("check[%d]: invalid mode %q (must be 'each' or empty)", i, m)
+				}
+				expr.Mode = m
+			}
+			exprs = append(exprs, expr)
+		default:
+			return nil, fmt.Errorf("check[%d]: invalid type %T", i, item)
+		}
+	}
+	return exprs, nil
 }
 
 // ValidateExpression validates CEL expression syntax at configuration time.
 // Variables should be declared using cel.Variable() options.
 func ValidateExpression(expression string, variables ...cel.EnvOption) error {
-	env, err := cel.NewEnv(append(variables, ext.Lists())...)
+	env, err := cel.NewEnv(append(variables, standardExtensions...)...)
 	if err != nil {
 		return fmt.Errorf("failed to create CEL environment: %w", err)
 	}
 
-	ast, issues := env.Compile(expression)
-	if issues != nil && issues.Err() != nil {
-		return fmt.Errorf("invalid CEL expression: %w", issues.Err())
-	}
-
-	if ast.OutputType() != cel.BoolType {
-		return fmt.Errorf("CEL expression must return boolean, got %v", ast.OutputType())
+	if _, err := compileExpr(env, expression); err != nil {
+		return fmt.Errorf("invalid CEL expression: %w", err)
 	}
 
 	return nil
 }
 
-// Evaluate runs all compiled CEL programs against the provided context.
-// Returns nil if all expressions evaluate to true, or an error describing
-// the first failing expression.
-func (e *Evaluator) Evaluate(ctx map[string]any) error {
-	if e == nil || len(e.programs) == 0 {
-		return nil
+// EvaluateAny compiles and evaluates a CEL expression returning its result.
+// Unlike Evaluate(), this does not require boolean output - any type is allowed.
+// The result is converted to native Go types for serialization.
+// Note: Uses the cached environment but compiles the AST directly (no caching)
+// since the boolean output validation in getOrCompileAST() doesn't apply here.
+func (c *CEL) EvaluateAny(expr string, celCtx map[string]any) (any, error) {
+	env, err := c.getEnv()
+	if err != nil {
+		return nil, err
 	}
 
-	for idx, program := range e.programs {
-		result, _, err := program.Eval(ctx)
-		if err != nil {
-			return fmt.Errorf("CEL expression [%d] failed to evaluate: %w", idx, err)
-		}
-
-		// Convert result to native boolean
-		value, err := result.ConvertToNative(reflect.TypeOf(false))
-		if err != nil {
-			return fmt.Errorf("CEL expression [%d] result conversion failed: %w", idx, err)
-		}
-
-		// Check if result is boolean true
-		if boolResult, ok := value.(bool); !ok || !boolResult {
-			if e.exprs[idx].Message != "" {
-				return fmt.Errorf("%s", e.exprs[idx].Message)
-			}
-			return fmt.Errorf("CEL expression failed: %s", e.exprs[idx].Expression)
-		}
+	ast, issues := env.Compile(expr)
+	if issues != nil && issues.Err() != nil {
+		return nil, issues.Err()
 	}
 
-	return nil
+	program, err := env.Program(ast)
+	if err != nil {
+		return nil, err
+	}
+
+	result, _, err := program.Eval(celCtx)
+	if err != nil {
+		return nil, err
+	}
+
+	// Convert to structpb.Value, then to native Go types for serialization
+	native, err := result.ConvertToNative(reflect.TypeOf(&structpb.Value{}))
+	if err != nil {
+		return nil, err
+	}
+	return native.(*structpb.Value).AsInterface(), nil
 }

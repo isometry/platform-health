@@ -138,11 +138,11 @@ func (x *HealthCheckRequest) GetFailFast() bool {
 
 type HealthCheckResponse struct {
 	state             protoimpl.MessageState `protogen:"open.v1"`
-	Type              string                 `protobuf:"bytes,1,opt,name=type,proto3" json:"type,omitempty"`               // e.g. "tcp", "rest", "grpc", "kafka", "s3"
+	Type              string                 `protobuf:"bytes,1,opt,name=type,proto3" json:"type,omitempty"`               // e.g. "tcp", "http", "grpc", "kubernetes"
 	Name              string                 `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`               // instance name
 	ServerId          *string                `protobuf:"bytes,3,opt,name=serverId,proto3,oneof" json:"serverId,omitempty"` // unique identifier for server/satellite instance
 	Status            Status                 `protobuf:"varint,4,opt,name=status,proto3,enum=platform_health.v1.Status" json:"status,omitempty"`
-	Message           string                 `protobuf:"bytes,5,opt,name=message,proto3" json:"message,omitempty"`
+	Messages          []string               `protobuf:"bytes,5,rep,name=messages,proto3" json:"messages,omitempty"`
 	Details           []*anypb.Any           `protobuf:"bytes,6,rep,name=details,proto3" json:"details,omitempty"`
 	Components        []*HealthCheckResponse `protobuf:"bytes,7,rep,name=components,proto3" json:"components,omitempty"`
 	Duration          *durationpb.Duration   `protobuf:"bytes,8,opt,name=duration,proto3" json:"duration,omitempty"`
@@ -209,11 +209,11 @@ func (x *HealthCheckResponse) GetStatus() Status {
 	return Status_UNKNOWN
 }
 
-func (x *HealthCheckResponse) GetMessage() string {
+func (x *HealthCheckResponse) GetMessages() []string {
 	if x != nil {
-		return x.Message
+		return x.Messages
 	}
-	return ""
+	return nil
 }
 
 func (x *HealthCheckResponse) GetDetails() []*anypb.Any {
@@ -254,13 +254,13 @@ const file_proto_platform_health_proto_rawDesc = "" +
 	"components\x18\x01 \x03(\tR\n" +
 	"components\x12\x12\n" +
 	"\x04hops\x18\x02 \x03(\tR\x04hops\x12\x1b\n" +
-	"\tfail_fast\x18\x03 \x01(\bR\bfailFast\"\x99\x03\n" +
+	"\tfail_fast\x18\x03 \x01(\bR\bfailFast\"\x9b\x03\n" +
 	"\x13HealthCheckResponse\x12\x12\n" +
 	"\x04type\x18\x01 \x01(\tR\x04type\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12\x1f\n" +
 	"\bserverId\x18\x03 \x01(\tH\x00R\bserverId\x88\x01\x01\x122\n" +
-	"\x06status\x18\x04 \x01(\x0e2\x1a.platform_health.v1.StatusR\x06status\x12\x18\n" +
-	"\amessage\x18\x05 \x01(\tR\amessage\x12.\n" +
+	"\x06status\x18\x04 \x01(\x0e2\x1a.platform_health.v1.StatusR\x06status\x12\x1a\n" +
+	"\bmessages\x18\x05 \x03(\tR\bmessages\x12.\n" +
 	"\adetails\x18\x06 \x03(\v2\x14.google.protobuf.AnyR\adetails\x12G\n" +
 	"\n" +
 	"components\x18\a \x03(\v2'.platform_health.v1.HealthCheckResponseR\n" +

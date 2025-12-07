@@ -1,0 +1,15 @@
+{
+  "response": {
+    "status": 200,
+    "body": {
+      "status": "healthy",
+      "data": {
+        "value": 150
+      }
+    },
+    "bodyText": "operation completed successfully",
+    "headers": {
+      "Content-Type": "application/json"
+    }
+  }
+}

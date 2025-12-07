@@ -1,6 +1,7 @@
 package provider
 
 import (
+	"cmp"
 	"errors"
 	"fmt"
 	"reflect"
@@ -26,7 +27,7 @@ func ProviderFlags(instance Instance) flags.FlagValues {
 	providerType := instance.GetType()
 
 	val := reflect.ValueOf(instance)
-	if val.Kind() == reflect.Ptr {
+	if val.Kind() == reflect.Pointer {
 		val = val.Elem()
 	}
 	if val.Kind() != reflect.Struct {
@@ -54,11 +55,14 @@ func deriveFlags(val reflect.Value, prefix string, providerType string, result f
 			continue
 		}
 
-		// Parse flag tag: "name,option" where name is optional and option is "inline" or "nested"
+		// Parse flag tag: "name,option" where name overrides flag name, option is "inline" or "nested"
 		flagTag := field.Tag.Get("flag")
 		var flagOption string
-		if parts := strings.Split(flagTag, ","); len(parts) >= 2 {
-			flagOption = parts[1]
+		if parts := strings.Split(flagTag, ","); len(parts) >= 1 {
+			flagName = cmp.Or(parts[0], flagName) // Use flag name override if provided
+			if len(parts) >= 2 {
+				flagOption = parts[1]
+			}
 		}
 
 		// Check if this is a struct that should be inlined or nested
@@ -109,7 +113,7 @@ func deriveFlags(val reflect.Value, prefix string, providerType string, result f
 // It uses reflection to map flags to struct fields based on mapstructure tags.
 func ConfigureFromFlags(instance Instance, fs *pflag.FlagSet) error {
 	val := reflect.ValueOf(instance)
-	if val.Kind() == reflect.Ptr {
+	if val.Kind() == reflect.Pointer {
 		val = val.Elem()
 	}
 	if val.Kind() != reflect.Struct {
@@ -149,11 +153,14 @@ func configureFields(val reflect.Value, prefix string, fs *pflag.FlagSet, errs *
 			continue
 		}
 
-		// Parse flag tag: "name,option" where name is optional and option is "inline" or "nested"
+		// Parse flag tag: "name,option" where name overrides flag name, option is "inline" or "nested"
 		flagTag := field.Tag.Get("flag")
 		var flagOption string
-		if parts := strings.Split(flagTag, ","); len(parts) >= 2 {
-			flagOption = parts[1]
+		if parts := strings.Split(flagTag, ","); len(parts) >= 1 {
+			flagName = cmp.Or(parts[0], flagName) // Use flag name override if provided
+			if len(parts) >= 2 {
+				flagOption = parts[1]
+			}
 		}
 
 		// Check if this is a struct that should be inlined or nested
@@ -187,6 +194,9 @@ func configureFields(val reflect.Value, prefix string, fs *pflag.FlagSet, errs *
 // goTypeToFlagKind maps Go types to pflag kind strings.
 func goTypeToFlagKind(t reflect.Type) (string, bool) {
 	switch t.Kind() {
+	case reflect.Pointer:
+		// Unwrap pointer to get underlying type's flag kind
+		return goTypeToFlagKind(t.Elem())
 	case reflect.String:
 		return "string", true
 	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
@@ -260,6 +270,9 @@ func parseDefaultValue(defaultStr string, t reflect.Type) any {
 	}
 
 	switch t.Kind() {
+	case reflect.Pointer:
+		// Parse as underlying type (the flag system handles pointers transparently)
+		return parseDefaultValue(defaultStr, t.Elem())
 	case reflect.String:
 		return defaultStr
 	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
@@ -301,6 +314,18 @@ func parseDefaultValue(defaultStr string, t reflect.Type) any {
 // setFieldFromFlag reads a flag value and sets it on the struct field.
 func setFieldFromFlag(fieldVal reflect.Value, fieldType reflect.Type, fs *pflag.FlagSet, flagName string) error {
 	switch fieldType.Kind() {
+	case reflect.Pointer:
+		// Create new value of the underlying type
+		elemType := fieldType.Elem()
+		newVal := reflect.New(elemType)
+
+		// Recursively set the underlying value from the flag
+		if err := setFieldFromFlag(newVal.Elem(), elemType, fs, flagName); err != nil {
+			return err
+		}
+
+		// Set the pointer field to point to the new value
+		fieldVal.Set(newVal)
 	case reflect.String:
 		v, err := fs.GetString(flagName)
 		if err != nil {

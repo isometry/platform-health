@@ -16,8 +16,7 @@ Probes use a compile-time [provider plugin system](pkg/provider) that supports e
 * [`satellite`](pkg/provider/satellite): A separate satellite instance of the Platform Health server
 * [`tcp`](pkg/provider/tcp): TCP connectivity checks
 * [`tls`](pkg/provider/tls): TLS handshake and certificate verification
-* [`http`](pkg/provider/http): HTTP(S) queries with status code and certificate verification
-* [`rest`](pkg/provider/rest): REST API health checks with CEL-based response validation
+* [`http`](pkg/provider/http): HTTP(S) health checks with CEL-based response validation, full REST/GraphQL API support, and TLS details
 * [`grpc`](pkg/provider/grpc): gRPC Health v1 service status checks
 * [`kubernetes`](pkg/provider/kubernetes): Kubernetes resource existence and readiness
 * [`helm`](pkg/provider/helm): Helm release existence and deployment status
@@ -160,7 +159,7 @@ ph context http --url https://api.example.com/health
 
 ## Configuration
 
-The Platform Health server reads configuration from a YAML file. By default, it searches for `platform-health.yaml` in standard config paths (`/config` and `.`).
+The Platform Health server reads configuration from a YAML file. By default, it searches for `platform-health.yaml` in standard config paths (`.` and `/config`).
 
 You can customize this with:
 - `--config-path`: Override config file search paths (can be specified multiple times)
@@ -203,16 +202,17 @@ components:
     port: 465
   google:
     type: http
-    url: https://google.com
+    spec:
+      url: https://google.com
   api-health:
-    type: rest
-    request:
+    type: http
+    spec:
       url: https://api.example.com/health
       method: GET
     checks:
-      - expr: 'response.status == 200'
+      - check: 'response.status == 200'
         message: "Expected HTTP 200"
-      - expr: 'response.json.status == "healthy"'
+      - check: 'response.json.status == "healthy"'
         message: "Service unhealthy"
 ```
 
@@ -245,7 +245,8 @@ The system is reported "healthy" only if all sub-components are healthy.
 
 Several providers support CEL (Common Expression Language) expressions for custom health check validation:
 
-- [`rest`](pkg/provider/rest): Full HTTP response with JSON parsing
+- [`http`](pkg/provider/http): HTTP request and response details with JSON parsing for REST/GraphQL API validation
+- [`tls`](pkg/provider/tls): TLS connection and certificate details
 - [`kubernetes`](pkg/provider/kubernetes): Full resource(s), including metadata, spec, status, etc.
 - [`helm`](pkg/provider/helm): Release info, chart metadata, values and manifests
 

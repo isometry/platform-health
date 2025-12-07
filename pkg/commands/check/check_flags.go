@@ -10,4 +10,5 @@ var checkFlags = flags.Merge(
 	flags.OutputFlags(),
 	flags.FailFastFlags(),
 	flags.ParallelismFlags(),
+	flags.TimeoutFlags(),
 )

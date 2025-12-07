@@ -13,12 +13,11 @@ import (
 
 const ProviderType = "system"
 
+var _ provider.Container = (*Component)(nil)
+
 type Component struct {
-	Name string `mapstructure:"-"`
-	// Components holds sub-components' provider configs: map[instanceName]configWithType
-	Components map[string]any `mapstructure:"components"`
-	// resolved holds the concrete provider instances after Setup()
-	resolved []provider.Instance
+	provider.Base
+	provider.BaseContainer
 }
 
 func init() {
@@ -27,61 +26,18 @@ func init() {
 
 func (c *Component) LogValue() slog.Value {
 	logAttr := []slog.Attr{
-		slog.String("name", c.Name),
-		slog.Int("components", len(c.resolved)),
+		slog.String("name", c.GetName()),
+		slog.Int("components", len(c.GetComponents())),
 	}
 	return slog.GroupValue(logAttr...)
 }
 
 func (c *Component) Setup() error {
-	// Resolve all sub-components
-	c.resolved = make([]provider.Instance, 0)
-
-	for instanceName, instanceConfig := range c.Components {
-		// Convert instance config to map
-		configMap, ok := instanceConfig.(map[string]any)
-		if !ok {
-			continue
-		}
-
-		// Extract provider type from config
-		providerType, ok := configMap["type"].(string)
-		if !ok {
-			continue
-		}
-
-		// Look up provider type in registry
-		registeredType, ok := provider.Providers[providerType]
-		if !ok {
-			continue // Unknown provider type, skip
-		}
-
-		instance, err := provider.NewInstanceFromConfig(registeredType, instanceName, configMap)
-		if err != nil {
-			continue
-		}
-
-		c.resolved = append(c.resolved, instance)
-	}
-
-	return nil
+	return c.ResolveComponents()
 }
 
 func (c *Component) GetType() string {
 	return ProviderType
-}
-
-func (c *Component) GetName() string {
-	return c.Name
-}
-
-func (c *Component) SetName(name string) {
-	c.Name = name
-}
-
-// GetResolved returns the resolved sub-components.
-func (c *Component) GetResolved() []provider.Instance {
-	return c.resolved
 }
 
 func (c *Component) GetHealth(ctx context.Context) *ph.HealthCheckResponse {
@@ -90,13 +46,13 @@ func (c *Component) GetHealth(ctx context.Context) *ph.HealthCheckResponse {
 
 	component := &ph.HealthCheckResponse{
 		Type: ProviderType,
-		Name: c.Name,
+		Name: c.GetName(),
 	}
 	defer component.LogStatus(log)
 
 	// Check for component filtering from context
 	componentPaths := phctx.ComponentPathsFromContext(ctx)
-	subComponents := c.resolved
+	subComponents := c.GetComponents()
 	var invalidComponents []string
 
 	if len(componentPaths) > 0 {
@@ -108,7 +64,7 @@ func (c *Component) GetHealth(ctx context.Context) *ph.HealthCheckResponse {
 	// Return error for invalid components
 	if len(invalidComponents) > 0 {
 		component.Status = ph.Status_UNHEALTHY
-		component.Message = fmt.Sprintf("invalid components: %s", strings.Join(invalidComponents, ", "))
+		component.Messages = append(component.Messages, fmt.Sprintf("invalid components: %s", strings.Join(invalidComponents, ", ")))
 		return component
 	}
 
@@ -120,7 +76,7 @@ func (c *Component) GetHealth(ctx context.Context) *ph.HealthCheckResponse {
 	// Fail-fast triggered if enabled and something failed
 	if phctx.FailFastFromContext(ctx) && aggregateStatus > ph.Status_HEALTHY {
 		component.FailFastTriggered = true
-		component.Message = "Results may be incomplete due to fail-fast mode"
+		component.Messages = append(component.Messages, "Results may be incomplete due to fail-fast mode")
 	}
 
 	return component
@@ -131,7 +87,7 @@ func (c *Component) GetHealth(ctx context.Context) *ph.HealthCheckResponse {
 func (c *Component) filterChildren(paths phctx.ComponentPaths) ([]provider.Instance, []string) {
 	// Build map for quick lookup
 	childMap := make(map[string]provider.Instance)
-	for _, child := range c.resolved {
+	for _, child := range c.GetComponents() {
 		childMap[child.GetName()] = child
 	}
 

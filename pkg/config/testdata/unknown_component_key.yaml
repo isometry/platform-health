@@ -1,0 +1,5 @@
+components:
+  test:
+    type: mock
+    spec: {}
+    unknown: value  # unknown key at component level
