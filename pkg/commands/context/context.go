@@ -10,7 +10,6 @@ import (
 	"github.com/spf13/cobra"
 	"go.yaml.in/yaml/v3"
 
-	"github.com/isometry/platform-health/pkg/checks"
 	"github.com/isometry/platform-health/pkg/commands/flags"
 	"github.com/isometry/platform-health/pkg/commands/shared"
 	"github.com/isometry/platform-health/pkg/config"
@@ -35,14 +34,11 @@ If no expressions are provided, the full context is displayed.`,
 		RunE: runInstanceContext,
 	}
 
-	// Register persistent flags
 	contextFlags.Register(cmd.PersistentFlags(), false)
 
-	// Register expression evaluation flags
 	cmd.PersistentFlags().StringArray("expr", nil, "CEL expression to evaluate against context (can be specified multiple times)")
 	cmd.PersistentFlags().StringArray("expr-each", nil, "CEL expression evaluated per-item (can be specified multiple times)")
 
-	// Add dynamic provider subcommands
 	shared.AddProviderSubcommands(cmd, shared.ProviderSubcommandOptions{
 		RequireChecks: true,
 		SetupFlags: func(cmd *cobra.Command, _ provider.Instance) {
@@ -58,7 +54,6 @@ If no expressions are provided, the full context is displayed.`,
 // runInstanceContext gets context for a configured instance from config file.
 // Supports both simple instance names and component paths (e.g., "system/subsystem/instance").
 func runInstanceContext(cmd *cobra.Command, args []string) error {
-	// Load configuration
 	v := phctx.Viper(cmd.Context())
 	paths, name := flags.ConfigPaths(v)
 	result, err := config.Load(cmd.Context(), paths, name, false)
@@ -68,19 +63,16 @@ func runInstanceContext(cmd *cobra.Command, args []string) error {
 
 	instancePath := args[0]
 
-	// Resolve the instance path
 	targetInstance, err := resolveInstancePath(result.GetInstances(), instancePath)
 	if err != nil {
 		return err
 	}
 
-	// Check if provider supports checks
 	checkProvider := provider.AsInstanceWithChecks(targetInstance)
 	if checkProvider == nil {
 		return fmt.Errorf("instance %q (type %s) does not support checks", instancePath, targetInstance.GetType())
 	}
 
-	// Get and display context
 	return displayContext(cmd, checkProvider)
 }
 
@@ -121,7 +113,6 @@ func resolveInstancePath(instances []provider.Instance, path string) (provider.I
 
 // runProviderContext creates an ad-hoc provider instance and displays its context.
 func runProviderContext(cmd *cobra.Command, providerType string) error {
-	// Create and configure provider from flags
 	instance, err := shared.CreateAndConfigureProvider(cmd, providerType)
 	if err != nil {
 		return err
@@ -147,16 +138,13 @@ func displayContext(cmd *cobra.Command, checkProvider provider.InstanceWithCheck
 	v := phctx.Viper(cmd.Context())
 	output := v.GetString("output-format")
 
-	// Get expressions from flags
 	defaultExprs, _ := cmd.Flags().GetStringArray("expr")
 	eachExprs, _ := cmd.Flags().GetStringArray("expr-each")
 
-	// If expressions provided, evaluate them and output results
 	if len(defaultExprs) > 0 || len(eachExprs) > 0 {
 		celConfig := checkProvider.GetCheckConfig()
 		results := make(map[string]any)
 
-		// Evaluate default expressions against full context
 		for _, expr := range defaultExprs {
 			result, err := celConfig.EvaluateAny(expr, celCtx)
 			if err != nil {
@@ -165,9 +153,8 @@ func displayContext(cmd *cobra.Command, checkProvider provider.InstanceWithCheck
 			results[expr] = result
 		}
 
-		// Evaluate each-mode expressions per-item
 		for _, expr := range eachExprs {
-			itemResults, err := evaluateEachMode(celConfig, expr, celCtx)
+			itemResults, err := celConfig.EvaluateEachConfigured(expr, celCtx)
 			if err != nil {
 				return fmt.Errorf("expression %q: %w", expr, err)
 			}
@@ -183,38 +170,7 @@ func displayContext(cmd *cobra.Command, checkProvider provider.InstanceWithCheck
 		return outputValue(results, output)
 	}
 
-	// No expressions: output full context
 	return outputValue(celCtx, output)
-}
-
-// evaluateEachMode evaluates a CEL expression against each item in the context.
-// Looks for "items" (slice) or "resource" (single item) in the context.
-func evaluateEachMode(celConfig *checks.CEL, expr string, celCtx map[string]any) ([]any, error) {
-	// Check for "items" slice
-	if items, ok := celCtx["items"].([]any); ok {
-		results := make([]any, len(items))
-		for i, item := range items {
-			itemCtx := map[string]any{"resource": item}
-			result, err := celConfig.EvaluateAny(expr, itemCtx)
-			if err != nil {
-				return nil, fmt.Errorf("item[%d]: %w", i, err)
-			}
-			results[i] = result
-		}
-		return results, nil
-	}
-
-	// Check for single "resource"
-	if resource, ok := celCtx["resource"]; ok {
-		itemCtx := map[string]any{"resource": resource}
-		result, err := celConfig.EvaluateAny(expr, itemCtx)
-		if err != nil {
-			return nil, err
-		}
-		return []any{result}, nil
-	}
-
-	return nil, fmt.Errorf("each mode requires 'items' or 'resource' in context")
 }
 
 // outputValue outputs any value in the requested format.

@@ -61,10 +61,8 @@ func run(cmd *cobra.Command, _ []string) error {
 		return fmt.Errorf("failed to load configuration: %w", err)
 	}
 
-	// Collect results
 	summary := collectResults(result)
 
-	// Output based on format
 	switch outputFormat {
 	case "json":
 		return outputJSON(summary)
@@ -124,7 +122,6 @@ func collectResults(result *config.LoadResult) ValidationSummary {
 		return cmp.Compare(a.Name, b.Name)
 	})
 
-	// Count valid/invalid
 	var valid, invalid int
 	for _, r := range results {
 		if r.Valid {
@@ -141,9 +138,7 @@ func collectResults(result *config.LoadResult) ValidationSummary {
 	}
 }
 
-// collectComponentResults recursively collects validation results from nested components
 func collectComponentResults(inst provider.Instance, pathPrefix string, results *[]ValidationResult) {
-	// Build full path
 	name := inst.GetName()
 	if pathPrefix != "" {
 		name = pathPrefix + "/" + name
@@ -175,7 +170,6 @@ func collectComponentResults(inst provider.Instance, pathPrefix string, results 
 		}
 	}
 
-	// Recurse into children with current path as prefix
 	for _, child := range container.GetComponents() {
 		collectComponentResults(child, name, results)
 	}
@@ -189,20 +183,16 @@ func aggregateResults(results []ValidationResult) []ValidationResult {
 	for _, r := range results {
 		key := r.Type + ":" + r.Name
 		if existing, ok := grouped[key]; ok {
-			// Merge errors
 			existing.Errors = append(existing.Errors, r.Errors...)
-			// Mark invalid if this result has errors
 			if !r.Valid {
 				existing.Valid = false
 			}
 		} else {
-			// First occurrence - copy to map
 			copy := r
 			grouped[key] = &copy
 		}
 	}
 
-	// Convert back to slice
 	merged := make([]ValidationResult, 0, len(grouped))
 	for _, r := range grouped {
 		merged = append(merged, *r)

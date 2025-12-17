@@ -51,7 +51,7 @@ var celConfig = checks.NewCEL(
 	cel.Variable("resource", cel.MapType(cel.StringType, cel.DynType)),
 	cel.Variable("items", cel.ListType(cel.MapType(cel.StringType, cel.DynType))),
 	KubernetesGetDeclaration(),
-)
+).WithIterationKeys("items", "resource")
 
 func init() {
 	provider.Register(ProviderType, new(Component))
@@ -298,14 +298,21 @@ func (c *Component) checkBySelector(ctx context.Context, clients *client.KubeCli
 
 		// Apply per-item checks (mode: each)
 		if len(eachChecks) > 0 {
+			failFast := phctx.FailFastFromContext(ctx)
 			celCtx := map[string]any{"resource": item.Object}
 			for _, check := range eachChecks {
 				if msg, err := check.Evaluate(celCtx, binding); err != nil {
 					result.Status = ph.Status_UNHEALTHY
 					result.Messages = append(result.Messages, err.Error())
+					if failFast {
+						break
+					}
 				} else if msg != "" {
 					result.Status = ph.Status_UNHEALTHY
 					result.Messages = append(result.Messages, msg)
+					if failFast {
+						break
+					}
 				}
 			}
 		}
@@ -345,19 +352,9 @@ func (c *Component) checkBySelector(ctx context.Context, clients *client.KubeCli
 	}
 
 	// Apply default CEL checks against items list (selector mode)
-	if defaultChecks := c.Checks(checks.ModeDefault); len(defaultChecks) > 0 {
-		celCtx := map[string]any{"items": items}
-		var msgs []string
-		for _, check := range defaultChecks {
-			if msg, err := check.Evaluate(celCtx, binding); err != nil {
-				msgs = append(msgs, err.Error())
-			} else if msg != "" {
-				msgs = append(msgs, msg)
-			}
-		}
-		if len(msgs) > 0 {
-			return component.Unhealthy(msgs...)
-		}
+	celCtx := map[string]any{"items": items}
+	if msgs := c.EvaluateChecksByMode(ctx, checks.ModeDefault, celCtx, binding); len(msgs) > 0 {
+		return component.Unhealthy(msgs...)
 	}
 
 	return component

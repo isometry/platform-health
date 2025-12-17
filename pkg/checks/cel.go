@@ -27,14 +27,22 @@ var standardExtensions = []cel.EnvOption{
 	ext.Sets(),     // sets.contains(), sets.intersects(), etc.
 }
 
+// IterationKeys defines how to iterate over multiple items in a provider's context.
+// Only applicable to providers that return collections (e.g., Kubernetes with label selectors).
+type IterationKeys struct {
+	ManyKey   string // Key in context containing []any of items (e.g., "items")
+	SingleKey string // Key used when evaluating per-item (e.g., "resource")
+}
+
 // CEL holds configuration for CEL expression evaluation including
 // variable declarations and a cache for compiled ASTs.
 type CEL struct {
-	cache     sync.Map // map[string]*cel.Ast
-	variables []cel.EnvOption
-	once      sync.Once
-	env       *cel.Env
-	err       error
+	cache         sync.Map // map[string]*cel.Ast
+	variables     []cel.EnvOption
+	iterationKeys *IterationKeys // nil if provider doesn't support per-item iteration
+	once          sync.Once
+	env           *cel.Env
+	err           error
 }
 
 // NewCEL creates a CEL configuration with the given variable declarations.
@@ -44,6 +52,18 @@ func NewCEL(variables ...cel.EnvOption) *CEL {
 	return &CEL{
 		variables: append(standardFunctions, variables...),
 	}
+}
+
+// WithIterationKeys configures iteration support for per-item evaluation.
+// Providers that return collections (e.g., Kubernetes with label selectors) should call this
+// to enable --expr-each in the context command.
+func (c *CEL) WithIterationKeys(manyKey, singleKey string) *CEL {
+	c.iterationKeys = &IterationKeys{ManyKey: manyKey, SingleKey: singleKey}
+	return c
+}
+
+func (c *CEL) SupportsEachMode() bool {
+	return c.iterationKeys != nil
 }
 
 // getEnv returns the cached CEL environment, creating it if necessary.
@@ -57,7 +77,7 @@ func (c *CEL) getEnv() (*cel.Env, error) {
 	return c.env, nil
 }
 
-// Mode represents a check execution mode for filtering.
+// Mode represents a check execution mode (default or per-item).
 type Mode int
 
 const (
@@ -152,7 +172,6 @@ func compileExpr(env *cel.Env, expr string) (*cel.Ast, error) {
 
 // getOrCompileAST returns a cached AST or compiles and caches a new one.
 func (c *CEL) getOrCompileAST(expr string, env *cel.Env) (*cel.Ast, error) {
-	// Check cache first
 	if cached, ok := c.cache.Load(expr); ok {
 		return cached.(*cel.Ast), nil
 	}
@@ -162,7 +181,6 @@ func (c *CEL) getOrCompileAST(expr string, env *cel.Env) (*cel.Ast, error) {
 		return nil, err
 	}
 
-	// Cache and return
 	c.cache.Store(expr, ast)
 	return ast, nil
 }
@@ -265,4 +283,48 @@ func (c *CEL) EvaluateAny(expr string, celCtx map[string]any) (any, error) {
 		return nil, err
 	}
 	return native.(*structpb.Value).AsInterface(), nil
+}
+
+// EvaluateEach evaluates a CEL expression for each item in a collection.
+// Parameters:
+//   - expr: the CEL expression to evaluate
+//   - celCtx: the full CEL context
+//   - manyKey: the key in celCtx containing a []any of items (e.g., "items")
+//   - singleKey: the key to use when creating per-item context (e.g., "resource")
+//
+// If manyKey exists and is a []any, evaluates expr against each item with context {singleKey: item}.
+// Otherwise, evaluates expr once against the full context and returns a single-element slice.
+func (c *CEL) EvaluateEach(expr string, celCtx map[string]any, manyKey, singleKey string) ([]any, error) {
+	if items, ok := celCtx[manyKey].([]any); ok {
+		results := make([]any, len(items))
+		for i, item := range items {
+			itemCtx := map[string]any{singleKey: item}
+			result, err := c.EvaluateAny(expr, itemCtx)
+			if err != nil {
+				return nil, fmt.Errorf("%s[%d]: %w", manyKey, i, err)
+			}
+			results[i] = result
+		}
+		return results, nil
+	}
+
+	result, err := c.EvaluateAny(expr, celCtx)
+	if err != nil {
+		return nil, err
+	}
+	return []any{result}, nil
+}
+
+// EvaluateEachConfigured evaluates a CEL expression using the configured iteration keys.
+// If IterationKeys is configured, iterates over the collection; otherwise evaluates once.
+// This is the preferred method for context inspection where keys come from the provider.
+func (c *CEL) EvaluateEachConfigured(expr string, celCtx map[string]any) ([]any, error) {
+	if c.iterationKeys == nil {
+		result, err := c.EvaluateAny(expr, celCtx)
+		if err != nil {
+			return nil, err
+		}
+		return []any{result}, nil
+	}
+	return c.EvaluateEach(expr, celCtx, c.iterationKeys.ManyKey, c.iterationKeys.SingleKey)
 }

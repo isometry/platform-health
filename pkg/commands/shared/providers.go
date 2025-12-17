@@ -28,7 +28,6 @@ func AddProviderSubcommands(parent *cobra.Command, opts ProviderSubcommandOption
 			continue // Unknown provider - skip silently
 		}
 
-		// Check capability check
 		if opts.RequireChecks && !provider.SupportsChecks(instance) {
 			continue
 		}
@@ -57,7 +56,6 @@ func createProviderSubcommand(
 	providerFlags := provider.ProviderFlags(instance)
 	providerFlags.Register(cmd.Flags(), true)
 
-	// Add any extra flags
 	if opts.SetupFlags != nil {
 		opts.SetupFlags(cmd, instance)
 	}

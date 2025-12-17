@@ -46,6 +46,14 @@ func (b *BaseWithChecks) SetChecksAndCompile(exprs []checks.Expression, config *
 	if len(exprs) == 0 {
 		return nil
 	}
+
+	// Validate mode: each is only used with providers that support per-item iteration
+	for i, expr := range exprs {
+		if expr.Each() && !config.SupportsEachMode() {
+			return fmt.Errorf("check[%d]: mode \"each\" requires a provider that supports per-item iteration", i)
+		}
+	}
+
 	compiled, err := config.CompileAll(exprs)
 	if err != nil {
 		return fmt.Errorf("invalid CEL expression: %w", err)
@@ -63,11 +71,26 @@ func (b *BaseWithChecks) EvaluateChecks(ctx context.Context, celCtx map[string]a
 	if len(b.compiled) == 0 {
 		return nil
 	}
+	return evaluateCheckList(ctx, b.compiled, celCtx, opts...)
+}
 
+// EvaluateChecksByMode runs checks filtered by mode with fail-fast support.
+// Use this when you need to evaluate only checks with a specific mode (e.g., ModeEach or ModeDefault).
+// Returns nil if all expressions pass, or a slice of failure messages.
+func (b *BaseWithChecks) EvaluateChecksByMode(ctx context.Context, mode checks.Mode, celCtx map[string]any, opts ...cel.ProgramOption) []string {
+	modeChecks := b.Checks(mode)
+	if len(modeChecks) == 0 {
+		return nil
+	}
+	return evaluateCheckList(ctx, modeChecks, celCtx, opts...)
+}
+
+// evaluateCheckList runs a list of checks with fail-fast support.
+func evaluateCheckList(ctx context.Context, checkList []*checks.Check, celCtx map[string]any, opts ...cel.ProgramOption) []string {
 	failFast := phctx.FailFastFromContext(ctx)
 	var msgs []string
 
-	for _, check := range b.compiled {
+	for _, check := range checkList {
 		msg, err := check.Evaluate(celCtx, opts...)
 		if err != nil {
 			msgs = append(msgs, err.Error())
@@ -87,7 +110,6 @@ func (b *BaseWithChecks) EvaluateChecks(ctx context.Context, celCtx map[string]a
 	return msgs
 }
 
-// GetChecks returns configured CEL expressions.
 func (b *BaseWithChecks) GetChecks() []checks.Expression {
 	return b.checks
 }

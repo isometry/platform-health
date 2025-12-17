@@ -42,16 +42,12 @@ Use a provider subcommand for ad-hoc checks without config.`,
 			cmd.Short = fmt.Sprintf("Perform ad-hoc health check for %s provider", cmd.Use)
 			cmd.Long = fmt.Sprintf("Create an ad-hoc %s provider instance and perform a health check.", cmd.Use)
 
-			// Add --check and --check-each flags for inline CEL expressions only if provider supports checks
 			if provider.SupportsChecks(instance) {
 				cmd.Flags().StringArray("check", nil, "CEL expression to evaluate (can be specified multiple times)")
 				cmd.Flags().StringArray("check-each", nil, "CEL expression evaluated per-item (can be specified multiple times)")
 			}
 
-			// Add output flags for formatting
 			flags.OutputFlags().Register(cmd.Flags(), true)
-
-			// Add timeout flag for ad-hoc checks
 			flags.TimeoutFlags().Register(cmd.Flags(), true)
 		},
 		RunFunc: runProviderCheck,
@@ -60,23 +56,18 @@ Use a provider subcommand for ad-hoc checks without config.`,
 	return cmd
 }
 
-// runProviderCheck creates an ad-hoc provider instance and performs a health check.
 func runProviderCheck(cmd *cobra.Command, providerType string) error {
-	// Bind common flags without namespace
 	v := phctx.Viper(cmd.Context())
 	flags.BindFlags(cmd, v)
 
-	// Apply global timeout
 	ctx, cancel := context.WithTimeout(cmd.Context(), v.GetDuration("timeout"))
 	defer cancel()
 
-	// Create and configure provider from flags
 	instance, err := shared.CreateAndConfigureProvider(cmd, providerType)
 	if err != nil {
 		return err
 	}
 
-	// Handle inline --check and --check-each expressions for providers that support checks
 	if checkProvider := provider.AsInstanceWithChecks(instance); checkProvider != nil {
 		checkExprs, err := cmd.Flags().GetStringArray("check")
 		if err != nil {
@@ -101,10 +92,8 @@ func runProviderCheck(cmd *cobra.Command, providerType string) error {
 		}
 	}
 
-	// Perform health check with duration tracking
 	response := provider.GetHealthWithDuration(ctx, instance)
 
-	// Format and print output
 	return flags.FormatAndPrintStatus(response, flags.OutputConfigFromViper(v))
 }
 
@@ -139,7 +128,6 @@ func setup(cmd *cobra.Command, _ []string) (err error) {
 func run(cmd *cobra.Command, _ []string) error {
 	v := phctx.Viper(cmd.Context())
 
-	// Apply global timeout
 	ctx, cancel := context.WithTimeout(cmd.Context(), v.GetDuration("timeout"))
 	defer cancel()
 
