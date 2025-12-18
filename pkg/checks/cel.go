@@ -62,6 +62,7 @@ func (c *CEL) WithIterationKeys(manyKey, singleKey string) *CEL {
 	return c
 }
 
+// SupportsEachMode returns true if this CEL configuration supports per-item iteration.
 func (c *CEL) SupportsEachMode() bool {
 	return c.iterationKeys != nil
 }
@@ -106,7 +107,7 @@ func (c *Check) Evaluate(celCtx map[string]any, opts ...cel.ProgramOption) (stri
 		return "", fmt.Errorf("CEL evaluation failed: %w", err)
 	}
 
-	value, err := result.ConvertToNative(reflect.TypeOf(false))
+	value, err := result.ConvertToNative(reflect.TypeFor[bool]())
 	if err != nil {
 		return "", fmt.Errorf("CEL result conversion failed: %w", err)
 	}
@@ -278,7 +279,7 @@ func (c *CEL) EvaluateAny(expr string, celCtx map[string]any) (any, error) {
 	}
 
 	// Convert to structpb.Value, then to native Go types for serialization
-	native, err := result.ConvertToNative(reflect.TypeOf(&structpb.Value{}))
+	native, err := result.ConvertToNative(reflect.TypeFor[structpb.Value]())
 	if err != nil {
 		return nil, err
 	}

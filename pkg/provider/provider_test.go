@@ -24,42 +24,42 @@ func TestCheckAll(t *testing.T) {
 		{
 			name: "AllHealthy",
 			instances: []provider.Instance{
-				&mock.Component{Health: ph.Status_HEALTHY},
-				&mock.Component{Health: ph.Status_HEALTHY},
+				mock.Healthy("a"),
+				mock.Healthy("b"),
 			},
 			expected: ph.Status_HEALTHY,
 		},
 		{
 			name: "OneUnhealthy",
 			instances: []provider.Instance{
-				&mock.Component{Health: ph.Status_UNHEALTHY},
-				&mock.Component{Health: ph.Status_HEALTHY},
+				mock.Unhealthy("a"),
+				mock.Healthy("b"),
 			},
 			expected: ph.Status_UNHEALTHY,
 		},
 		{
 			name: "AllUnhealthy",
 			instances: []provider.Instance{
-				&mock.Component{Health: ph.Status_UNHEALTHY},
-				&mock.Component{Health: ph.Status_UNHEALTHY},
+				mock.Unhealthy("a"),
+				mock.Unhealthy("b"),
 			},
 			expected: ph.Status_UNHEALTHY,
 		},
 		{
 			name: "LoopFirstPriority",
 			instances: []provider.Instance{
-				&mock.Component{Health: ph.Status_LOOP_DETECTED},
-				&mock.Component{Health: ph.Status_UNHEALTHY},
-				&mock.Component{Health: ph.Status_HEALTHY},
+				mock.New("a", mock.WithHealth(ph.Status_LOOP_DETECTED)),
+				mock.Unhealthy("b"),
+				mock.Healthy("c"),
 			},
 			expected: ph.Status_LOOP_DETECTED,
 		},
 		{
 			name: "LoopLastPriority",
 			instances: []provider.Instance{
-				&mock.Component{Health: ph.Status_HEALTHY},
-				&mock.Component{Health: ph.Status_UNHEALTHY},
-				&mock.Component{Health: ph.Status_LOOP_DETECTED},
+				mock.Healthy("a"),
+				mock.Unhealthy("b"),
+				mock.New("c", mock.WithHealth(ph.Status_LOOP_DETECTED)),
 			},
 			expected: ph.Status_LOOP_DETECTED,
 		},
@@ -74,11 +74,7 @@ func TestCheckAll(t *testing.T) {
 }
 
 func TestServiceWithDuration(t *testing.T) {
-	instance := &mock.Component{
-		InstanceName: "test",
-		Health:       ph.Status_HEALTHY,
-		Sleep:        10 * time.Millisecond,
-	}
+	instance := mock.Healthy("test", mock.WithSleep(10*time.Millisecond))
 
 	result := provider.GetHealthWithDuration(t.Context(), instance)
 
@@ -94,9 +90,9 @@ func TestServiceWithDuration(t *testing.T) {
 func TestCheckVaryingDelays(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		instances := []provider.Instance{
-			&mock.Component{InstanceName: "fast", Health: ph.Status_HEALTHY, Sleep: 100 * time.Millisecond},
-			&mock.Component{InstanceName: "medium", Health: ph.Status_UNHEALTHY, Sleep: 500 * time.Millisecond},
-			&mock.Component{InstanceName: "slow", Health: ph.Status_HEALTHY, Sleep: time.Second},
+			mock.Healthy("fast", mock.WithSleep(100*time.Millisecond)),
+			mock.Unhealthy("medium", mock.WithSleep(500*time.Millisecond)),
+			mock.Healthy("slow", mock.WithSleep(time.Second)),
 		}
 
 		responses, status := provider.Check(t.Context(), instances)
@@ -125,7 +121,7 @@ func TestCheckTimeout(t *testing.T) {
 		defer cancel()
 
 		instances := []provider.Instance{
-			&mock.Component{InstanceName: "slow", Health: ph.Status_HEALTHY, Sleep: 5 * time.Minute},
+			mock.Healthy("slow", mock.WithSleep(5*time.Minute)),
 		}
 
 		responses, status := provider.Check(ctx, instances)
@@ -144,9 +140,9 @@ func TestCheckParallelismOne(t *testing.T) {
 		// Create a "system-like" provider that internally checks multiple children
 		// by simulating what the system provider does
 		instances := []provider.Instance{
-			&mock.Component{InstanceName: "child1", Health: ph.Status_HEALTHY, Sleep: 10 * time.Millisecond},
-			&mock.Component{InstanceName: "child2", Health: ph.Status_HEALTHY, Sleep: 10 * time.Millisecond},
-			&mock.Component{InstanceName: "child3", Health: ph.Status_UNHEALTHY, Sleep: 10 * time.Millisecond},
+			mock.Healthy("child1", mock.WithSleep(10*time.Millisecond)),
+			mock.Healthy("child2", mock.WithSleep(10*time.Millisecond)),
+			mock.Unhealthy("child3", mock.WithSleep(10*time.Millisecond)),
 		}
 
 		// Set parallelism to 1 - should still complete without deadlock
@@ -162,8 +158,8 @@ func TestCheckParallelismOne(t *testing.T) {
 // TestCheckParallelismZero verifies that parallelism=0 uses GOMAXPROCS
 func TestCheckParallelismZero(t *testing.T) {
 	instances := []provider.Instance{
-		&mock.Component{InstanceName: "test1", Health: ph.Status_HEALTHY},
-		&mock.Component{InstanceName: "test2", Health: ph.Status_HEALTHY},
+		mock.Healthy("test1"),
+		mock.Healthy("test2"),
 	}
 
 	ctx := phctx.ContextWithParallelism(t.Context(), 0)
@@ -176,9 +172,9 @@ func TestCheckParallelismZero(t *testing.T) {
 // TestCheckParallelismUnlimited verifies that parallelism=-1 (unlimited) works
 func TestCheckParallelismUnlimited(t *testing.T) {
 	instances := []provider.Instance{
-		&mock.Component{InstanceName: "test1", Health: ph.Status_HEALTHY},
-		&mock.Component{InstanceName: "test2", Health: ph.Status_HEALTHY},
-		&mock.Component{InstanceName: "test3", Health: ph.Status_HEALTHY},
+		mock.Healthy("test1"),
+		mock.Healthy("test2"),
+		mock.Healthy("test3"),
 	}
 
 	ctx := phctx.ContextWithParallelism(t.Context(), -1)

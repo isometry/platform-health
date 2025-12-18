@@ -33,7 +33,8 @@ func OutputConfigFromViper(v *viper.Viper) OutputConfig {
 		format = DefaultFormat
 	}
 
-	// Load color configuration with defaults
+	// Load color configuration with defaults.
+	// Error is intentionally ignored: invalid color config falls back to defaults.
 	colorCfg := DefaultColorConfig()
 	_ = v.UnmarshalKey("colors", &colorCfg)
 

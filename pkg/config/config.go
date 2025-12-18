@@ -97,7 +97,6 @@ func (r *LoadResult) initialize(configPaths []string, configName string, strict 
 					log.Error("failed to read config", "error", err)
 					return
 				}
-				// strict is captured in closure
 				if err = r.update(strict); err != nil {
 					log.Error("failed to load config", "error", err)
 				}
@@ -125,20 +124,17 @@ func (r *LoadResult) update(strict bool) error {
 		return err
 	}
 
-	// Get base path from loaded config file for resolving relative includes
 	basePath := "."
 	if configFile := r.v.ConfigFileUsed(); configFile != "" {
 		basePath = filepath.Dir(configFile)
 	}
 
-	// Process includes before extracting components
 	processed, err := ProcessIncludes(raw, basePath, nil)
 	if err != nil {
 		log.Error("failed to process includes", "error", err)
 		return fmt.Errorf("failed to process includes: %w", err)
 	}
 
-	// Extract components from top-level key
 	components, ok := processed["components"].(map[string]any)
 	if !ok {
 		return fmt.Errorf("config must have a 'components' key containing all component definitions")
@@ -154,18 +150,14 @@ func (a abstractConfig) harden(strict bool) (concreteConfig, []error) {
 	concrete := make(concreteConfig)
 	var validationErrors []error
 
-	// Iterate over instances
 	for instanceName, instanceConfig := range a {
 		instanceLog := log.With(slog.String("instance", instanceName))
 
-		// Extract provider type for error context and logging
 		providerType := provider.ExtractType(instanceConfig)
 
-		// Collect validation warnings
 		var validationWarnings []error
 		instance, err := provider.ResolveComponentConfig(instanceName, instanceConfig, &validationWarnings)
 
-		// Handle validation warnings based on strict mode
 		for _, warning := range validationWarnings {
 			if strict {
 				validationErrors = append(validationErrors, provider.NewInstanceError(providerType, instanceName, warning))
@@ -175,10 +167,8 @@ func (a abstractConfig) harden(strict bool) (concreteConfig, []error) {
 		}
 
 		if err != nil {
-			// Check if it's just a warning about unused keys (instance still created)
 			var unusedWarning *provider.UnusedKeysWarning
 			if errors.As(err, &unusedWarning) {
-				// Instance was created successfully, but has unused spec keys
 				if strict {
 					validationErrors = append(validationErrors, provider.NewInstanceError(providerType, instanceName, err))
 				} else {
@@ -197,7 +187,6 @@ func (a abstractConfig) harden(strict bool) (concreteConfig, []error) {
 			}
 		}
 
-		// Initialize provider slice if needed and add instance
 		if concrete[providerType] == nil {
 			concrete[providerType] = make([]provider.Instance, 0, 1)
 		}

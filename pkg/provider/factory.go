@@ -224,10 +224,6 @@ func validateComponentConfig(rawConfig any, validationErrors *[]error) (configMa
 		}
 	}
 
-	if _, ok := configMap["type"].(string); !ok {
-		return nil, providerType, fmt.Errorf("'type' must be a string")
-	}
-
 	return configMap, providerType, nil
 }
 

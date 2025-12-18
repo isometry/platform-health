@@ -24,9 +24,8 @@ type Component struct {
 	provider.Base
 	provider.BaseWithChecks
 
-	InstanceName string        // Instance name (exported for test struct literals)
-	Health       ph.Status     `mapstructure:"health" default:"HEALTHY"`
-	Sleep        time.Duration `mapstructure:"sleep" default:"1ns"`
+	Health ph.Status     `mapstructure:"health" default:"HEALTHY"`
+	Sleep  time.Duration `mapstructure:"sleep" default:"1ns"`
 }
 
 func init() {
@@ -45,14 +44,6 @@ func (c *Component) SetChecks(exprs []checks.Expression) error {
 
 func (c *Component) GetType() string {
 	return ProviderType
-}
-
-func (c *Component) GetName() string {
-	return c.InstanceName
-}
-
-func (c *Component) SetName(name string) {
-	c.InstanceName = name
 }
 
 func (c *Component) GetHealth(ctx context.Context) *ph.HealthCheckResponse {

@@ -56,6 +56,7 @@ Use a provider subcommand for ad-hoc checks without config.`,
 	return cmd
 }
 
+// runProviderCheck creates an ad-hoc provider instance and performs a health check.
 func runProviderCheck(cmd *cobra.Command, providerType string) error {
 	v := phctx.Viper(cmd.Context())
 	flags.BindFlags(cmd, v)

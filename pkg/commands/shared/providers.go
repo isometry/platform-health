@@ -22,10 +22,9 @@ type ProviderSubcommandOptions struct {
 // AddProviderSubcommands creates a subcommand for each qualifying provider.
 func AddProviderSubcommands(parent *cobra.Command, opts ProviderSubcommandOptions) {
 	for _, providerType := range provider.ProviderList() {
-		// Create a raw instance to check capabilities (no Setup/validation)
 		instance, err := provider.New(providerType)
 		if err != nil {
-			continue // Unknown provider - skip silently
+			panic(err)
 		}
 
 		if opts.RequireChecks && !provider.SupportsChecks(instance) {

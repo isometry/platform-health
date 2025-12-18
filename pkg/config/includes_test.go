@@ -195,7 +195,7 @@ func TestComputeHash(t *testing.T) {
 
 	t.Run("Hash length", func(t *testing.T) {
 		hash := computeHash([]byte("test"))
-		assert.Equal(t, 16, len(hash)) // 8 bytes = 16 hex chars
+		assert.Equal(t, 64, len(hash)) // 32 bytes = 64 hex chars
 	})
 }
 

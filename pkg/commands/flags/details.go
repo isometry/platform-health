@@ -58,43 +58,43 @@ func renderTLSDetail(detail *anypb.Any, indent string) string {
 	sb.WriteString(indent + "TLS Certificate:\n")
 
 	if tls.CommonName != "" {
-		sb.WriteString(fmt.Sprintf("%s  Common Name: %s\n", indent, tls.CommonName))
+		fmt.Fprintf(&sb, "%s  Common Name: %s\n", indent, tls.CommonName)
 	}
 
 	if len(tls.SubjectAltNames) > 0 {
-		sb.WriteString(fmt.Sprintf("%s  Subject Alt Names: %s\n", indent, strings.Join(tls.SubjectAltNames, ", ")))
+		fmt.Fprintf(&sb, "%s  Subject Alt Names: %s\n", indent, strings.Join(tls.SubjectAltNames, ", "))
 	}
 
 	if tls.ValidUntil != nil {
 		validUntil := tls.ValidUntil.AsTime()
 		remaining := time.Until(validUntil)
-		sb.WriteString(fmt.Sprintf("%s  Valid Until: %s (%s)\n", indent, validUntil.Format(time.RFC3339), formatDuration(remaining)))
+		fmt.Fprintf(&sb, "%s  Valid Until: %s (%s)\n", indent, validUntil.Format(time.RFC3339), formatDuration(remaining))
 	}
 
 	if tls.Version != "" {
-		sb.WriteString(fmt.Sprintf("%s  TLS Version: %s\n", indent, tls.Version))
+		fmt.Fprintf(&sb, "%s  TLS Version: %s\n", indent, tls.Version)
 	}
 
 	if tls.Protocol != "" {
-		sb.WriteString(fmt.Sprintf("%s  Protocol: %s\n", indent, tls.Protocol))
+		fmt.Fprintf(&sb, "%s  Protocol: %s\n", indent, tls.Protocol)
 	}
 
 	if tls.CipherSuite != "" {
-		sb.WriteString(fmt.Sprintf("%s  Cipher Suite: %s\n", indent, tls.CipherSuite))
+		fmt.Fprintf(&sb, "%s  Cipher Suite: %s\n", indent, tls.CipherSuite)
 	}
 
 	if tls.SignatureAlgorithm != "" {
-		sb.WriteString(fmt.Sprintf("%s  Signature Algorithm: %s\n", indent, tls.SignatureAlgorithm))
+		fmt.Fprintf(&sb, "%s  Signature Algorithm: %s\n", indent, tls.SignatureAlgorithm)
 	}
 
 	if tls.PublicKeyAlgorithm != "" {
-		sb.WriteString(fmt.Sprintf("%s  Public Key Algorithm: %s\n", indent, tls.PublicKeyAlgorithm))
+		fmt.Fprintf(&sb, "%s  Public Key Algorithm: %s\n", indent, tls.PublicKeyAlgorithm)
 	}
 
 	if len(tls.Chain) > 0 {
-		sb.WriteString(fmt.Sprintf("%s  Certificate Chain:\n", indent))
+		fmt.Fprintf(&sb, "%s  Certificate Chain:\n", indent)
 		for i, cert := range tls.Chain {
-			sb.WriteString(fmt.Sprintf("%s    [%d] %s\n", indent, i, cert))
+			fmt.Fprintf(&sb, "%s    [%d] %s\n", indent, i, cert)
 		}
 	}
 
@@ -111,15 +111,15 @@ func renderKStatusDetail(detail *anypb.Any, indent string) string {
 	sb.WriteString(indent + "Kubernetes Status:\n")
 
 	if kstatus.Status != "" {
-		sb.WriteString(fmt.Sprintf("%s  Status: %s\n", indent, kstatus.Status))
+		fmt.Fprintf(&sb, "%s  Status: %s\n", indent, kstatus.Status)
 	}
 
 	if kstatus.Message != "" {
-		sb.WriteString(fmt.Sprintf("%s  Message: %s\n", indent, kstatus.Message))
+		fmt.Fprintf(&sb, "%s  Message: %s\n", indent, kstatus.Message)
 	}
 
 	if len(kstatus.Conditions) > 0 {
-		sb.WriteString(fmt.Sprintf("%s  Conditions:\n", indent))
+		fmt.Fprintf(&sb, "%s  Conditions:\n", indent)
 		for _, cond := range kstatus.Conditions {
 			line := fmt.Sprintf("%s=%s", cond.Type, cond.Status)
 			if cond.Reason != "" {
@@ -128,7 +128,7 @@ func renderKStatusDetail(detail *anypb.Any, indent string) string {
 			if cond.Message != "" {
 				line += fmt.Sprintf(": %s", cond.Message)
 			}
-			sb.WriteString(fmt.Sprintf("%s    - %s\n", indent, line))
+			fmt.Fprintf(&sb, "%s    - %s\n", indent, line)
 		}
 	}
 
@@ -145,7 +145,7 @@ func renderLoopDetail(detail *anypb.Any, indent string) string {
 	sb.WriteString(indent + "Loop Detection:\n")
 
 	if len(loop.ServerIds) > 0 {
-		sb.WriteString(fmt.Sprintf("%s  Server Chain: %s\n", indent, strings.Join(loop.ServerIds, " -> ")))
+		fmt.Fprintf(&sb, "%s  Server Chain: %s\n", indent, strings.Join(loop.ServerIds, " -> "))
 	}
 
 	return sb.String()

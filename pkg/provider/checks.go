@@ -110,6 +110,7 @@ func evaluateCheckList(ctx context.Context, checkList []*checks.Check, celCtx ma
 	return msgs
 }
 
+// GetChecks returns the raw check expressions configured for this provider.
 func (b *BaseWithChecks) GetChecks() []checks.Expression {
 	return b.checks
 }

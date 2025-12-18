@@ -200,7 +200,7 @@ func goTypeToFlagKind(t reflect.Type) (string, bool) {
 	case reflect.String:
 		return "string", true
 	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
-		if t == reflect.TypeOf(time.Duration(0)) {
+		if t == reflect.TypeFor[time.Duration]() {
 			return "duration", true
 		}
 		// Check if this is a protobuf enum (int32 with String() method)
@@ -276,7 +276,7 @@ func parseDefaultValue(defaultStr string, t reflect.Type) any {
 	case reflect.String:
 		return defaultStr
 	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
-		if t == reflect.TypeOf(time.Duration(0)) {
+		if t == reflect.TypeFor[time.Duration]() {
 			return defaultStr // Duration flags accept string defaults
 		}
 		// Protobuf enums use string defaults (e.g., "HEALTHY")
@@ -333,7 +333,7 @@ func setFieldFromFlag(fieldVal reflect.Value, fieldType reflect.Type, fs *pflag.
 		}
 		fieldVal.SetString(v)
 	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
-		if fieldType == reflect.TypeOf(time.Duration(0)) {
+		if fieldType == reflect.TypeFor[time.Duration]() {
 			v, err := fs.GetDuration(flagName)
 			if err != nil {
 				return err

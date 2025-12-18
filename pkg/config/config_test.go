@@ -48,8 +48,8 @@ func TestGetInstances(t *testing.T) {
 			result: &LoadResult{
 				config: concreteConfig{
 					"mock": {
-						&mock.Component{InstanceName: "comp1"},
-						&mock.Component{InstanceName: "comp2"},
+						mock.Healthy("comp1"),
+						mock.Healthy("comp2"),
 					},
 				},
 			},
@@ -60,11 +60,11 @@ func TestGetInstances(t *testing.T) {
 			result: &LoadResult{
 				config: concreteConfig{
 					"mock": {
-						&mock.Component{InstanceName: "a"},
-						&mock.Component{InstanceName: "b"},
+						mock.Healthy("a"),
+						mock.Healthy("b"),
 					},
 					"other": {
-						&mock.Component{InstanceName: "c"},
+						mock.Healthy("c"),
 					},
 				},
 			},
@@ -182,9 +182,9 @@ func TestCountByProvider(t *testing.T) {
 	result := &LoadResult{
 		config: concreteConfig{
 			"mock": {
-				&mock.Component{InstanceName: "a"},
-				&mock.Component{InstanceName: "b"},
-				&mock.Component{InstanceName: "c"},
+				mock.Healthy("a"),
+				mock.Healthy("b"),
+				mock.Healthy("c"),
 			},
 		},
 	}

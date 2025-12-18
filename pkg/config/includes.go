@@ -25,7 +25,7 @@ type IncludeStack []IncludeEntry
 // computeHash returns a fast hash of the file contents
 func computeHash(content []byte) string {
 	h := sha256.Sum256(content)
-	return hex.EncodeToString(h[:8]) // First 8 bytes (16 hex chars) is sufficient
+	return hex.EncodeToString(h[:])
 }
 
 // ContainsHash checks if a content hash is already in the stack

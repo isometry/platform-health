@@ -416,8 +416,7 @@ func (c *Component) applyKStatus(blob *unstructured.Unstructured, component *ph.
 }
 
 // formatResourceID creates a human-readable resource identifier for summarized output.
-// Format: {group}/{version}/{kind}/{name}@{namespace} or {version}/{kind}/{name} for core API
-// Cluster-scoped resources omit the @namespace suffix.
+// Format: {name}@{namespace} for namespaced resources, or just {name} for cluster-scoped resources.
 func formatResourceID(name, namespace string) string {
 	if namespace == "" {
 		return name

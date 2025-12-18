@@ -26,6 +26,7 @@ For queries to succeed, the platform-health server must be run in a context with
 The following variables are available in CEL expressions:
 
 ### Release Properties
+
 - `release.Name` - Release name
 - `release.Namespace` - Release namespace
 - `release.Revision` - Release revision number (int)
@@ -40,6 +41,7 @@ The following variables are available in CEL expressions:
 - `release.Config` - User-provided value overrides (map)
 
 ### Chart Properties
+
 - `chart.Name` - Chart name
 - `chart.Version` - Chart version
 - `chart.AppVersion` - Application version
@@ -88,6 +90,7 @@ components:
 ```
 
 This example validates that:
+
 - The release has been upgraded at least once
 - The chart is not deprecated
 - Required labels are present
