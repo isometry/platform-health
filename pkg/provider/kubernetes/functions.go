@@ -10,7 +10,6 @@ import (
 	"github.com/google/cel-go/common/types"
 	"github.com/google/cel-go/common/types/ref"
 	"github.com/google/cel-go/common/types/traits"
-	"github.com/google/cel-go/interpreter/functions"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 
 	"github.com/isometry/platform-health/pkg/provider/kubernetes/client"
@@ -54,19 +53,18 @@ func NewResourceCache() *ResourceCache {
 }
 
 // KubernetesGetBinding creates the runtime function binding with K8s client bound via closure.
-// This is passed to env.Program() as a ProgramOption at evaluation time.
-//
-// Refactoring to cel.Function() would require combining declaration and binding, which doesn't
-// fit our pattern of compile-time declaration + evaluation-time binding with runtime context.
-//
-//nolint:staticcheck // cel.Functions is deprecated but required for runtime binding injection.
-func KubernetesGetBinding(ctx context.Context, clients *client.KubeClients, cache *ResourceCache) cel.ProgramOption {
-	return cel.Functions(&functions.Overload{
-		Operator: "kubernetes_get_resource_map",
-		Unary: func(arg ref.Val) ref.Val {
-			return kubernetesGetImpl(ctx, clients, cache, arg)
-		},
-	})
+// This is used with env.Extend() to create an extended CEL environment at evaluation time
+// that includes the implementation for kubernetes.Get with the provided context and clients.
+func KubernetesGetBinding(ctx context.Context, clients *client.KubeClients, cache *ResourceCache) cel.EnvOption {
+	return cel.Function("kubernetes.Get",
+		cel.Overload("kubernetes_get_resource_map",
+			[]*cel.Type{cel.MapType(cel.StringType, cel.StringType)},
+			cel.DynType,
+			cel.UnaryBinding(func(arg ref.Val) ref.Val {
+				return kubernetesGetImpl(ctx, clients, cache, arg)
+			}),
+		),
+	)
 }
 
 // kubernetesGetImpl is the implementation of kubernetes.Get

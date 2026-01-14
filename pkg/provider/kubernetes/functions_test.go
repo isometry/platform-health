@@ -222,7 +222,11 @@ func TestKubernetesGet_MissingKind(t *testing.T) {
 	ast, issues := env.Compile(`kubernetes.Get({"name": "test"})`)
 	require.Nil(t, issues.Err())
 
-	prg, err := env.Program(ast, binding)
+	// Extend environment with runtime binding
+	extendedEnv, err := env.Extend(binding)
+	require.NoError(t, err)
+
+	prg, err := extendedEnv.Program(ast)
 	require.NoError(t, err)
 
 	_, _, err = prg.Eval(map[string]any{})
@@ -247,7 +251,11 @@ func TestKubernetesGet_MutuallyExclusiveNameAndSelector(t *testing.T) {
 	ast, issues := env.Compile(`kubernetes.Get({"kind": "pod", "name": "test", "labelSelector": "app=test"})`)
 	require.Nil(t, issues.Err())
 
-	prg, err := env.Program(ast, binding)
+	// Extend environment with runtime binding
+	extendedEnv, err := env.Extend(binding)
+	require.NoError(t, err)
+
+	prg, err := extendedEnv.Program(ast)
 	require.NoError(t, err)
 
 	_, _, err = prg.Eval(map[string]any{})

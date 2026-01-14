@@ -93,11 +93,21 @@ type Check struct {
 	expr Expression
 }
 
-// Evaluate runs this check against the context with optional runtime program options.
-// This allows injecting runtime function bindings (e.g., kubernetes.Get with client).
+// Evaluate runs this check against the context with optional runtime function bindings.
+// Bindings are added via env.Extend() to inject runtime-specific implementations
+// (e.g., kubernetes.Get with client context).
 // Returns ("", nil) on success, (message, nil) on check failure, ("", err) on evaluation error.
-func (c *Check) Evaluate(celCtx map[string]any, opts ...cel.ProgramOption) (string, error) {
-	program, err := c.env.Program(c.ast, opts...)
+func (c *Check) Evaluate(celCtx map[string]any, bindings ...cel.EnvOption) (string, error) {
+	env := c.env
+	if len(bindings) > 0 {
+		var err error
+		env, err = c.env.Extend(bindings...)
+		if err != nil {
+			return "", fmt.Errorf("CEL environment extension failed: %w", err)
+		}
+	}
+
+	program, err := env.Program(c.ast)
 	if err != nil {
 		return "", fmt.Errorf("CEL program creation failed: %w", err)
 	}

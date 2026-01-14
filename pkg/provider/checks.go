@@ -62,36 +62,37 @@ func (b *BaseWithChecks) SetChecksAndCompile(exprs []checks.Expression, config *
 	return nil
 }
 
-// EvaluateChecks runs all checks against the provided CEL context with optional runtime program options.
-// This is used to inject runtime function bindings (e.g., kubernetes.Get with K8s client).
+// EvaluateChecks runs all checks against the provided CEL context with optional runtime function bindings.
+// Bindings are added via env.Extend() to inject runtime-specific implementations
+// (e.g., kubernetes.Get with K8s client context).
 // Call this from the provider's GetHealth() method.
 // Returns nil if all expressions pass, or a slice of failure messages.
 // If fail-fast mode is enabled in the Go context, returns immediately after first failure.
-func (b *BaseWithChecks) EvaluateChecks(ctx context.Context, celCtx map[string]any, opts ...cel.ProgramOption) []string {
+func (b *BaseWithChecks) EvaluateChecks(ctx context.Context, celCtx map[string]any, bindings ...cel.EnvOption) []string {
 	if len(b.compiled) == 0 {
 		return nil
 	}
-	return evaluateCheckList(ctx, b.compiled, celCtx, opts...)
+	return evaluateCheckList(ctx, b.compiled, celCtx, bindings...)
 }
 
 // EvaluateChecksByMode runs checks filtered by mode with fail-fast support.
 // Use this when you need to evaluate only checks with a specific mode (e.g., ModeEach or ModeDefault).
 // Returns nil if all expressions pass, or a slice of failure messages.
-func (b *BaseWithChecks) EvaluateChecksByMode(ctx context.Context, mode checks.Mode, celCtx map[string]any, opts ...cel.ProgramOption) []string {
+func (b *BaseWithChecks) EvaluateChecksByMode(ctx context.Context, mode checks.Mode, celCtx map[string]any, bindings ...cel.EnvOption) []string {
 	modeChecks := b.Checks(mode)
 	if len(modeChecks) == 0 {
 		return nil
 	}
-	return evaluateCheckList(ctx, modeChecks, celCtx, opts...)
+	return evaluateCheckList(ctx, modeChecks, celCtx, bindings...)
 }
 
 // evaluateCheckList runs a list of checks with fail-fast support.
-func evaluateCheckList(ctx context.Context, checkList []*checks.Check, celCtx map[string]any, opts ...cel.ProgramOption) []string {
+func evaluateCheckList(ctx context.Context, checkList []*checks.Check, celCtx map[string]any, bindings ...cel.EnvOption) []string {
 	failFast := phctx.FailFastFromContext(ctx)
 	var msgs []string
 
 	for _, check := range checkList {
-		msg, err := check.Evaluate(celCtx, opts...)
+		msg, err := check.Evaluate(celCtx, bindings...)
 		if err != nil {
 			msgs = append(msgs, err.Error())
 			if failFast {
