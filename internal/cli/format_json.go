@@ -1,4 +1,4 @@
-package flags
+package cli
 
 import (
 	"google.golang.org/protobuf/encoding/protojson"

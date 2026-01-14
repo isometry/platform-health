@@ -10,10 +10,10 @@ import (
 	slogctx "github.com/veqryn/slog-context"
 	"golang.org/x/term"
 
+	"github.com/isometry/platform-health/internal/cli"
 	"github.com/isometry/platform-health/pkg/commands/check"
 	"github.com/isometry/platform-health/pkg/commands/client"
 	"github.com/isometry/platform-health/pkg/commands/context"
-	"github.com/isometry/platform-health/pkg/commands/flags"
 	"github.com/isometry/platform-health/pkg/commands/migrate"
 	"github.com/isometry/platform-health/pkg/commands/server"
 	"github.com/isometry/platform-health/pkg/commands/validate"
@@ -33,7 +33,7 @@ func New() *cobra.Command {
 		PersistentPreRun: func(cmd *cobra.Command, args []string) {
 			// Store viper in context and bind flags
 			ctx := phctx.ContextWithViper(cmd.Context(), v)
-			flags.BindFlags(cmd, v)
+			cli.BindFlags(cmd, v)
 			setupLogging(v)
 
 			// Inject configured logger into context for downstream use

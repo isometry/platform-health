@@ -10,7 +10,7 @@ import (
 	"github.com/spf13/cobra"
 	"go.yaml.in/yaml/v3"
 
-	"github.com/isometry/platform-health/pkg/commands/flags"
+	"github.com/isometry/platform-health/internal/cli"
 	"github.com/isometry/platform-health/pkg/commands/shared"
 	"github.com/isometry/platform-health/pkg/config"
 	"github.com/isometry/platform-health/pkg/phctx"
@@ -55,7 +55,7 @@ If no expressions are provided, the full context is displayed.`,
 // Supports both simple instance names and component paths (e.g., "system/subsystem/instance").
 func runInstanceContext(cmd *cobra.Command, args []string) error {
 	v := phctx.Viper(cmd.Context())
-	paths, name := flags.ConfigPaths(v)
+	paths, name := cli.ConfigPaths(v)
 	result, err := config.Load(cmd.Context(), paths, name, false)
 	if err != nil {
 		return fmt.Errorf("failed to load config: %w", err)

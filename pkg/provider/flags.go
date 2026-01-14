@@ -4,15 +4,92 @@ import (
 	"cmp"
 	"errors"
 	"fmt"
+	"log/slog"
 	"reflect"
 	"strconv"
 	"strings"
 	"time"
 
 	"github.com/spf13/pflag"
-
-	"github.com/isometry/platform-health/pkg/commands/flags"
 )
+
+// FlagValue represents a single flag definition with metadata.
+type FlagValue struct {
+	Shorthand    string
+	Kind         string
+	DefaultValue any
+	NoOptDefault string
+	Usage        string
+}
+
+// FlagValues is a map of flag names to their definitions.
+type FlagValues map[string]FlagValue
+
+// Register adds all flags in the set to the given pflag.FlagSet.
+func (f FlagValues) Register(flagSet *pflag.FlagSet, sort bool) {
+	for flagName, flag := range f {
+		flag.BuildFlag(flagSet, flagName)
+	}
+	flagSet.SortFlags = sort
+}
+
+// BuildFlag creates a pflag from the FlagValue definition.
+func (f *FlagValue) BuildFlag(flagSet *pflag.FlagSet, flagName string) {
+	switch f.Kind {
+	case "bool":
+		defaultVal := false
+		if f.DefaultValue != nil {
+			defaultVal = f.DefaultValue.(bool)
+		}
+		flagSet.BoolP(flagName, f.Shorthand, defaultVal, f.Usage)
+	case "count":
+		flagSet.CountP(flagName, f.Shorthand, f.Usage)
+	case "int":
+		defaultVal := 0
+		if f.DefaultValue != nil {
+			defaultVal = f.DefaultValue.(int)
+		}
+		flagSet.IntP(flagName, f.Shorthand, defaultVal, f.Usage)
+	case "string":
+		defaultVal := ""
+		if f.DefaultValue != nil {
+			defaultVal = f.DefaultValue.(string)
+		}
+		flagSet.StringP(flagName, f.Shorthand, defaultVal, f.Usage)
+	case "stringSlice":
+		var defaultVal []string
+		if f.DefaultValue != nil {
+			defaultVal = f.DefaultValue.([]string)
+		}
+		flagSet.StringSliceP(flagName, f.Shorthand, defaultVal, f.Usage)
+	case "intSlice":
+		var defaultVal []int
+		if f.DefaultValue != nil {
+			defaultVal = f.DefaultValue.([]int)
+		}
+		flagSet.IntSliceP(flagName, f.Shorthand, defaultVal, f.Usage)
+	case "duration":
+		var defaultVal time.Duration
+		if f.DefaultValue != nil {
+			switch v := f.DefaultValue.(type) {
+			case time.Duration:
+				defaultVal = v
+			case string:
+				var err error
+				defaultVal, err = time.ParseDuration(v)
+				if err != nil {
+					slog.Warn("invalid duration default value", "flag", flagName, "value", v, "error", err)
+				}
+			}
+		}
+		flagSet.DurationP(flagName, f.Shorthand, defaultVal, f.Usage)
+	}
+
+	if f.NoOptDefault != "" {
+		flag := flagSet.Lookup(flagName)
+		flag.NoOptDefVal = f.NoOptDefault
+	}
+}
 
 // ProviderFlags derives flag definitions from a provider instance using reflection.
 // It reads struct tags to determine flag names, types, defaults, and descriptions:
@@ -22,8 +99,8 @@ import (
 //   - flag:"[name],[option]": name override (optional), option is "inline" or "nested"
 //   - flag:",inline": for struct fields, flatten without prefix (kind instead of resource.kind)
 //   - flag:",nested": for struct fields, flatten with prefix (resource.kind)
-func ProviderFlags(instance Instance) flags.FlagValues {
-	result := make(flags.FlagValues)
+func ProviderFlags(instance Instance) FlagValues {
+	result := make(FlagValues)
 	providerType := instance.GetType()
 
 	val := reflect.ValueOf(instance)
@@ -39,7 +116,7 @@ func ProviderFlags(instance Instance) flags.FlagValues {
 }
 
 // deriveFlags recursively extracts flag definitions from struct fields.
-func deriveFlags(val reflect.Value, prefix string, providerType string, result flags.FlagValues) {
+func deriveFlags(val reflect.Value, prefix string, providerType string, result FlagValues) {
 	typ := val.Type()
 	for i := 0; i < typ.NumField(); i++ {
 		field := typ.Field(i)
@@ -101,7 +178,7 @@ func deriveFlags(val reflect.Value, prefix string, providerType string, result f
 			description = fmt.Sprintf("set %s %s", providerType, flagName)
 		}
 
-		result[flagName] = flags.FlagValue{
+		result[flagName] = FlagValue{
 			Kind:         kind,
 			DefaultValue: defaultValue,
 			Usage:        description,

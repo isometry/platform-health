@@ -10,7 +10,7 @@ import (
 	"github.com/spf13/cobra"
 	"golang.org/x/term"
 
-	"github.com/isometry/platform-health/pkg/commands/flags"
+	"github.com/isometry/platform-health/internal/cli"
 	"github.com/isometry/platform-health/pkg/config"
 	"github.com/isometry/platform-health/pkg/phctx"
 	"github.com/isometry/platform-health/pkg/provider"
@@ -46,13 +46,13 @@ Examples:
 
 func setup(cmd *cobra.Command, _ []string) error {
 	v := phctx.Viper(cmd.Context())
-	flags.BindFlags(cmd, v)
+	cli.BindFlags(cmd, v)
 	return nil
 }
 
 func run(cmd *cobra.Command, _ []string) error {
 	v := phctx.Viper(cmd.Context())
-	paths, name := flags.ConfigPaths(v)
+	paths, name := cli.ConfigPaths(v)
 	outputFormat := v.GetString("output")
 
 	// Always use strict mode for validation

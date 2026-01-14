@@ -1,4 +1,4 @@
-package flags
+package cli
 
 import (
 	"encoding/xml"
@@ -8,6 +8,7 @@ import (
 	"google.golang.org/protobuf/types/known/durationpb"
 
 	ph "github.com/isometry/platform-health/pkg/platform_health"
+	"github.com/isometry/platform-health/pkg/platform_health/details"
 )
 
 func init() {
@@ -142,7 +143,7 @@ func buildTestCase(resp *ph.HealthCheckResponse, prefix string) junitTestCase {
 	}
 
 	// Render details for system-out (all checks, for audit purposes)
-	detailText := RenderDetails(resp.Details, "")
+	detailText := details.RenderAll(resp.Details, "")
 	if detailText != "" {
 		tc.SystemOut = &junitCDATA{Content: detailText}
 	}

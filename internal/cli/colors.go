@@ -1,4 +1,4 @@
-package flags
+package cli
 
 import "github.com/mgutz/ansi"
 
