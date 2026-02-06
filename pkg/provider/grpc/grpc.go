@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net"
+	"time"
 
 	"github.com/mcuadros/go-defaults"
 	"google.golang.org/grpc"
@@ -18,7 +19,10 @@ import (
 	"github.com/isometry/platform-health/pkg/provider"
 )
 
-const ProviderType = "grpc"
+const (
+	ProviderType   = "grpc"
+	DefaultTimeout = 1 * time.Second
+)
 
 type Component struct {
 	provider.Base
@@ -43,8 +47,10 @@ func (c *Component) LogValue() slog.Value {
 }
 
 func (c *Component) Setup() error {
+	if c.GetTimeout() == 0 {
+		c.SetTimeout(DefaultTimeout)
+	}
 	defaults.SetDefaults(c)
-
 	return nil
 }
 

@@ -23,7 +23,10 @@ import (
 	"github.com/isometry/platform-health/pkg/provider"
 )
 
-const ProviderType = "tls"
+const (
+	ProviderType   = "tls"
+	DefaultTimeout = 5 * time.Second
+)
 
 // CEL configuration for TLS provider
 var celConfig = checks.NewCEL(
@@ -73,6 +76,9 @@ func (c *Component) LogValue() slog.Value {
 }
 
 func (c *Component) Setup() error {
+	if c.GetTimeout() == 0 {
+		c.SetTimeout(DefaultTimeout)
+	}
 	defaults.SetDefaults(c)
 	return nil
 }

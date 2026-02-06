@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"time"
 
 	"github.com/google/cel-go/cel"
 	"github.com/mcuadros/go-defaults"
@@ -19,7 +20,10 @@ import (
 	"github.com/isometry/platform-health/pkg/provider/helm/client"
 )
 
-const ProviderType = "helm"
+const (
+	ProviderType   = "helm"
+	DefaultTimeout = 5 * time.Second
+)
 
 type Component struct {
 	provider.Base
@@ -56,6 +60,9 @@ func (c *Component) LogValue() slog.Value {
 }
 
 func (c *Component) Setup() error {
+	if c.GetTimeout() == 0 {
+		c.SetTimeout(DefaultTimeout)
+	}
 	defaults.SetDefaults(c)
 	return nil
 }

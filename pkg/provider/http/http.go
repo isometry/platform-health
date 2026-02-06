@@ -44,6 +44,7 @@ import (
 	"log/slog"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/google/cel-go/cel"
 	"github.com/mcuadros/go-defaults"
@@ -57,8 +58,9 @@ import (
 )
 
 const (
-	ProviderType = "http"
-	maxBodySize  = 10 * 1024 * 1024 // 10MB max response size
+	ProviderType   = "http"
+	DefaultTimeout = 10 * time.Second
+	maxBodySize    = 10 * 1024 * 1024 // 10MB max response size
 )
 
 // Component provides HTTP health checks with CEL-based response validation
@@ -105,6 +107,9 @@ func (c *Component) LogValue() slog.Value {
 }
 
 func (c *Component) Setup() error {
+	if c.GetTimeout() == 0 {
+		c.SetTimeout(DefaultTimeout)
+	}
 	defaults.SetDefaults(c)
 	return nil
 }

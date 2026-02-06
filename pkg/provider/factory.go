@@ -34,6 +34,7 @@ type instanceConfig struct {
 	components map[string]any
 	flags      *pflag.FlagSet
 	timeout    time.Duration
+	hasTimeout bool
 }
 
 // WithName sets the instance name.
@@ -84,6 +85,7 @@ func WithFlags(fs *pflag.FlagSet) Option {
 func WithTimeout(timeout time.Duration) Option {
 	return func(c *instanceConfig) error {
 		c.timeout = timeout
+		c.hasTimeout = true
 		return nil
 	}
 }
@@ -132,7 +134,6 @@ func NewInstance(providerType string, opts ...Option) (Instance, error) {
 	instance := reflect.New(registeredType.Elem())
 	concreteInstance := instance.Interface().(Instance)
 	concreteInstance.SetName(name)
-	concreteInstance.SetTimeout(cfg.timeout)
 
 	// Track unused keys for warning
 	var unusedKeys []string
@@ -168,9 +169,14 @@ func NewInstance(providerType string, opts ...Option) (Instance, error) {
 		container.SetComponents(cfg.components)
 	}
 
-	// Run Setup
+	// Run Setup (providers set their default timeout here)
 	if err := concreteInstance.Setup(); err != nil {
 		return nil, fmt.Errorf("setup failed: %w", err)
+	}
+
+	// Apply explicit timeout override (after Setup, so it wins over provider defaults)
+	if cfg.hasTimeout {
+		concreteInstance.SetTimeout(cfg.timeout)
 	}
 
 	// Validate and apply checks (requires InstanceWithChecks)

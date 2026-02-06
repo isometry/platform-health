@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"time"
 
 	"github.com/google/cel-go/cel"
 	vault "github.com/hashicorp/vault/api"
@@ -15,7 +16,10 @@ import (
 	"github.com/isometry/platform-health/pkg/provider"
 )
 
-const ProviderType = "vault"
+const (
+	ProviderType   = "vault"
+	DefaultTimeout = 1 * time.Second
+)
 
 type Component struct {
 	provider.Base
@@ -47,6 +51,9 @@ func (c *Component) LogValue() slog.Value {
 }
 
 func (c *Component) Setup() error {
+	if c.GetTimeout() == 0 {
+		c.SetTimeout(DefaultTimeout)
+	}
 	defaults.SetDefaults(c)
 	return nil
 }

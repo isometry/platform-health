@@ -197,16 +197,15 @@ func TestHelm_Timeout(t *testing.T) {
 	assert.Contains(t, result.Messages[0], "context deadline exceeded")
 }
 
-func TestSetup_NoDefaultTimeout(t *testing.T) {
-	// Timeout is no longer set by Setup() - it's set via config or global flag
+func TestSetup_DefaultTimeout(t *testing.T) {
 	instance := &helm.Component{
 		Release:   "my-release",
 		Namespace: "default",
 	}
 	require.NoError(t, instance.Setup())
 
-	// No default timeout - it's now set externally
-	assert.Equal(t, time.Duration(0), instance.GetTimeout())
+	// Setup() sets the provider's default timeout
+	assert.Equal(t, helm.DefaultTimeout, instance.GetTimeout())
 }
 
 func TestGetType(t *testing.T) {

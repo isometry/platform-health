@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log/slog"
 	"strings"
+	"time"
 
 	"github.com/google/cel-go/cel"
 	"github.com/mcuadros/go-defaults"
@@ -23,7 +24,10 @@ import (
 	"github.com/isometry/platform-health/pkg/provider/kubernetes/client"
 )
 
-const ProviderType = "kubernetes"
+const (
+	ProviderType   = "kubernetes"
+	DefaultTimeout = 10 * time.Second
+)
 
 // AllNamespaces is re-exported from client for convenience
 const AllNamespaces = client.AllNamespaces
@@ -82,6 +86,9 @@ func (c *Component) LogValue() slog.Value {
 }
 
 func (c *Component) Setup() error {
+	if c.GetTimeout() == 0 {
+		c.SetTimeout(DefaultTimeout)
+	}
 	defaults.SetDefaults(c)
 
 	// defaults.SetDefaults doesn't allocate pointer types, so handle *bool default
