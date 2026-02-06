@@ -1,4 +1,4 @@
-package cli
+package output
 
 import (
 	"encoding/xml"
@@ -57,7 +57,7 @@ type junitSkipped struct {
 }
 
 // Format converts the health check response to JUnit XML.
-func (f *JUnitFormatter) Format(status *ph.HealthCheckResponse, cfg OutputConfig) ([]byte, error) {
+func (f *JUnitFormatter) Format(status *ph.HealthCheckResponse, cfg Config) ([]byte, error) {
 	suite := buildTestSuite(status, cfg.Flat)
 	suite.Timestamp = time.Now().UTC().Format(time.RFC3339)
 
@@ -68,7 +68,7 @@ func (f *JUnitFormatter) Format(status *ph.HealthCheckResponse, cfg OutputConfig
 	return append([]byte(xml.Header), output...), nil
 }
 
-// buildTestSuite builds the root testsuite from a HealthCheckResponse
+// buildTestSuite builds the root testsuite from a HealthCheckResponse.
 func buildTestSuite(resp *ph.HealthCheckResponse, flat bool) junitTestSuite {
 	suite := junitTestSuite{
 		Name: resp.Name,
@@ -91,7 +91,7 @@ func buildTestSuite(resp *ph.HealthCheckResponse, flat bool) junitTestSuite {
 	return suite
 }
 
-// buildHierarchical builds nested testsuites and testcases
+// buildHierarchical builds nested testsuites and testcases.
 func buildHierarchical(parent *junitTestSuite, components []*ph.HealthCheckResponse) {
 	for _, comp := range components {
 		if len(comp.Components) > 0 {
@@ -109,7 +109,7 @@ func buildHierarchical(parent *junitTestSuite, components []*ph.HealthCheckRespo
 	}
 }
 
-// collectFlatTestCases collects all leaf components as flat testcases with path names
+// collectFlatTestCases collects all leaf components as flat testcases with path names.
 func collectFlatTestCases(components []*ph.HealthCheckResponse, prefix string) []junitTestCase {
 	var cases []junitTestCase
 	for _, comp := range components {
@@ -129,7 +129,7 @@ func collectFlatTestCases(components []*ph.HealthCheckResponse, prefix string) [
 	return cases
 }
 
-// buildTestCase creates a JUnit testcase from a health check response
+// buildTestCase creates a JUnit testcase from a health check response.
 func buildTestCase(resp *ph.HealthCheckResponse, prefix string) junitTestCase {
 	name := resp.Name
 	if prefix != "" {
@@ -180,7 +180,7 @@ func buildTestCase(resp *ph.HealthCheckResponse, prefix string) junitTestCase {
 	return tc
 }
 
-// buildFailureContent creates rich diagnostic content for failures
+// buildFailureContent creates rich diagnostic content for failures.
 func buildFailureContent(messages []string, detailText string) string {
 	var sb strings.Builder
 
@@ -207,7 +207,7 @@ func buildFailureContent(messages []string, detailText string) string {
 	return content
 }
 
-// calculateTotals recursively calculates test/failure/skipped counts and total time
+// calculateTotals recursively calculates test/failure/skipped counts and total time.
 func calculateTotals(suite *junitTestSuite) {
 	suite.Tests = 0
 	suite.Failures = 0
@@ -237,7 +237,7 @@ func calculateTotals(suite *junitTestSuite) {
 	}
 }
 
-// durationSeconds converts a protobuf Duration to seconds as float64
+// durationSeconds converts a protobuf Duration to seconds as float64.
 func durationSeconds(d *durationpb.Duration) float64 {
 	if d == nil {
 		return 0

@@ -1,14 +1,14 @@
 package check
 
 import (
-	"github.com/isometry/platform-health/internal/cli"
+	"github.com/isometry/platform-health/internal/cliflags"
 )
 
-var checkFlags = cli.Merge(
-	cli.ConfigFlags(),
-	cli.ComponentFlags(),
-	cli.OutputFlags(),
-	cli.FailFastFlags(),
-	cli.ParallelismFlags(),
-	cli.TimeoutFlags(),
+var checkFlags = cliflags.Merge(
+	cliflags.ConfigFlags(),
+	cliflags.ComponentFlags(),
+	cliflags.OutputFlags(),
+	cliflags.FailFastFlags(),
+	cliflags.ParallelismFlags(),
+	cliflags.TimeoutFlags(),
 )

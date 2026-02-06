@@ -1,4 +1,6 @@
-package cli
+// Package cliflags provides reusable flag definitions for CLI commands.
+// It contains Cobra/Viper flag helpers that can be composed for different commands.
+package cliflags
 
 import (
 	"maps"
@@ -12,7 +14,10 @@ import (
 	"github.com/isometry/platform-health/pkg/provider"
 )
 
-// Merge combines multiple FlagValues maps into one
+// DefaultFormat is the default output format.
+const DefaultFormat = "json"
+
+// Merge combines multiple FlagValues maps into one.
 func Merge(flagSets ...provider.FlagValues) provider.FlagValues {
 	result := make(provider.FlagValues)
 	for _, fs := range flagSets {
@@ -38,7 +43,7 @@ func ConfigPaths(v *viper.Viper) (paths []string, name string) {
 
 // Common flag definitions that can be reused across commands
 
-// ConfigFlags returns flags for configuration file settings
+// ConfigFlags returns flags for configuration file settings.
 func ConfigFlags() provider.FlagValues {
 	return provider.FlagValues{
 		"config-path": {
@@ -54,7 +59,7 @@ func ConfigFlags() provider.FlagValues {
 	}
 }
 
-// ComponentFlags returns flags for component filtering
+// ComponentFlags returns flags for component filtering.
 func ComponentFlags() provider.FlagValues {
 	return provider.FlagValues{
 		"component": {
@@ -66,7 +71,7 @@ func ComponentFlags() provider.FlagValues {
 	}
 }
 
-// OutputFlags returns flags for output formatting
+// OutputFlags returns flags for output formatting.
 func OutputFlags() provider.FlagValues {
 	return provider.FlagValues{
 		"output-format": {
@@ -99,7 +104,7 @@ func OutputFlags() provider.FlagValues {
 	}
 }
 
-// FailFastFlags returns flags for fail-fast behavior
+// FailFastFlags returns flags for fail-fast behavior.
 func FailFastFlags() provider.FlagValues {
 	return provider.FlagValues{
 		"fail-fast": {
@@ -111,7 +116,7 @@ func FailFastFlags() provider.FlagValues {
 	}
 }
 
-// ParallelismFlags returns flags for parallelism control
+// ParallelismFlags returns flags for parallelism control.
 func ParallelismFlags() provider.FlagValues {
 	return provider.FlagValues{
 		"parallelism": {
@@ -123,7 +128,7 @@ func ParallelismFlags() provider.FlagValues {
 	}
 }
 
-// TimeoutFlags returns flags for timeout control
+// TimeoutFlags returns flags for timeout control.
 func TimeoutFlags() provider.FlagValues {
 	return provider.FlagValues{
 		"timeout": {

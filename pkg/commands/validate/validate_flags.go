@@ -1,12 +1,12 @@
 package validate
 
 import (
-	"github.com/isometry/platform-health/internal/cli"
+	"github.com/isometry/platform-health/internal/cliflags"
 	"github.com/isometry/platform-health/pkg/provider"
 )
 
-var validateFlags = cli.Merge(
-	cli.ConfigFlags(),
+var validateFlags = cliflags.Merge(
+	cliflags.ConfigFlags(),
 	provider.FlagValues{
 		"output": {
 			Shorthand:    "o",

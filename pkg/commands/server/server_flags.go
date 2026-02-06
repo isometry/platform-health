@@ -1,13 +1,13 @@
 package server
 
 import (
-	"github.com/isometry/platform-health/internal/cli"
+	"github.com/isometry/platform-health/internal/cliflags"
 	"github.com/isometry/platform-health/pkg/provider"
 )
 
-var serverFlags = cli.Merge(
-	cli.ConfigFlags(),
-	cli.ParallelismFlags(),
+var serverFlags = cliflags.Merge(
+	cliflags.ConfigFlags(),
+	cliflags.ParallelismFlags(),
 	provider.FlagValues{
 		"listen": {
 			Shorthand:    "l",

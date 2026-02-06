@@ -1,4 +1,4 @@
-package cli
+package output
 
 import (
 	"bytes"
@@ -18,7 +18,7 @@ func init() {
 type YAMLFormatter struct{}
 
 // Format converts the health check response to YAML.
-func (f *YAMLFormatter) Format(status *ph.HealthCheckResponse, cfg OutputConfig) ([]byte, error) {
+func (f *YAMLFormatter) Format(status *ph.HealthCheckResponse, cfg Config) ([]byte, error) {
 	// Use semantic colorized renderer when colors are enabled
 	if cfg.Colorize {
 		r := &yamlRenderer{colorize: true, colors: cfg.Colors}
@@ -80,7 +80,7 @@ func (r *yamlRenderer) renderResponse(resp *ph.HealthCheckResponse, indent int) 
 	r.renderFields(resp, prefix, indent)
 }
 
-// renderFields renders common fields (type, status, messages, duration, components)
+// renderFields renders common fields (type, status, messages, duration, components).
 func (r *yamlRenderer) renderFields(resp *ph.HealthCheckResponse, prefix string, indent int) {
 	r.writeField(prefix, "type", resp.Type, r.colors.Type, false)
 	r.writeField(prefix, "status", resp.Status.String(), r.statusColor(resp.Status), false)
@@ -93,7 +93,7 @@ func (r *yamlRenderer) renderFields(resp *ph.HealthCheckResponse, prefix string,
 	r.renderComponents(resp, prefix, indent)
 }
 
-// renderMessages renders the messages list
+// renderMessages renders the messages list.
 func (r *yamlRenderer) renderMessages(resp *ph.HealthCheckResponse, prefix string) {
 	if len(resp.Messages) == 0 {
 		return
@@ -114,7 +114,7 @@ func (r *yamlRenderer) renderMessages(resp *ph.HealthCheckResponse, prefix strin
 	}
 }
 
-// renderComponents renders nested components recursively
+// renderComponents renders nested components recursively.
 func (r *yamlRenderer) renderComponents(resp *ph.HealthCheckResponse, prefix string, indent int) {
 	if len(resp.Components) == 0 {
 		return

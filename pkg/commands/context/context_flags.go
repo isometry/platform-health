@@ -1,12 +1,12 @@
 package context
 
 import (
-	"github.com/isometry/platform-health/internal/cli"
+	"github.com/isometry/platform-health/internal/cliflags"
 	"github.com/isometry/platform-health/pkg/provider"
 )
 
-var contextFlags = cli.Merge(
-	cli.ConfigFlags(),
+var contextFlags = cliflags.Merge(
+	cliflags.ConfigFlags(),
 	provider.FlagValues{
 		"output-format": {
 			Shorthand:    "o",

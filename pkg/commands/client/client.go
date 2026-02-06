@@ -12,7 +12,9 @@ import (
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/credentials/insecure"
 
-	"github.com/isometry/platform-health/internal/cli"
+	"github.com/isometry/platform-health/internal/cliflags"
+	"github.com/isometry/platform-health/internal/output"
+	"github.com/isometry/platform-health/pkg/netutil"
 	"github.com/isometry/platform-health/pkg/phctx"
 	ph "github.com/isometry/platform-health/pkg/platform_health"
 	_ "github.com/isometry/platform-health/pkg/platform_health/details"
@@ -35,11 +37,11 @@ func New() *cobra.Command {
 
 func setup(cmd *cobra.Command, args []string) (err error) {
 	v := phctx.Viper(cmd.Context())
-	cli.BindFlags(cmd, v)
+	cliflags.BindFlags(cmd, v)
 
 	// Override with positional argument if provided
 	if len(args) == 1 {
-		host, port, err := cli.ParseHostPort(args[0])
+		host, port, err := netutil.ParseHostPort(args[0])
 		if err != nil {
 			return err
 		}
@@ -93,5 +95,5 @@ func query(cmd *cobra.Command, _ []string) (err error) {
 		return err
 	}
 
-	return cli.FormatAndPrintStatus(status, cli.OutputConfigFromViper(v))
+	return output.FormatAndPrint(status, output.ConfigFromViper(v))
 }

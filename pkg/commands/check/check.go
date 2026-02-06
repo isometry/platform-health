@@ -7,7 +7,8 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/isometry/platform-health/internal/cli"
+	"github.com/isometry/platform-health/internal/cliflags"
+	"github.com/isometry/platform-health/internal/output"
 	"github.com/isometry/platform-health/pkg/checks"
 	"github.com/isometry/platform-health/pkg/commands/shared"
 	"github.com/isometry/platform-health/pkg/config"
@@ -47,8 +48,8 @@ Use a provider subcommand for ad-hoc checks without config.`,
 				cmd.Flags().StringArray("check-each", nil, "CEL expression evaluated per-item (can be specified multiple times)")
 			}
 
-			cli.OutputFlags().Register(cmd.Flags(), true)
-			cli.TimeoutFlags().Register(cmd.Flags(), true)
+			cliflags.OutputFlags().Register(cmd.Flags(), true)
+			cliflags.TimeoutFlags().Register(cmd.Flags(), true)
 		},
 		RunFunc: runProviderCheck,
 	})
@@ -59,7 +60,7 @@ Use a provider subcommand for ad-hoc checks without config.`,
 // runProviderCheck creates an ad-hoc provider instance and performs a health check.
 func runProviderCheck(cmd *cobra.Command, providerType string) error {
 	v := phctx.Viper(cmd.Context())
-	cli.BindFlags(cmd, v)
+	cliflags.BindFlags(cmd, v)
 
 	ctx, cancel := context.WithTimeout(cmd.Context(), v.GetDuration("timeout"))
 	defer cancel()
@@ -95,18 +96,18 @@ func runProviderCheck(cmd *cobra.Command, providerType string) error {
 
 	response := provider.GetHealthWithDuration(ctx, instance)
 
-	return cli.FormatAndPrintStatus(response, cli.OutputConfigFromViper(v))
+	return output.FormatAndPrint(response, output.ConfigFromViper(v))
 }
 
 func setup(cmd *cobra.Command, _ []string) (err error) {
 	ctx := cmd.Context()
 	v := phctx.Viper(ctx)
-	cli.BindFlags(cmd, v)
+	cliflags.BindFlags(cmd, v)
 
 	log := phctx.Logger(ctx)
 	log.Info("providers registered", slog.Any("providers", provider.ProviderList()))
 
-	paths, name := cli.ConfigPaths(v)
+	paths, name := cliflags.ConfigPaths(v)
 	strict := v.GetBool("strict")
 
 	result, err := config.Load(ctx, paths, name, strict)
@@ -152,5 +153,5 @@ func run(cmd *cobra.Command, _ []string) error {
 		return err
 	}
 
-	return cli.FormatAndPrintStatus(status, cli.OutputConfigFromViper(v))
+	return output.FormatAndPrint(status, output.ConfigFromViper(v))
 }

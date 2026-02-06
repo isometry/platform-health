@@ -1,4 +1,4 @@
-package cli
+package output
 
 import (
 	"sort"
@@ -12,11 +12,8 @@ import (
 type Formatter interface {
 	// Format converts the health check response to formatted output.
 	// The cfg parameter provides output configuration (flat, quiet, compact).
-	Format(status *ph.HealthCheckResponse, cfg OutputConfig) ([]byte, error)
+	Format(status *ph.HealthCheckResponse, cfg Config) ([]byte, error)
 }
-
-// DefaultFormat is the default output format.
-const DefaultFormat = "json"
 
 var (
 	formatters = make(map[string]Formatter)

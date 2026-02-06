@@ -3,14 +3,14 @@ package client
 import (
 	"time"
 
-	"github.com/isometry/platform-health/internal/cli"
+	"github.com/isometry/platform-health/internal/cliflags"
 	"github.com/isometry/platform-health/pkg/provider"
 )
 
-var clientFlags = cli.Merge(
-	cli.ComponentFlags(),
-	cli.OutputFlags(),
-	cli.FailFastFlags(),
+var clientFlags = cliflags.Merge(
+	cliflags.ComponentFlags(),
+	cliflags.OutputFlags(),
+	cliflags.FailFastFlags(),
 	provider.FlagValues{
 		"server": {
 			Shorthand:    "s",

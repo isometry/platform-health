@@ -1,4 +1,4 @@
-package cli
+package output
 
 import (
 	"google.golang.org/protobuf/encoding/protojson"
@@ -14,7 +14,7 @@ func init() {
 type JSONFormatter struct{}
 
 // Format converts the health check response to JSON.
-func (f *JSONFormatter) Format(status *ph.HealthCheckResponse, cfg OutputConfig) ([]byte, error) {
+func (f *JSONFormatter) Format(status *ph.HealthCheckResponse, cfg Config) ([]byte, error) {
 	opts := protojson.MarshalOptions{}
 	if !cfg.Compact {
 		opts.Multiline = true

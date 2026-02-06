@@ -1,4 +1,4 @@
-package cli
+package output
 
 import "github.com/mgutz/ansi"
 

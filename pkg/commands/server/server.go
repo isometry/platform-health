@@ -8,8 +8,9 @@ import (
 	"github.com/google/uuid"
 	"github.com/spf13/cobra"
 
-	"github.com/isometry/platform-health/internal/cli"
+	"github.com/isometry/platform-health/internal/cliflags"
 	"github.com/isometry/platform-health/pkg/config"
+	"github.com/isometry/platform-health/pkg/netutil"
 	"github.com/isometry/platform-health/pkg/phctx"
 	"github.com/isometry/platform-health/pkg/provider"
 	"github.com/isometry/platform-health/pkg/server"
@@ -35,14 +36,14 @@ func New() *cobra.Command {
 func setup(cmd *cobra.Command, args []string) (err error) {
 	ctx := cmd.Context()
 	v := phctx.Viper(ctx)
-	cli.BindFlags(cmd, v)
+	cliflags.BindFlags(cmd, v)
 
 	log := phctx.Logger(ctx)
 	log.Info("providers registered", slog.Any("providers", provider.ProviderList()))
 
 	// Override with positional argument if provided
 	if len(args) == 1 {
-		host, port, err := cli.ParseHostPort(args[0])
+		host, port, err := netutil.ParseHostPort(args[0])
 		if err != nil {
 			return err
 		}
@@ -50,7 +51,7 @@ func setup(cmd *cobra.Command, args []string) (err error) {
 		v.Set("port", port)
 	}
 
-	paths, name := cli.ConfigPaths(v)
+	paths, name := cliflags.ConfigPaths(v)
 	strict := v.GetBool("strict")
 
 	result, err := config.Load(ctx, paths, name, strict)
