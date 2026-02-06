@@ -9,7 +9,6 @@ import (
 
 	"github.com/google/cel-go/cel"
 	"github.com/google/cel-go/ext"
-	"google.golang.org/protobuf/types/known/structpb"
 
 	"github.com/isometry/platform-health/pkg/checks/functions"
 )
@@ -288,12 +287,7 @@ func (c *CEL) EvaluateAny(expr string, celCtx map[string]any) (any, error) {
 		return nil, err
 	}
 
-	// Convert to structpb.Value, then to native Go types for serialization
-	native, err := result.ConvertToNative(reflect.TypeFor[structpb.Value]())
-	if err != nil {
-		return nil, err
-	}
-	return native.(*structpb.Value).AsInterface(), nil
+	return result.Value(), nil
 }
 
 // EvaluateEach evaluates a CEL expression for each item in a collection.
