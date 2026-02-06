@@ -14,30 +14,30 @@ var clientFlags = cliflags.Merge(
 	provider.FlagValues{
 		"server": {
 			Shorthand:    "s",
-			Kind:         "string",
+			Kind:         provider.FlagKindString,
 			DefaultValue: "localhost",
 			Usage:        "server host",
 		},
 		"port": {
 			Shorthand:    "p",
-			Kind:         "int",
+			Kind:         provider.FlagKindInt,
 			DefaultValue: 8080,
 			Usage:        "server port",
 		},
 		"tls": {
-			Kind:         "bool",
+			Kind:         provider.FlagKindBool,
 			DefaultValue: false,
 			Usage:        "enable tls",
 		},
 		"insecure": {
 			Shorthand:    "k",
-			Kind:         "bool",
+			Kind:         provider.FlagKindBool,
 			DefaultValue: false,
 			Usage:        "disable certificate verification",
 		},
 		"timeout": {
 			Shorthand:    "t",
-			Kind:         "duration",
+			Kind:         provider.FlagKindDuration,
 			DefaultValue: 10 * time.Second,
 			Usage:        "timeout",
 		},

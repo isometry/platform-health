@@ -192,6 +192,16 @@ func (a abstractConfig) harden(strict bool) (concreteConfig, []error) {
 		}
 		instanceLog.Debug("loaded instance", slog.String("type", providerType))
 		concrete[providerType] = append(concrete[providerType], instance)
+
+		if container := provider.AsContainer(instance); container != nil {
+			for _, err := range container.ComponentErrors() {
+				if strict {
+					validationErrors = append(validationErrors, err)
+				} else {
+					instanceLog.Warn(err.Error())
+				}
+			}
+		}
 	}
 
 	return concrete, validationErrors

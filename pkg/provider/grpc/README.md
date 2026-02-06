@@ -11,7 +11,7 @@ Once the gRPC Provider is configured, any query to the platform-health server wi
 The gRPC Provider is configured through the platform-health server's configuration file. Each instance is defined with its name as the YAML key under `components`.
 
 - `type` (required): Must be `grpc`.
-- `timeout` (default: `5s`): Maximum time to wait for a response.
+- `timeout` (optional): Per-instance timeout override.
 - `spec`: Provider-specific configuration:
   - `host` (required): The hostname or IP address of the gRPC service to monitor.
   - `port` (default: `8080`): The port number of the gRPC service to monitor.

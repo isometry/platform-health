@@ -11,6 +11,7 @@ Once the Kubernetes Provider is configured, any query to the platform health ser
 The Kubernetes Provider is configured through the platform-health server's configuration file. Each instance is defined with its name as the YAML key under `components`.
 
 - `type` (required): Must be `kubernetes`.
+- `timeout` (optional): Per-instance timeout override.
 - `spec`: Provider-specific configuration:
   - `group` (optional): The API group of the Kubernetes resource. Many common kinds auto-map to their correct group.
   - `version` (optional): The API version of the Kubernetes resource. If not specified, the API server's preferred version is used automatically.
@@ -18,8 +19,10 @@ The Kubernetes Provider is configured through the platform-health server's confi
   - `namespace` (optional): The namespace of the Kubernetes resource. Use `"*"` to select resources across all namespaces (only valid with `labelSelector`, not `name`).
   - `name` (optional): The name of a specific Kubernetes resource. Mutually exclusive with `labelSelector`.
   - `labelSelector` (optional): Select resources by label selector using Kubernetes native syntax (e.g., `app=nginx,env=prod`). Supports equality (`=`, `==`, `!=`) and set-based (`in`, `notin`) operators. When multiple resources match, each is checked and results are aggregated. Mutually exclusive with `name`. If neither `name` nor `labelSelector` is specified, all resources of the kind in the namespace are selected.
+  - `context` (optional): Kubeconfig context to use.
   - `kstatus` (default: `true`): Whether to evaluate resource health using the [kstatus](https://github.com/kubernetes-sigs/cli-utils/tree/master/pkg/kstatus) library. When enabled, resources must reach "Current" status to be considered healthy.
-  - `timeout` (default: `10s`): Timeout for the Kubernetes API request.
+  - `detail` (default: `false`): Include resource details in response.
+  - `summarize` (default: `false`): In label selector mode, accumulate errors into messages instead of sub-components.
 - `checks`: A list of CEL expressions to validate the resource. Each check has:
   - `check` (required): A CEL expression that must evaluate to `true` for the resource to be healthy.
   - `message` (optional): Custom error message when the check fails.

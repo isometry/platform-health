@@ -30,6 +30,10 @@ import (
 // Returns:
 //   - Single mode (name): map[string]any or null if not found
 //   - List mode (labelSelector): list of maps (possibly empty)
+//
+// Security: queries are scoped by the Kubernetes service account's RBAC permissions.
+// Ensure the service account follows least-privilege principles, as CEL expressions
+// in configuration files can access any resource the service account can read.
 func KubernetesGetDeclaration() cel.EnvOption {
 	return cel.Function("kubernetes.Get",
 		cel.Overload("kubernetes_get_resource_map",

@@ -13,6 +13,17 @@ import (
 	"github.com/spf13/pflag"
 )
 
+// Flag kind constants for FlagValue.Kind.
+const (
+	FlagKindBool        = "bool"
+	FlagKindCount       = "count"
+	FlagKindInt         = "int"
+	FlagKindString      = "string"
+	FlagKindStringSlice = "stringSlice"
+	FlagKindIntSlice    = "intSlice"
+	FlagKindDuration    = "duration"
+)
+
 // FlagValue represents a single flag definition with metadata.
 type FlagValue struct {
 	Shorthand    string
@@ -36,39 +47,39 @@ func (f FlagValues) Register(flagSet *pflag.FlagSet, sort bool) {
 // BuildFlag creates a pflag from the FlagValue definition.
 func (f *FlagValue) BuildFlag(flagSet *pflag.FlagSet, flagName string) {
 	switch f.Kind {
-	case "bool":
+	case FlagKindBool:
 		defaultVal := false
 		if f.DefaultValue != nil {
 			defaultVal = f.DefaultValue.(bool)
 		}
 		flagSet.BoolP(flagName, f.Shorthand, defaultVal, f.Usage)
-	case "count":
+	case FlagKindCount:
 		flagSet.CountP(flagName, f.Shorthand, f.Usage)
-	case "int":
+	case FlagKindInt:
 		defaultVal := 0
 		if f.DefaultValue != nil {
 			defaultVal = f.DefaultValue.(int)
 		}
 		flagSet.IntP(flagName, f.Shorthand, defaultVal, f.Usage)
-	case "string":
+	case FlagKindString:
 		defaultVal := ""
 		if f.DefaultValue != nil {
 			defaultVal = f.DefaultValue.(string)
 		}
 		flagSet.StringP(flagName, f.Shorthand, defaultVal, f.Usage)
-	case "stringSlice":
+	case FlagKindStringSlice:
 		var defaultVal []string
 		if f.DefaultValue != nil {
 			defaultVal = f.DefaultValue.([]string)
 		}
 		flagSet.StringSliceP(flagName, f.Shorthand, defaultVal, f.Usage)
-	case "intSlice":
+	case FlagKindIntSlice:
 		var defaultVal []int
 		if f.DefaultValue != nil {
 			defaultVal = f.DefaultValue.([]int)
 		}
 		flagSet.IntSliceP(flagName, f.Shorthand, defaultVal, f.Usage)
-	case "duration":
+	case FlagKindDuration:
 		var defaultVal time.Duration
 		if f.DefaultValue != nil {
 			switch v := f.DefaultValue.(type) {
@@ -83,6 +94,8 @@ func (f *FlagValue) BuildFlag(flagSet *pflag.FlagSet, flagName string) {
 			}
 		}
 		flagSet.DurationP(flagName, f.Shorthand, defaultVal, f.Usage)
+	default:
+		slog.Warn("unrecognized flag kind", "flag", flagName, "kind", f.Kind)
 	}
 
 	if f.NoOptDefault != "" {
@@ -275,24 +288,24 @@ func goTypeToFlagKind(t reflect.Type) (string, bool) {
 		// Unwrap pointer to get underlying type's flag kind
 		return goTypeToFlagKind(t.Elem())
 	case reflect.String:
-		return "string", true
+		return FlagKindString, true
 	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
 		if t == reflect.TypeFor[time.Duration]() {
-			return "duration", true
+			return FlagKindDuration, true
 		}
 		// Check if this is a protobuf enum (int32 with String() method)
 		if isProtobufEnum(t) {
-			return "string", true
+			return FlagKindString, true
 		}
-		return "int", true
+		return FlagKindInt, true
 	case reflect.Bool:
-		return "bool", true
+		return FlagKindBool, true
 	case reflect.Slice:
 		switch t.Elem().Kind() {
 		case reflect.String:
-			return "stringSlice", true
+			return FlagKindStringSlice, true
 		case reflect.Int:
-			return "intSlice", true
+			return FlagKindIntSlice, true
 		}
 	}
 	return "", false

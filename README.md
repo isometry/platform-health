@@ -6,7 +6,7 @@ Lightweight & extensible platform health monitoring.
 
 Platform Health is a simple client/server system for lightweight health monitoring of platform components and systems.
 
-The Platform Health client (`phc`) sends a gRPC health check request to a Platform Health server which is configured to probe a set of network services. Probes run asynchronously on the server (subject to configurable timeouts), with the accumulated response returned to the client.
+The Platform Health client (`ph client`) sends a gRPC health check request to a Platform Health server which is configured to probe a set of network services. Probes run asynchronously on the server (subject to configurable timeouts), with the accumulated response returned to the client.
 
 ## Providers
 
@@ -55,15 +55,18 @@ kubectl create configmap platform-health --from-file=platform-health.yaml=/dev/s
 components:
   ssh@localhost:
     type: tcp
-    host: localhost
-    port: 22
+    spec:
+      host: localhost
+      port: 22
   gmail:
     type: tls
-    host: smtp.gmail.com
-    port: 465
+    spec:
+      host: smtp.gmail.com
+      port: 465
   google:
     type: http
-    url: https://google.com
+    spec:
+      url: https://google.com
 EOF
 
 kubectl create deployment platform-health --image ghcr.io/isometry/platform-health:latest --port=8080
@@ -180,11 +183,15 @@ All health check components are defined under the `components` key:
 ```yaml
 components:
   <component-name>:
-    type: <provider-type>
-    <provider-specific-config>
+    type: <provider-type>      # required
+    spec:                      # provider-specific configuration
+      <key>: <value>
+    checks: [...]              # optional CEL expressions
+    timeout: <duration>        # optional per-instance timeout
+    components: {...}          # optional nested children (system provider)
 ```
 
-Component names can contain any characters valid in YAML keys, but should avoid `/` which is used for path-filtered queries. The `type` field specifies which provider to use, and the remaining fields are provider-specific configuration.
+Component names can contain any characters valid in YAML keys, but should avoid `/` which is used for path-filtered queries. The `type` field specifies which provider to use, and provider-specific configuration goes under `spec`.
 
 ### Example
 
@@ -194,12 +201,14 @@ The following configuration will monitor that /something/ is listening on `tcp/2
 components:
   ssh@localhost:
     type: tcp
-    host: localhost
-    port: 22
+    spec:
+      host: localhost
+      port: 22
   gmail:
     type: tls
-    host: smtp.gmail.com
-    port: 465
+    spec:
+      host: smtp.gmail.com
+      port: 465
   google:
     type: http
     spec:
@@ -227,14 +236,14 @@ components:
     components:
       source-controller:
         type: kubernetes
-        resource:
-          kind: deployment
+        spec:
+          kind: Deployment
           namespace: flux-system
           name: source-controller
       kustomize-controller:
         type: kubernetes
-        resource:
-          kind: deployment
+        spec:
+          kind: Deployment
           namespace: flux-system
           name: kustomize-controller
 ```

@@ -29,7 +29,7 @@ ph context vault --address https://vault.example.com
 The Vault Provider is configured through the platform-health server's configuration file. Each instance is defined with its name as the YAML key under `components`.
 
 - `type` (required): Must be `vault`.
-- `timeout` (default: `1s`): The maximum time to wait for a response before timing out.
+- `timeout` (optional): Per-instance timeout override.
 - `spec`: Provider-specific configuration:
   - `address` (required): The address of the Vault instance in standard `VAULT_ADDR` format.
   - `insecure` (default: `false`): Allows connections even if the TLS certificate is invalid or untrusted. Not recommended for production.

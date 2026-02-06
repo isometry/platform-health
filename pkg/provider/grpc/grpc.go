@@ -23,7 +23,7 @@ const ProviderType = "grpc"
 type Component struct {
 	provider.Base
 	Host     string `mapstructure:"host"`
-	Port     int    `mapstructure:"port"`
+	Port     int    `mapstructure:"port" default:"8080"`
 	Service  string `mapstructure:"service"`
 	TLS      bool   `mapstructure:"tls" default:"false"`
 	Insecure bool   `mapstructure:"insecure" default:"false"`

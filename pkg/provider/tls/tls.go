@@ -60,6 +60,9 @@ func init() {
 	}
 }
 
+// CertPool returns the system certificate pool, or nil if unavailable.
+func CertPool() *x509.CertPool { return certPool }
+
 func (c *Component) LogValue() slog.Value {
 	logAttr := []slog.Attr{
 		slog.String("name", c.GetName()),

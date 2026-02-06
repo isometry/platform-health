@@ -29,7 +29,7 @@ ph context tls --host example.com --port 443
 The TLS Provider is configured through the platform-health server's configuration file. Each instance is defined with its name as the YAML key under `components`.
 
 - `type` (required): Must be `tls`.
-- `timeout` (default: `5s`): The maximum time to wait for a connection to be established before timing out.
+- `timeout` (optional): Per-instance timeout override.
 - `spec`: Provider-specific configuration:
   - `host` (required): The hostname or IP address of the TLS service to monitor.
   - `port` (default: `443`): The port number of the TLS service to monitor.

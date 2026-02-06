@@ -9,7 +9,7 @@ var migrateFlags = cliflags.Merge(
 	provider.FlagValues{
 		"output": {
 			Shorthand: "O",
-			Kind:      "string",
+			Kind:      provider.FlagKindString,
 			Usage:     "output file path (default: stdout)",
 		},
 	},

@@ -8,6 +8,7 @@ import (
 	"google.golang.org/protobuf/encoding/protojson"
 
 	ph "github.com/isometry/platform-health/pkg/platform_health"
+	"github.com/isometry/platform-health/pkg/platform_health/details"
 )
 
 func init() {
@@ -80,16 +81,21 @@ func (r *yamlRenderer) renderResponse(resp *ph.HealthCheckResponse, indent int) 
 	r.renderFields(resp, prefix, indent)
 }
 
-// renderFields renders common fields (type, status, messages, duration, components).
+// renderFields renders common fields (type, status, messages, duration, details, components).
 func (r *yamlRenderer) renderFields(resp *ph.HealthCheckResponse, prefix string, indent int) {
 	r.writeField(prefix, "type", resp.Type, r.colors.Type, false)
 	r.writeField(prefix, "status", resp.Status.String(), r.statusColor(resp.Status), false)
 	r.renderMessages(resp, prefix)
 
+	if resp.FailFastTriggered {
+		r.writeField(prefix, "failFastTriggered", "true", r.colors.Message, false)
+	}
+
 	if resp.Duration != nil {
 		r.writeField(prefix, "duration", resp.Duration.AsDuration().String(), r.colors.Duration, false)
 	}
 
+	r.renderDetails(resp, prefix)
 	r.renderComponents(resp, prefix, indent)
 }
 
@@ -112,6 +118,20 @@ func (r *yamlRenderer) renderMessages(resp *ph.HealthCheckResponse, prefix strin
 		}
 		r.buf.WriteString("\n")
 	}
+}
+
+// renderDetails renders provider details (TLS, HTTP, etc.).
+func (r *yamlRenderer) renderDetails(resp *ph.HealthCheckResponse, prefix string) {
+	if len(resp.Details) == 0 {
+		return
+	}
+	rendered := details.RenderAll(resp.Details, prefix+"  ")
+	if rendered == "" {
+		return
+	}
+	r.buf.WriteString(prefix)
+	r.buf.WriteString("details:\n")
+	r.buf.WriteString(rendered)
 }
 
 // renderComponents renders nested components recursively.

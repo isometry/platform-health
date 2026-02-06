@@ -47,12 +47,12 @@ func ConfigPaths(v *viper.Viper) (paths []string, name string) {
 func ConfigFlags() provider.FlagValues {
 	return provider.FlagValues{
 		"config-path": {
-			Kind:         "stringSlice",
+			Kind:         provider.FlagKindStringSlice,
 			DefaultValue: []string{".", "/config"},
 			Usage:        "configuration paths",
 		},
 		"config-name": {
-			Kind:         "string",
+			Kind:         provider.FlagKindString,
 			DefaultValue: "platform-health",
 			Usage:        "configuration name",
 		},
@@ -64,7 +64,7 @@ func ComponentFlags() provider.FlagValues {
 	return provider.FlagValues{
 		"component": {
 			Shorthand:    "c",
-			Kind:         "stringSlice",
+			Kind:         provider.FlagKindStringSlice,
 			DefaultValue: []string{},
 			Usage:        "component(s) to check",
 		},
@@ -76,28 +76,28 @@ func OutputFlags() provider.FlagValues {
 	return provider.FlagValues{
 		"output-format": {
 			Shorthand:    "o",
-			Kind:         "string",
+			Kind:         provider.FlagKindString,
 			DefaultValue: DefaultFormat,
 			Usage:        "output format (json, junit, yaml)",
 		},
 		"flat": {
-			Kind:         "bool",
+			Kind:         provider.FlagKindBool,
 			DefaultValue: false,
 			Usage:        "flat output",
 		},
 		"quiet": {
 			Shorthand:    "q",
-			Kind:         "count",
+			Kind:         provider.FlagKindCount,
 			DefaultValue: 0,
 			Usage:        "quiet output (-q: hide healthy, -qq: summary only, -qqq: exit code only)",
 		},
 		"compact": {
-			Kind:         "bool",
+			Kind:         provider.FlagKindBool,
 			DefaultValue: false,
 			Usage:        "compact JSON output",
 		},
 		"color": {
-			Kind:         "string",
+			Kind:         provider.FlagKindString,
 			DefaultValue: "auto",
 			Usage:        "colorize output: auto, always, never",
 		},
@@ -109,7 +109,7 @@ func FailFastFlags() provider.FlagValues {
 	return provider.FlagValues{
 		"fail-fast": {
 			Shorthand:    "F",
-			Kind:         "bool",
+			Kind:         provider.FlagKindBool,
 			DefaultValue: false,
 			Usage:        "cancel remaining checks after first failure",
 		},
@@ -121,7 +121,7 @@ func ParallelismFlags() provider.FlagValues {
 	return provider.FlagValues{
 		"parallelism": {
 			Shorthand:    "j",
-			Kind:         "int",
+			Kind:         provider.FlagKindInt,
 			DefaultValue: runtime.GOMAXPROCS(0),
 			Usage:        "max concurrent health checks (0 = GOMAXPROCS, -1 = unlimited)",
 		},
@@ -133,7 +133,7 @@ func TimeoutFlags() provider.FlagValues {
 	return provider.FlagValues{
 		"timeout": {
 			Shorthand:    "t",
-			Kind:         "duration",
+			Kind:         provider.FlagKindDuration,
 			DefaultValue: 10 * time.Second,
 			Usage:        "timeout for health check operations",
 		},

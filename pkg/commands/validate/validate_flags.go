@@ -10,7 +10,7 @@ var validateFlags = cliflags.Merge(
 	provider.FlagValues{
 		"output": {
 			Shorthand:    "o",
-			Kind:         "string",
+			Kind:         provider.FlagKindString,
 			DefaultValue: "text",
 			Usage:        "output format (text|json)",
 		},

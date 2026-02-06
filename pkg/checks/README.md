@@ -23,6 +23,8 @@ CEL expressions must evaluate to a boolean (`true` for healthy, `false` for unhe
 
 ## Common CEL Patterns
 
+> **Note:** The examples below use `data` as a generic illustrative placeholder variable. Actual CEL context variables are provider-specific — for example, `response` for [HTTP](../provider/http), `resource` for [Kubernetes](../provider/kubernetes), `tls` for [TLS](../provider/tls), `health` for [Vault](../provider/vault), and `release`/`chart` for [Helm](../provider/helm). See each provider's README for its available CEL variables, or use `ph context` to inspect the evaluation context.
+
 ### Simple Field Validation
 
 ```yaml

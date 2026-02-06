@@ -20,7 +20,7 @@ Once the HTTP Provider is configured, any query to the platform health server wi
 The HTTP Provider is configured through the platform-health server's configuration file. Each instance is defined with its name as the YAML key under `components`.
 
 - `type` (required): Must be `http`.
-- `timeout` (default: `10s`): Request timeout.
+- `timeout` (optional): Per-instance timeout override.
 - `spec`: Provider-specific configuration:
   - `url` (required): Target URL.
   - `method` (default: `HEAD`): HTTP method.

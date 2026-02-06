@@ -10,7 +10,7 @@ var contextFlags = cliflags.Merge(
 	provider.FlagValues{
 		"output-format": {
 			Shorthand:    "o",
-			Kind:         "string",
+			Kind:         provider.FlagKindString,
 			DefaultValue: "json",
 			Usage:        "output format (json|yaml)",
 		},

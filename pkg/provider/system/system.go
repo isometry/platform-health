@@ -68,6 +68,13 @@ func (c *Component) GetHealth(ctx context.Context) *ph.HealthCheckResponse {
 		return component
 	}
 
+	// Surface component resolution errors as messages
+	if errs := c.ComponentErrors(); len(errs) > 0 {
+		for _, err := range errs {
+			component.Messages = append(component.Messages, err.Error())
+		}
+	}
+
 	// Check sub-components (filtered or all)
 	componentResults, aggregateStatus := provider.Check(ctx, subComponents)
 	component.Status = aggregateStatus

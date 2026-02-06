@@ -53,6 +53,10 @@ func (s IncludeStack) CycleString(cyclePath string) string {
 // ProcessIncludes recursively processes includes in a config map.
 // basePath is the directory containing the current config file.
 // stack is used for loop detection via content hashing.
+//
+// Merge semantics: maps are recursively merged, lists are concatenated
+// (not replaced), and scalar values are overridden by later includes.
+// The local config (non-included content) takes highest priority.
 func ProcessIncludes(configMap map[string]any, basePath string, stack IncludeStack) (map[string]any, error) {
 	// Extract includes list
 	includesRaw, hasIncludes := configMap["includes"]

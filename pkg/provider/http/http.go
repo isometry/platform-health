@@ -37,7 +37,6 @@ package http
 import (
 	"context"
 	"crypto/tls"
-	"crypto/x509"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -85,13 +84,10 @@ var celConfig = checks.NewCEL(
 	cel.Variable("response", cel.MapType(cel.StringType, cel.DynType)),
 )
 
-var certPool *x509.CertPool
+var certPool = tlsprovider.CertPool()
 
 func init() {
 	provider.Register(ProviderType, new(Component))
-	if systemCertPool, err := x509.SystemCertPool(); err == nil {
-		certPool = systemCertPool
-	}
 }
 
 func (c *Component) LogValue() slog.Value {

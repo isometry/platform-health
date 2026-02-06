@@ -13,6 +13,8 @@ type Instance interface {
     GetType() string
     GetName() string
     SetName(string)
+    GetTimeout() time.Duration
+    SetTimeout(time.Duration)
     GetHealth(context.Context) *ph.HealthCheckResponse
     Setup() error
 }
@@ -23,6 +25,8 @@ Methods:
 - `GetType()`: Returns provider type (e.g., "tcp", "http", "system", etc.)
 - `GetName()`: Returns instance name (from config key)
 - `SetName()`: Sets the instance name
+- `GetTimeout()`: Returns the per-instance timeout override (0 means use parent context deadline)
+- `SetTimeout()`: Sets the per-instance timeout override
 - `GetHealth()`: Performs the actual health check
 - `Setup()`: Sets default configuration and initializes the instance
 
@@ -43,7 +47,7 @@ type InstanceWithChecks interface {
     GetCheckConfig() *checks.CEL
     GetCheckContext(ctx context.Context) (map[string]any, error)
     GetChecks() []checks.Expression
-    SetChecks([]checks.Expression)
+    SetChecks([]checks.Expression) error
 }
 ```
 
@@ -52,7 +56,7 @@ Methods:
 - `GetCheckConfig()`: Returns CEL configuration for the provider
 - `GetCheckContext()`: Returns evaluation context map for CEL expressions
 - `GetChecks()`: Returns configured CEL expressions
-- `SetChecks()`: Sets CEL expressions for evaluation
+- `SetChecks()`: Sets and compiles CEL expressions; returns an error if any expression is invalid
 
 This enables:
 
@@ -66,9 +70,9 @@ The `BaseWithChecks` struct provides reusable CEL handling that can be embedded 
 
 ```go
 type BaseWithChecks struct {
-    Checks    []checks.Expression `mapstructure:"checks"`
-    evaluator *checks.Evaluator
+    checks   []checks.Expression
+    compiled []*checks.Check
 }
 ```
 
-Embed this in your provider and call `SetupChecks()` from `Setup()` to get CEL support with minimal boilerplate.
+Embed this in your provider to get default implementations of `GetChecks()` and `SetChecks()`. In your provider's `SetChecks()` method, call `SetChecksAndCompile(exprs, celConfig)` to compile the CEL expressions against your provider's CEL configuration.

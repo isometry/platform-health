@@ -11,24 +11,24 @@ var serverFlags = cliflags.Merge(
 	provider.FlagValues{
 		"listen": {
 			Shorthand:    "l",
-			Kind:         "string",
+			Kind:         provider.FlagKindString,
 			NoOptDefault: "localhost",
 			Usage:        "listen on host (default all interfaces)",
 		},
 		"port": {
 			Shorthand:    "p",
-			Kind:         "int",
+			Kind:         provider.FlagKindInt,
 			DefaultValue: 8080,
 			Usage:        "listen on port",
 		},
 		"no-grpc-health-v1": {
 			Shorthand: "H",
-			Kind:      "bool",
+			Kind:      provider.FlagKindBool,
 			Usage:     "disable gRPC Health v1",
 		},
 		"grpc-reflection": {
 			Shorthand: "R",
-			Kind:      "bool",
+			Kind:      provider.FlagKindBool,
 			Usage:     "enable gRPC reflection",
 		},
 	},
