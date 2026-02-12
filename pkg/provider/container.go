@@ -2,6 +2,8 @@ package provider
 
 import (
 	"errors"
+	"maps"
+	"slices"
 )
 
 // BaseContainer provides reusable container handling for providers with nested components.
@@ -33,7 +35,8 @@ func (b *BaseContainer) ResolveComponents() error {
 	b.resolved = make([]Instance, 0)
 	b.resolutionErrors = nil
 
-	for instanceName, instanceConfig := range b.components {
+	for _, instanceName := range slices.Sorted(maps.Keys(b.components)) {
+		instanceConfig := b.components[instanceName]
 		// Extract provider type for error context
 		providerType := ExtractType(instanceConfig)
 

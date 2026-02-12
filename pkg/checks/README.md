@@ -21,6 +21,45 @@ ph context my-app -o yaml
 
 CEL expressions must evaluate to a boolean (`true` for healthy, `false` for unhealthy). Expressions have access to provider-specific context variables (e.g., `response` for HTTP, `resource` for Kubernetes).
 
+### Check Modes
+
+Each check can optionally specify a `mode` field:
+
+- **default** (no `mode` field): The expression is evaluated once against the full provider context.
+- **`mode: "each"`**: The expression is evaluated per-item for providers that return collections (e.g., Kubernetes with label selectors). Each item is evaluated independently, and failures reference the specific item.
+
+```yaml
+checks:
+  - check: "resource.status.readyReplicas >= resource.spec.replicas"
+    message: "Not all replicas ready"
+    mode: "each"
+```
+
+## Built-in Functions
+
+The following custom functions are available in all CEL expressions:
+
+- `time.Now()` - Returns the current timestamp
+- `time.Since(timestamp)` - Returns the duration elapsed since the given timestamp
+- `time.Until(timestamp)` - Returns the duration until the given timestamp
+
+```yaml
+checks:
+  - check: "time.Until(tls.validUntil) > duration('168h')"
+    message: "Certificate expires within 7 days"
+```
+
+## Standard Extensions
+
+The following CEL extension libraries are available:
+
+- **Strings**: Additional string functions (`charAt`, `indexOf`, `replace`, `split`, `substring`, `trim`, `upperAscii`, `lowerAscii`)
+- **Lists**: List manipulation functions (`slice`, `flatten`)
+- **Encoders**: Base64 encoding/decoding (`base64.encode`, `base64.decode`)
+- **Math**: Math functions (`math.greatest`, `math.least`)
+- **Sets**: Set operations (`sets.contains`, `sets.intersects`, `sets.equivalent`)
+- **Bindings**: Variable binding via `cel.bind()`
+
 ## Common CEL Patterns
 
 > **Note:** The examples below use `data` as a generic illustrative placeholder variable. Actual CEL context variables are provider-specific — for example, `response` for [HTTP](../provider/http), `resource` for [Kubernetes](../provider/kubernetes), `tls` for [TLS](../provider/tls), `health` for [Vault](../provider/vault), and `release`/`chart` for [Helm](../provider/helm). See each provider's README for its available CEL variables, or use `ph context` to inspect the evaluation context.

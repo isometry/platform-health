@@ -136,7 +136,7 @@ func (c *Component) getCheckContext(ctx context.Context) (map[string]any, []*any
 		if detail, err := anypb.New(tlsprovider.Detail(response.TLS)); err == nil {
 			details = []*anypb.Any{detail}
 		} else {
-			slog.Warn("failed to serialize TLS detail", "error", err)
+			slog.Warn("failed to serialize TLS detail", "url", c.URL, "error", err)
 		}
 	}
 
@@ -232,7 +232,10 @@ func (c *Component) executeHTTPRequest(ctx context.Context) (*http.Response, []b
 	// Execute request
 	response, err := client.Do(request)
 	if err != nil {
-		return nil, nil, fmt.Errorf("%s: %w", tlsprovider.ClassifyTLSError(err), err)
+		if label, ok := tlsprovider.ClassifyTLSError(err); ok {
+			return nil, nil, fmt.Errorf("%s: %w", label, err)
+		}
+		return nil, nil, err
 	}
 
 	// Read body with size limit
@@ -249,9 +252,13 @@ func (c *Component) executeHTTPRequest(ctx context.Context) (*http.Response, []b
 func (c *Component) buildCheckContext(response *http.Response, body []byte) map[string]any {
 	bodyText := string(body)
 
-	// Parse JSON body if possible (ignore error, jsonData remains nil for non-JSON)
+	// Parse JSON body if possible (jsonData remains nil for non-JSON)
 	var jsonData any
-	_ = json.Unmarshal(body, &jsonData)
+	if len(body) > 0 {
+		if err := json.Unmarshal(body, &jsonData); err != nil {
+			slog.Debug("response body is not valid JSON", "error", err)
+		}
+	}
 
 	// Build response headers map with lowercase keys
 	respHeaders := make(map[string]string, len(response.Header))

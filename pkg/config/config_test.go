@@ -2,6 +2,7 @@ package config
 
 import (
 	"context"
+	"log/slog"
 	"testing"
 	"time"
 
@@ -12,9 +13,7 @@ import (
 	"github.com/isometry/platform-health/pkg/provider/mock"
 )
 
-func init() {
-	log = phctx.Logger(context.Background())
-}
+var testLog = slog.Default()
 
 // testContext creates a context with a viper instance for testing
 func testContext(t *testing.T) context.Context {
@@ -136,7 +135,7 @@ func TestHarden(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			instances, _ := tt.abstract.harden(false)
+			instances, _ := tt.abstract.harden(testLog, false)
 			assert.Equal(t, tt.expectedProviders, len(instances), "providers count mismatch")
 			// Count total instances
 			total := 0
@@ -153,7 +152,7 @@ func TestHardenSetName(t *testing.T) {
 		"myinstance": map[string]any{"type": "mock", "spec": map[string]any{}},
 	}
 
-	result, _ := abstract.harden(false)
+	result, _ := abstract.harden(testLog, false)
 
 	// Check instance name is set from key
 	instance := findInstanceByName(result["mock"], "myinstance")
@@ -171,7 +170,7 @@ func TestHardenDurationParsing(t *testing.T) {
 		},
 	}
 
-	result, _ := abstract.harden(false)
+	result, _ := abstract.harden(testLog, false)
 	assert.Equal(t, 1, len(result["mock"]))
 
 	instance := findInstanceByName(result["mock"], "test").(*mock.Component)
@@ -224,7 +223,7 @@ func TestTotalInstances(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			assert.Equal(t, tt.expected, tt.result.totalInstances())
+			assert.Equal(t, tt.expected, len(tt.result.GetInstances()))
 		})
 	}
 }
@@ -281,7 +280,7 @@ func TestUnknownComponentKeysFixtures(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			result, err := Load(testContext(t), []string{testdataPath}, tt.configFile, tt.strict)
 			assert.NoError(t, err, "Load should not return error")
-			assert.Equal(t, tt.expectErrors, len(result.ValidationErrors), "validation error count mismatch")
+			assert.Equal(t, tt.expectErrors, len(result.ValidationErrors()), "validation error count mismatch")
 			assert.Equal(t, tt.expectInstances, len(result.GetInstances()), "instance count mismatch")
 		})
 	}
@@ -332,7 +331,7 @@ func TestUnknownSpecKeysFixtures(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			result, err := Load(testContext(t), []string{testdataPath}, tt.configFile, tt.strict)
 			assert.NoError(t, err, "Load should not return error")
-			assert.Equal(t, tt.expectErrors, len(result.ValidationErrors), "validation error count mismatch")
+			assert.Equal(t, tt.expectErrors, len(result.ValidationErrors()), "validation error count mismatch")
 			assert.Equal(t, tt.expectInstances, len(result.GetInstances()), "instance count mismatch")
 		})
 	}

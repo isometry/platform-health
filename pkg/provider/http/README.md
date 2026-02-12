@@ -81,6 +81,10 @@ response.body.contains("success")
 response.body.matches("(?i)all systems operational")
 ```
 
+## Default Health Behavior
+
+When no `checks` are configured, the HTTP provider considers any response with a status code in the range 200-399 as healthy. Status codes 400 and above are reported as unhealthy. To customize this behavior, use CEL checks.
+
 ## TLS Details
 
 When `detail: true` is set and the request uses HTTPS, the response will include TLS certificate information:

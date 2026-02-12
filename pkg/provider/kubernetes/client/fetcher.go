@@ -33,6 +33,10 @@ func (f *ResourceFetcher) ResolveMapping(q ResourceQuery) (*meta.RESTMapping, er
 // Get fetches a single resource by name.
 // Handles cluster-scoped vs namespaced resources automatically.
 func (f *ResourceFetcher) Get(ctx context.Context, q ResourceQuery) (*unstructured.Unstructured, error) {
+	if err := q.Validate(); err != nil {
+		return nil, err
+	}
+
 	mapping, err := f.ResolveMapping(q)
 	if err != nil {
 		return nil, err
@@ -45,6 +49,10 @@ func (f *ResourceFetcher) Get(ctx context.Context, q ResourceQuery) (*unstructur
 // List fetches resources matching a label selector.
 // Handles cluster-scoped, all-namespaces, and namespaced queries automatically.
 func (f *ResourceFetcher) List(ctx context.Context, q ResourceQuery) (*unstructured.UnstructuredList, error) {
+	if err := q.Validate(); err != nil {
+		return nil, err
+	}
+
 	mapping, err := f.ResolveMapping(q)
 	if err != nil {
 		return nil, err

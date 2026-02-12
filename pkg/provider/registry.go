@@ -1,6 +1,7 @@
 package provider
 
 import (
+	"maps"
 	"reflect"
 	"sync"
 )
@@ -33,9 +34,11 @@ func ProviderList() []string {
 	return list
 }
 
-// RegistryForTesting returns the provider registry for test assertions.
+// RegistryForTesting returns a copy of the provider registry for test assertions.
 func RegistryForTesting() ProviderRegistry {
 	mu.RLock()
 	defer mu.RUnlock()
-	return providers
+	cp := make(ProviderRegistry, len(providers))
+	maps.Copy(cp, providers)
+	return cp
 }

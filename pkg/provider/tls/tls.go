@@ -130,7 +130,7 @@ func (c *Component) getCheckContext(ctx context.Context) (map[string]any, []*any
 	if detail, err := anypb.New(Detail(&state)); err == nil {
 		details = []*anypb.Any{detail}
 	} else {
-		slog.Warn("failed to serialize TLS detail", "error", err)
+		slog.Warn("failed to serialize TLS detail", "host", c.Host, "port", c.Port, "error", err)
 	}
 
 	// Determine if certificate chain would be verified by system CA pool
@@ -190,7 +190,10 @@ func (c *Component) GetHealth(ctx context.Context) *ph.HealthCheckResponse {
 	// Get check context and details (single TLS handshake, no shared state)
 	checkCtx, details, err := c.getCheckContext(ctx)
 	if err != nil {
-		return component.Unhealthy(ClassifyTLSError(err))
+		if label, ok := ClassifyTLSError(err); ok {
+			return component.Unhealthy(fmt.Sprintf("%s: %s", label, err))
+		}
+		return component.Unhealthy(err.Error())
 	}
 
 	// Extract TLS data for traditional checks
@@ -215,7 +218,10 @@ func (c *Component) GetHealth(ctx context.Context) *ph.HealthCheckResponse {
 
 	// Check SANs
 	if len(c.SANs) > 0 {
-		sans, _ := tlsData["subjectAltNames"].([]string) // empty slice if missing is OK
+		sans, ok := tlsData["subjectAltNames"].([]string)
+		if !ok {
+			return component.Unhealthy("failed to read certificate SANs")
+		}
 		for _, san := range c.SANs {
 			if !slices.Contains(sans, san) {
 				return component.Unhealthy(fmt.Sprintf("expected SAN %s not found in certificate", san))
@@ -231,17 +237,18 @@ func (c *Component) GetHealth(ctx context.Context) *ph.HealthCheckResponse {
 	return component.Healthy()
 }
 
-// ClassifyTLSError returns a user-friendly error message for TLS handshake errors.
-func ClassifyTLSError(err error) string {
+// ClassifyTLSError classifies a TLS handshake error, returning a short label
+// for known TLS error types or empty string if the error is not TLS-specific.
+func ClassifyTLSError(err error) (string, bool) {
 	switch {
 	case errors.As(err, new(x509.CertificateInvalidError)):
-		return "certificate invalid"
+		return "certificate invalid", true
 	case errors.As(err, new(x509.HostnameError)):
-		return "hostname mismatch"
+		return "hostname mismatch", true
 	case errors.As(err, new(x509.UnknownAuthorityError)):
-		return "unknown authority"
+		return "unknown authority", true
 	default:
-		return err.Error()
+		return "", false
 	}
 }
 

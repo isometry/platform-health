@@ -91,7 +91,7 @@ func collectResults(result *config.LoadResult) ValidationSummary {
 	var results []ValidationResult
 
 	// Add errors from config loading (instances that failed to load)
-	for _, err := range result.ValidationErrors {
+	for _, err := range result.ValidationErrors() {
 		// Try to extract instance info from InstanceError
 		if instErr, ok := err.(provider.InstanceError); ok {
 			results = append(results, ValidationResult{

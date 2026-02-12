@@ -15,6 +15,7 @@ The Helm Provider is configured through the platform-health server's configurati
 - `spec`: Provider-specific configuration:
   - `release` (required): The name of the Helm release to monitor.
   - `namespace` (required): The namespace of the Helm release to monitor.
+  - `context` (optional): Kubeconfig context to use.
 - `checks`: A list of CEL expressions for custom health validation. Each check has:
   - `check` (required): A CEL expression that must evaluate to `true` for the release to be healthy.
   - `message` (optional): Custom error message when the check fails.
@@ -36,7 +37,7 @@ The following variables are available in CEL expressions:
 - `release.Deleted` - Deletion timestamp
 - `release.Description` - Release description
 - `release.Notes` - Chart NOTES.txt content
-- `release.Manifest` - Rendered manifest content
+- `release.Manifest` - Parsed manifest resources (list of maps, one per YAML document)
 - `release.Labels` - Release labels (map)
 - `release.Config` - User-provided value overrides (map)
 

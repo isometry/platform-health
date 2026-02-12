@@ -12,12 +12,13 @@ The Satellite Provider is configured through the platform-health server's config
 
 - `type` (required): Must be `satellite`.
 - `timeout` (optional): Per-instance timeout override.
-- `components` (optional): Allowlist of component names that can be requested from the downstream server. Acts as default when no components requested, and validates requests (unlisted components return unhealthy).
 - `spec`: Provider-specific configuration:
   - `host` (required): The hostname or IP address of the Satellite service to monitor.
-  - `port` (default: `8080`): The port number of the Satellite service to monitor.
-  - `tls` (default: `false`, unless `port` is `443`): Enable TLS for the gRPC dialer.
+  - `port` (required): The port number of the Satellite service to monitor.
+  - `tls` (default: `false`, unless `port` is `443` or `8443`): Enable TLS for the gRPC dialer.
   - `insecure` (default: `false`): Disable certificate validation when TLS is enabled.
+  - `components` (optional): Allowlist of component names that can be requested from the downstream server. Acts as default when no components requested, and validates requests (unlisted components return unhealthy).
+  - `fail_fast` (default: `false`): Propagate fail-fast mode to the downstream server.
 
 ## Examples
 

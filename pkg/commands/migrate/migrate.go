@@ -3,6 +3,7 @@ package migrate
 import (
 	"bytes"
 	"fmt"
+	"maps"
 	"os"
 	"strings"
 
@@ -51,9 +52,7 @@ func transformRest(config map[string]any) {
 	if !ok {
 		return
 	}
-	for k, v := range reqMap {
-		config[k] = v
-	}
+	maps.Copy(config, reqMap)
 	delete(config, "request")
 }
 

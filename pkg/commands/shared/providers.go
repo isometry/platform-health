@@ -3,6 +3,7 @@ package shared
 
 import (
 	"fmt"
+	"log/slog"
 
 	"github.com/spf13/cobra"
 
@@ -24,7 +25,8 @@ func AddProviderSubcommands(parent *cobra.Command, opts ProviderSubcommandOption
 	for _, providerType := range provider.ProviderList() {
 		instance, err := provider.New(providerType)
 		if err != nil {
-			panic(err)
+			slog.Error("failed to instantiate provider", "type", providerType, "error", err)
+			continue
 		}
 
 		if opts.RequireChecks && !provider.SupportsChecks(instance) {
