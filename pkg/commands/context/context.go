@@ -133,7 +133,7 @@ func runProviderContext(cmd *cobra.Command, providerType string) error {
 func displayContext(cmd *cobra.Command, checkProvider provider.InstanceWithChecks) error {
 	v := phctx.Viper(cmd.Context())
 	timeout := v.GetDuration("timeout")
-	if instTimeout := checkProvider.GetTimeout(); instTimeout > 0 {
+	if instTimeout := checkProvider.GetTimeout(); instTimeout > 0 && instTimeout < timeout {
 		timeout = instTimeout
 	}
 	ctx, cancel := gocontext.WithTimeout(cmd.Context(), timeout)

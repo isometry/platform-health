@@ -291,7 +291,7 @@ func (c *CEL) EvaluateAny(expr string, celCtx map[string]any) (any, error) {
 		return nil, err
 	}
 
-	return result.Value(), nil
+	return result.ConvertToNative(reflect.TypeFor[any]())
 }
 
 // EvaluateEach evaluates a CEL expression for each item in a collection.
