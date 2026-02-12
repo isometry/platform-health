@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/spf13/cobra"
 	"go.yaml.in/yaml/v3"
@@ -54,6 +55,75 @@ func transformRest(config map[string]any) {
 		config[k] = v
 	}
 	delete(config, "request")
+}
+
+// transformChecks rewrites legacy "expr"/"expression" keys to "check" in checks entries.
+func transformChecks(config map[string]any) {
+	checksValue, ok := config["checks"]
+	if !ok {
+		return
+	}
+	checksSlice, ok := checksValue.([]any)
+	if !ok {
+		return
+	}
+	for _, item := range checksSlice {
+		itemMap, ok := item.(map[string]any)
+		if !ok {
+			continue
+		}
+		for _, oldKey := range []string{"expr", "expression"} {
+			if val, ok := itemMap[oldKey]; ok {
+				itemMap["check"] = val
+				delete(itemMap, oldKey)
+				break
+			}
+		}
+	}
+}
+
+// transformHTTPStatus converts a legacy HTTP "status" field to a CEL check expression.
+// Returns a migration note if a transformation was performed.
+func transformHTTPStatus(config map[string]any) string {
+	statusValue, ok := config["status"]
+	if !ok {
+		return ""
+	}
+	statusSlice, ok := statusValue.([]any)
+	if !ok {
+		return ""
+	}
+	if len(statusSlice) == 0 {
+		return ""
+	}
+
+	// Build CEL expression
+	var expr string
+	if len(statusSlice) == 1 {
+		expr = fmt.Sprintf("response.status == %v", statusSlice[0])
+	} else {
+		parts := make([]string, len(statusSlice))
+		for i, s := range statusSlice {
+			parts[i] = fmt.Sprintf("%v", s)
+		}
+		expr = fmt.Sprintf("response.status in [%s]", strings.Join(parts, ", "))
+	}
+
+	// Create check entry
+	checkEntry := map[string]any{
+		"check":   expr,
+		"message": "unexpected HTTP status",
+	}
+
+	// Append to existing checks or create new
+	if existingChecks, ok := config["checks"].([]any); ok {
+		config["checks"] = append(existingChecks, checkEntry)
+	} else {
+		config["checks"] = []any{checkEntry}
+	}
+
+	delete(config, "status")
+	return fmt.Sprintf("status %v -> CEL check: %s", statusSlice, expr)
 }
 
 func run(cmd *cobra.Command, args []string) error {
@@ -139,6 +209,16 @@ func run(cmd *cobra.Command, args []string) error {
 			if inst.providerType == "rest" {
 				transformRest(inst.config)
 			}
+
+			// Convert legacy HTTP status field to CEL check
+			if providerType == "http" {
+				if note := transformHTTPStatus(inst.config); note != "" {
+					renames = append(renames, fmt.Sprintf("  %s: %s", finalName, note))
+				}
+			}
+
+			// Rewrite legacy check expression keys (expr/expression -> check)
+			transformChecks(inst.config)
 
 			// Build new instance config, routing keys to framework level or spec
 			newInstance := make(map[string]any)
