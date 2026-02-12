@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
-	"runtime"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -12,6 +11,7 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	k8sruntime "k8s.io/apimachinery/pkg/runtime"
 
+	itestutil "github.com/isometry/platform-health/internal/testutil"
 	"github.com/isometry/platform-health/pkg/checks"
 	ph "github.com/isometry/platform-health/pkg/platform_health"
 	"github.com/isometry/platform-health/pkg/provider/kubernetes"
@@ -21,9 +21,7 @@ import (
 // getTestdataPath returns the path to the testdata directory
 func getTestdataPath(t *testing.T) string {
 	t.Helper()
-	_, filename, _, ok := runtime.Caller(0)
-	require.True(t, ok, "failed to get caller info")
-	return filepath.Join(filepath.Dir(filename), "testdata")
+	return itestutil.TestdataPath(t)
 }
 
 // loadDeploymentFixture loads a deployment JSON fixture and returns an unstructured object

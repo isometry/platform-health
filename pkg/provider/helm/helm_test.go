@@ -5,7 +5,6 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
-	"runtime"
 	"testing"
 	"time"
 
@@ -15,6 +14,7 @@ import (
 	"helm.sh/helm/v4/pkg/release/common"
 	release "helm.sh/helm/v4/pkg/release/v1"
 
+	"github.com/isometry/platform-health/internal/testutil"
 	"github.com/isometry/platform-health/pkg/checks"
 	ph "github.com/isometry/platform-health/pkg/platform_health"
 	"github.com/isometry/platform-health/pkg/provider"
@@ -25,9 +25,7 @@ import (
 // getTestdataPath returns the path to the testdata directory
 func getTestdataPath(t *testing.T) string {
 	t.Helper()
-	_, filename, _, ok := runtime.Caller(0)
-	require.True(t, ok, "failed to get caller info")
-	return filepath.Join(filepath.Dir(filename), "testdata")
+	return testutil.TestdataPath(t)
 }
 
 // loadManifestFixture loads a manifest YAML file from testdata

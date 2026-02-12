@@ -1,7 +1,7 @@
 package output
 
 import (
-	"sort"
+	"slices"
 	"sync"
 
 	ph "github.com/isometry/platform-health/pkg/platform_health"
@@ -45,6 +45,6 @@ func FormatNames() []string {
 	for name := range formatters {
 		names = append(names, name)
 	}
-	sort.Strings(names)
+	slices.Sort(names)
 	return names
 }

@@ -60,11 +60,10 @@ func setup(cmd *cobra.Command, args []string) (err error) {
 	}
 
 	// In strict mode, fail if any configuration errors were found
-	if strict && result.HasErrors() {
-		for _, e := range result.ValidationErrors {
-			log.Error("configuration error", slog.Any("error", e))
+	if strict {
+		if err := result.EnforceStrict(log); err != nil {
+			return err
 		}
-		return fmt.Errorf("configuration validation failed with %d error(s)", len(result.ValidationErrors))
 	}
 
 	conf = result

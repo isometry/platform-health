@@ -79,15 +79,7 @@ func (b *MockFactoryBuilder) Build() *client.KubeClients {
 // Install sets the global ClientFactory and registers cleanup.
 func (b *MockFactoryBuilder) Install(t *testing.T) {
 	t.Helper()
-	clients := b.Build()
-
-	client.ClientFactory = &client.MockFactory{
-		Clients: clients,
-	}
-
-	t.Cleanup(func() {
-		client.ClientFactory = &client.DefaultFactory{}
-	})
+	_ = b.InstallWithClients(t)
 }
 
 // InstallWithClients sets the global ClientFactory and returns the clients for direct use.

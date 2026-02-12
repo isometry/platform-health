@@ -190,14 +190,7 @@ func (c *Component) GetHealth(ctx context.Context) *ph.HealthCheckResponse {
 	}
 
 	fetcher := clients.NewFetcher()
-	query := client.ResourceQuery{
-		Group:         c.Group,
-		Version:       c.Version,
-		Kind:          c.Kind,
-		Namespace:     c.Namespace,
-		Name:          c.Name,
-		LabelSelector: c.LabelSelector,
-	}
+	query := c.buildQuery()
 
 	mapping, err := fetcher.ResolveMapping(query)
 	if err != nil {

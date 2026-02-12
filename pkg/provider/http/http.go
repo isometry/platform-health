@@ -74,8 +74,6 @@ type Component struct {
 	Headers  map[string]string `mapstructure:"headers"`
 	Insecure bool              `mapstructure:"insecure"`
 	Detail   bool              `mapstructure:"detail"`
-
-	cachedDetails []*anypb.Any // cached details from GetCheckContext
 }
 
 var _ provider.InstanceWithChecks = (*Component)(nil)
@@ -124,23 +122,29 @@ func (c *Component) GetCheckConfig() *checks.CEL {
 	return celConfig
 }
 
-// GetCheckContext performs the HTTP request and returns the CEL evaluation context.
-// Also caches TLS details for use by GetHealth.
-func (c *Component) GetCheckContext(ctx context.Context) (map[string]any, error) {
+// getCheckContext performs the HTTP request and returns the CEL evaluation context
+// along with any TLS details as local values, avoiding shared mutable state.
+func (c *Component) getCheckContext(ctx context.Context) (map[string]any, []*anypb.Any, error) {
 	response, body, err := c.executeHTTPRequest(ctx)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	defer func() { _ = response.Body.Close() }()
 
-	// Cache wrapped TLS details if available
+	var details []*anypb.Any
 	if response.TLS != nil {
 		if detail, err := anypb.New(tlsprovider.Detail(response.TLS)); err == nil {
-			c.cachedDetails = []*anypb.Any{detail}
+			details = []*anypb.Any{detail}
 		}
 	}
 
-	return c.buildCheckContext(response, body), nil
+	return c.buildCheckContext(response, body), details, nil
+}
+
+// GetCheckContext satisfies the CheckContextProvider interface.
+func (c *Component) GetCheckContext(ctx context.Context) (map[string]any, error) {
+	checkCtx, _, err := c.getCheckContext(ctx)
+	return checkCtx, err
 }
 
 func (c *Component) GetType() string {
@@ -157,8 +161,8 @@ func (c *Component) GetHealth(ctx context.Context) *ph.HealthCheckResponse {
 	}
 	defer component.LogStatus(log)
 
-	// Get check context (single HTTP request, caches TLS details)
-	checkCtx, err := c.GetCheckContext(ctx)
+	// Get check context and details (single HTTP request, no shared state)
+	checkCtx, details, err := c.getCheckContext(ctx)
 	if err != nil {
 		return component.Unhealthy(err.Error())
 	}
@@ -168,9 +172,9 @@ func (c *Component) GetHealth(ctx context.Context) *ph.HealthCheckResponse {
 		return component.Unhealthy(msgs...)
 	}
 
-	// Add cached details if requested
+	// Add details if requested
 	if c.Detail {
-		component.Details = append(component.Details, c.cachedDetails...)
+		component.Details = append(component.Details, details...)
 	}
 
 	return component.Healthy()
@@ -215,7 +219,7 @@ func (c *Component) executeHTTPRequest(ctx context.Context) (*http.Response, []b
 	// Execute request
 	response, err := client.Do(request)
 	if err != nil {
-		return nil, nil, fmt.Errorf("%s", tlsprovider.ClassifyTLSError(err))
+		return nil, nil, fmt.Errorf("%s: %w", tlsprovider.ClassifyTLSError(err), err)
 	}
 
 	// Read body with size limit

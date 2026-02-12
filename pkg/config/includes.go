@@ -188,21 +188,36 @@ func deepMerge(dst, src map[string]any) map[string]any {
 	return result
 }
 
-// processNestedIncludes processes includes in nested component maps
+// processNestedIncludes processes includes within the components namespace,
+// which is the only framework key that introduces new include-capable scopes.
 func processNestedIncludes(configMap map[string]any, basePath string, stack IncludeStack) (map[string]any, error) {
 	result := make(map[string]any)
+	maps.Copy(result, configMap)
 
-	for k, v := range configMap {
-		if nestedMap, isMap := v.(map[string]any); isMap {
-			processed, err := ProcessIncludes(nestedMap, basePath, stack)
-			if err != nil {
-				return nil, fmt.Errorf("in %s: %w", k, err)
-			}
-			result[k] = processed
-		} else {
-			result[k] = v
-		}
+	componentsRaw, ok := result["components"]
+	if !ok {
+		return result, nil
 	}
+
+	componentsMap, ok := componentsRaw.(map[string]any)
+	if !ok {
+		return result, nil
+	}
+
+	processedComponents := make(map[string]any)
+	for name, comp := range componentsMap {
+		compMap, ok := comp.(map[string]any)
+		if !ok {
+			processedComponents[name] = comp
+			continue
+		}
+		processed, err := ProcessIncludes(compMap, basePath, stack)
+		if err != nil {
+			return nil, fmt.Errorf("in components.%s: %w", name, err)
+		}
+		processedComponents[name] = processed
+	}
+	result["components"] = processedComponents
 
 	return result, nil
 }

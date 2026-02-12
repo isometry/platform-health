@@ -7,6 +7,7 @@ import (
 	"os"
 	"slices"
 
+	"github.com/mgutz/ansi"
 	"github.com/spf13/cobra"
 	"golang.org/x/term"
 
@@ -213,32 +214,22 @@ func outputJSON(summary ValidationSummary) error {
 	return nil
 }
 
-// ANSI color codes
-const (
-	colorReset = "\033[0m"
-	colorGreen = "\033[32m"
-	colorRed   = "\033[31m"
-)
-
 func outputText(summary ValidationSummary) error {
-	// Check if stdout is a terminal for color support
-	useColor := term.IsTerminal(int(os.Stdout.Fd()))
+	// Resolve color codes only if stdout is a terminal
+	green, red, reset := "", "", ""
+	if term.IsTerminal(int(os.Stdout.Fd())) {
+		green = ansi.ColorCode("green")
+		red = ansi.ColorCode("red")
+		reset = ansi.ColorCode("reset")
+	}
 
 	fmt.Println("Validation Results:")
 
 	for _, r := range summary.Results {
 		if r.Valid {
-			if useColor {
-				fmt.Printf("  %s\u2714%s %s (%s)\n", colorGreen, colorReset, r.Name, r.Type)
-			} else {
-				fmt.Printf("  \u2714 %s (%s)\n", r.Name, r.Type)
-			}
+			fmt.Printf("  %s\u2714%s %s (%s)\n", green, reset, r.Name, r.Type)
 		} else {
-			if useColor {
-				fmt.Printf("  %s\u2718%s %s (%s)\n", colorRed, colorReset, r.Name, r.Type)
-			} else {
-				fmt.Printf("  \u2718 %s (%s)\n", r.Name, r.Type)
-			}
+			fmt.Printf("  %s\u2718%s %s (%s)\n", red, reset, r.Name, r.Type)
 			for _, e := range r.Errors {
 				fmt.Printf("      - %s\n", e)
 			}

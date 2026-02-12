@@ -55,6 +55,18 @@ func (r *LoadResult) HasErrors() bool {
 	return len(r.ValidationErrors) > 0
 }
 
+// EnforceStrict logs all validation errors and returns an error if any exist.
+// Used in strict mode to abort on configuration errors.
+func (r *LoadResult) EnforceStrict(log *slog.Logger) error {
+	if !r.HasErrors() {
+		return nil
+	}
+	for _, e := range r.ValidationErrors {
+		log.Error("configuration error", slog.Any("error", e))
+	}
+	return fmt.Errorf("configuration validation failed with %d error(s)", len(r.ValidationErrors))
+}
+
 // GetInstances returns a flat slice of all loaded provider instances.
 func (r *LoadResult) GetInstances() []provider.Instance {
 	flatInstances := make([]provider.Instance, 0, r.totalInstances())
@@ -93,12 +105,29 @@ func (r *LoadResult) initialize(configPaths []string, configName string, strict 
 			r.v.WatchConfig()
 			r.v.OnConfigChange(func(e fsnotify.Event) {
 				log.Debug("config change")
-				if err = r.v.ReadInConfig(); err != nil {
+				if err := r.v.ReadInConfig(); err != nil {
 					log.Error("failed to read config", "error", err)
 					return
 				}
-				if err = r.update(strict); err != nil {
+
+				prevConfig := r.config
+				prevErrors := r.ValidationErrors
+
+				if err := r.update(strict); err != nil {
 					log.Error("failed to load config", "error", err)
+					r.config = prevConfig
+					r.ValidationErrors = prevErrors
+					return
+				}
+
+				if strict && r.HasErrors() {
+					for _, e := range r.ValidationErrors {
+						log.Error("configuration error", slog.Any("error", e))
+					}
+					log.Warn("config reload rejected due to strict validation errors")
+					r.config = prevConfig
+					r.ValidationErrors = prevErrors
+					return
 				}
 
 				log.Info("config reloaded", slog.Any("instances", r.countByProvider()))

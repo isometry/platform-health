@@ -43,8 +43,6 @@ type Component struct {
 	MinValidity time.Duration `mapstructure:"minValidity" default:"24h"`
 	SANs        []string      `mapstructure:"subjectAltNames"`
 	Detail      bool          `mapstructure:"detail"`
-
-	cachedDetails []*anypb.Any // cached details from GetCheckContext
 }
 
 type VerificationStatus struct {
@@ -97,15 +95,14 @@ func (c *Component) GetCheckConfig() *checks.CEL {
 	return celConfig
 }
 
-// GetCheckContext performs a TLS handshake and returns the CEL evaluation context.
-// Returns {"tls": tlsConnectionData} containing all TLS connection details.
-// Also caches TLS details for use by GetHealth.
-func (c *Component) GetCheckContext(ctx context.Context) (map[string]any, error) {
+// getCheckContext performs a TLS handshake and returns the CEL evaluation context
+// along with any TLS details as local values, avoiding shared mutable state.
+func (c *Component) getCheckContext(ctx context.Context) (map[string]any, []*anypb.Any, error) {
 	dialer := &net.Dialer{}
 	address := net.JoinHostPort(c.Host, fmt.Sprint(c.Port))
 	conn, err := dialer.DialContext(ctx, "tcp", address)
 	if err != nil {
-		return nil, fmt.Errorf("TCP connection to %s: %w", address, err)
+		return nil, nil, fmt.Errorf("TCP connection to %s: %w", address, err)
 	}
 	defer func() { _ = conn.Close() }()
 
@@ -119,15 +116,15 @@ func (c *Component) GetCheckContext(ctx context.Context) (map[string]any, error)
 
 	tlsConn := tls.Client(conn, tlsConf)
 	if err := tlsConn.HandshakeContext(ctx); err != nil {
-		return nil, fmt.Errorf("TLS handshake with %s:%d: %w", c.Host, c.Port, err)
+		return nil, nil, fmt.Errorf("TLS handshake with %s:%d: %w", c.Host, c.Port, err)
 	}
 	defer func() { _ = tlsConn.Close() }()
 
 	state := tlsConn.ConnectionState()
 
-	// Cache wrapped details
+	var details []*anypb.Any
 	if detail, err := anypb.New(Detail(&state)); err == nil {
-		c.cachedDetails = []*anypb.Any{detail}
+		details = []*anypb.Any{detail}
 	}
 
 	// Determine if certificate chain would be verified by system CA pool
@@ -167,7 +164,13 @@ func (c *Component) GetCheckContext(ctx context.Context) (map[string]any, error)
 			"serverName":         c.Host,
 			"port":               c.Port,
 		},
-	}, nil
+	}, details, nil
+}
+
+// GetCheckContext satisfies the CheckContextProvider interface.
+func (c *Component) GetCheckContext(ctx context.Context) (map[string]any, error) {
+	checkCtx, _, err := c.getCheckContext(ctx)
+	return checkCtx, err
 }
 
 func (c *Component) GetHealth(ctx context.Context) *ph.HealthCheckResponse {
@@ -180,8 +183,8 @@ func (c *Component) GetHealth(ctx context.Context) *ph.HealthCheckResponse {
 	}
 	defer component.LogStatus(log)
 
-	// Get check context (single TLS handshake, caches details)
-	checkCtx, err := c.GetCheckContext(ctx)
+	// Get check context and details (single TLS handshake, no shared state)
+	checkCtx, details, err := c.getCheckContext(ctx)
 	if err != nil {
 		return component.Unhealthy(ClassifyTLSError(err))
 	}
@@ -192,9 +195,9 @@ func (c *Component) GetHealth(ctx context.Context) *ph.HealthCheckResponse {
 		return component.Unhealthy(fmt.Sprintf("invalid TLS context: expected map[string]any, got %T", checkCtx["tls"]))
 	}
 
-	// Add cached details if requested
+	// Add details if requested
 	if c.Detail {
-		component.Details = append(component.Details, c.cachedDetails...)
+		component.Details = append(component.Details, details...)
 	}
 
 	// Check certificate validity

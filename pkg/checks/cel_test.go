@@ -4,20 +4,19 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
-	"runtime"
 	"testing"
 
 	"github.com/google/cel-go/cel"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/isometry/platform-health/internal/testutil"
 )
 
 // getTestdataPath returns the path to the testdata directory
 func getTestdataPath(t *testing.T) string {
 	t.Helper()
-	_, filename, _, ok := runtime.Caller(0)
-	require.True(t, ok, "failed to get caller info")
-	return filepath.Join(filepath.Dir(filename), "testdata")
+	return testutil.TestdataPath(t)
 }
 
 // loadContextFixture loads a context JSON fixture

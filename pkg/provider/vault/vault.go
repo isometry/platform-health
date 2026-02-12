@@ -89,16 +89,16 @@ func (c *Component) GetCheckContext(ctx context.Context) (map[string]any, error)
 
 	return map[string]any{
 		"health": map[string]any{
-			"Initialized":                health.Initialized,
-			"Sealed":                     health.Sealed,
-			"Standby":                    health.Standby,
-			"PerformanceStandby":         health.PerformanceStandby,
-			"ReplicationPerformanceMode": health.ReplicationPerformanceMode,
-			"ReplicationDRMode":          health.ReplicationDRMode,
-			"ServerTimeUTC":              health.ServerTimeUTC,
-			"Version":                    health.Version,
-			"ClusterName":                health.ClusterName,
-			"ClusterID":                  health.ClusterID,
+			"initialized":                health.Initialized,
+			"sealed":                     health.Sealed,
+			"standby":                    health.Standby,
+			"performanceStandby":         health.PerformanceStandby,
+			"replicationPerformanceMode": health.ReplicationPerformanceMode,
+			"replicationDRMode":          health.ReplicationDRMode,
+			"serverTimeUTC":              health.ServerTimeUTC,
+			"version":                    health.Version,
+			"clusterName":                health.ClusterName,
+			"clusterID":                  health.ClusterID,
 		},
 	}, nil
 }
@@ -130,7 +130,7 @@ func (c *Component) GetHealth(ctx context.Context) *ph.HealthCheckResponse {
 	}
 
 	// Check initialization status
-	initialized, ok := healthData["Initialized"].(bool)
+	initialized, ok := healthData["initialized"].(bool)
 	if !ok {
 		return component.Unhealthy(fmt.Sprintf("missing initialization status in response from %s", c.Address))
 	}
@@ -139,7 +139,7 @@ func (c *Component) GetHealth(ctx context.Context) *ph.HealthCheckResponse {
 	}
 
 	// Check seal status
-	sealed, ok := healthData["Sealed"].(bool)
+	sealed, ok := healthData["sealed"].(bool)
 	if !ok {
 		return component.Unhealthy(fmt.Sprintf("missing seal status in response from %s", c.Address))
 	}

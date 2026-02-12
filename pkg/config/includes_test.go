@@ -355,6 +355,28 @@ url: https://example.com
 		assert.Equal(t, "5s", api["timeout"])
 	})
 
+	t.Run("Non-framework map with includes key is ignored", func(t *testing.T) {
+		config := map[string]any{
+			"components": map[string]any{
+				"api": map[string]any{
+					"type": "http",
+					"metadata": map[string]any{
+						"includes": "not-a-list",
+					},
+				},
+			},
+		}
+
+		result, err := ProcessIncludes(config, tmpDir, nil)
+		require.NoError(t, err)
+
+		components := result["components"].(map[string]any)
+		api := components["api"].(map[string]any)
+		assert.Equal(t, "http", api["type"])
+		metadata := api["metadata"].(map[string]any)
+		assert.Equal(t, "not-a-list", metadata["includes"])
+	})
+
 	t.Run("Nested includes in include files", func(t *testing.T) {
 		// Create nested structure
 		includesDir := filepath.Join(tmpDir, "includes")
