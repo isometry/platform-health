@@ -122,26 +122,30 @@ func (c *Component) getCheckContext(ctx context.Context) (map[string]any, []*any
 
 	state := tlsConn.ConnectionState()
 
+	if len(state.PeerCertificates) == 0 {
+		return nil, nil, fmt.Errorf("TLS handshake with %s:%d completed without peer certificates", c.Host, c.Port)
+	}
+
 	var details []*anypb.Any
 	if detail, err := anypb.New(Detail(&state)); err == nil {
 		details = []*anypb.Any{detail}
+	} else {
+		slog.Warn("failed to serialize TLS detail", "error", err)
 	}
 
 	// Determine if certificate chain would be verified by system CA pool
 	// (regardless of insecure setting)
 	verified := false
-	if len(state.PeerCertificates) > 0 {
-		opts := x509.VerifyOptions{
-			Roots:         certPool,
-			Intermediates: x509.NewCertPool(),
-			DNSName:       c.Host,
-		}
-		for _, cert := range state.PeerCertificates[1:] {
-			opts.Intermediates.AddCert(cert)
-		}
-		_, err := state.PeerCertificates[0].Verify(opts)
-		verified = (err == nil)
+	opts := x509.VerifyOptions{
+		Roots:         certPool,
+		Intermediates: x509.NewCertPool(),
+		DNSName:       c.Host,
 	}
+	for _, cert := range state.PeerCertificates[1:] {
+		opts.Intermediates.AddCert(cert)
+	}
+	_, verifyErr := state.PeerCertificates[0].Verify(opts)
+	verified = (verifyErr == nil)
 
 	// Build certificate chain
 	chain := make([]string, 0, len(state.PeerCertificates))
@@ -242,22 +246,27 @@ func ClassifyTLSError(err error) string {
 }
 
 // Detail builds a Detail_TLS from a TLS connection state.
+// If PeerCertificates is empty, only connection-level fields are populated.
 func Detail(state *tls.ConnectionState) (detail *details.Detail_TLS) {
 	detail = &details.Detail_TLS{
-		CommonName:         state.PeerCertificates[0].Subject.CommonName,
-		SubjectAltNames:    state.PeerCertificates[0].DNSNames,
-		ValidUntil:         timestamppb.New(state.PeerCertificates[0].NotAfter),
-		SignatureAlgorithm: state.PeerCertificates[0].SignatureAlgorithm.String(),
-		PublicKeyAlgorithm: state.PeerCertificates[0].PublicKeyAlgorithm.String(),
-		Version:            tls.VersionName(state.Version),
-		CipherSuite:        tls.CipherSuiteName(state.CipherSuite),
-		Protocol:           state.NegotiatedProtocol,
+		Version:     tls.VersionName(state.Version),
+		CipherSuite: tls.CipherSuiteName(state.CipherSuite),
+		Protocol:    state.NegotiatedProtocol,
 	}
-	chain := make([]string, 0, len(state.PeerCertificates))
-	for _, cert := range state.PeerCertificates {
-		chain = append(chain, cert.Issuer.CommonName)
+
+	if len(state.PeerCertificates) > 0 {
+		detail.CommonName = state.PeerCertificates[0].Subject.CommonName
+		detail.SubjectAltNames = state.PeerCertificates[0].DNSNames
+		detail.ValidUntil = timestamppb.New(state.PeerCertificates[0].NotAfter)
+		detail.SignatureAlgorithm = state.PeerCertificates[0].SignatureAlgorithm.String()
+		detail.PublicKeyAlgorithm = state.PeerCertificates[0].PublicKeyAlgorithm.String()
+
+		chain := make([]string, 0, len(state.PeerCertificates))
+		for _, cert := range state.PeerCertificates {
+			chain = append(chain, cert.Issuer.CommonName)
+		}
+		detail.Chain = chain
 	}
-	detail.Chain = chain
 
 	return detail
 }

@@ -249,7 +249,11 @@ func ParseConfig(raw any) ([]Expression, error) {
 // ValidateExpression validates CEL expression syntax at configuration time.
 // Variables should be declared using cel.Variable() options.
 func ValidateExpression(expression string, variables ...cel.EnvOption) error {
-	env, err := cel.NewEnv(append(variables, standardExtensions...)...)
+	allOpts := make([]cel.EnvOption, 0, len(standardFunctions)+len(variables)+len(standardExtensions))
+	allOpts = append(allOpts, standardFunctions...)
+	allOpts = append(allOpts, variables...)
+	allOpts = append(allOpts, standardExtensions...)
+	env, err := cel.NewEnv(allOpts...)
 	if err != nil {
 		return fmt.Errorf("failed to create CEL environment: %w", err)
 	}
@@ -262,7 +266,7 @@ func ValidateExpression(expression string, variables ...cel.EnvOption) error {
 }
 
 // EvaluateAny compiles and evaluates a CEL expression returning its result.
-// Unlike Evaluate(), this does not require boolean output - any type is allowed.
+// Unlike Check.Evaluate(), this does not require boolean output - any type is allowed.
 // The result is converted to native Go types for serialization.
 // Note: Uses the cached environment but compiles the AST directly (no caching)
 // since the boolean output validation in getOrCompileAST() doesn't apply here.

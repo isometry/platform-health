@@ -59,11 +59,8 @@ func setup(cmd *cobra.Command, args []string) (err error) {
 		return err
 	}
 
-	// In strict mode, fail if any configuration errors were found
-	if strict {
-		if err := result.EnforceStrict(log); err != nil {
-			return err
-		}
+	if err := result.EnforceStrict(log); err != nil {
+		return err
 	}
 
 	conf = result

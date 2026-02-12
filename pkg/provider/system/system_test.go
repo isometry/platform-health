@@ -139,20 +139,11 @@ func TestSystemUnknownProviderReturnsError(t *testing.T) {
 		},
 	})
 
-	// Setup collects errors in ComponentErrors (doesn't return error)
+	// Setup returns an error when all children fail to resolve
 	err := s.Setup()
-	require.NoError(t, err)
-
-	// ComponentErrors should contain the error for unknown provider
-	require.Len(t, s.ComponentErrors(), 1)
-	assert.Contains(t, s.ComponentErrors()[0].Error(), "nonexistent")
-	assert.Contains(t, s.ComponentErrors()[0].Error(), "unknown provider type")
-
-	// GetHealth should still work but return HEALTHY with no children
-	result := s.GetHealth(t.Context())
-	assert.NotNil(t, result)
-	assert.Equal(t, ph.Status_HEALTHY, result.GetStatus())
-	assert.Equal(t, 0, len(result.GetComponents()))
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "nonexistent")
+	assert.Contains(t, err.Error(), "unknown provider type")
 }
 
 func TestSystemChildName(t *testing.T) {

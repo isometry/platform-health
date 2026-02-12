@@ -75,4 +75,24 @@ type BaseWithChecks struct {
 }
 ```
 
-Embed this in your provider to get default implementations of `GetChecks()` and `SetChecks()`. In your provider's `SetChecks()` method, call `SetChecksAndCompile(exprs, celConfig)` to compile the CEL expressions against your provider's CEL configuration.
+Embed this in your provider to get default implementations of `GetChecks()`, `HasChecks()`, `EvaluateChecks()`, and `EvaluateChecksByMode()`. In your provider's `SetChecks()` method, call `SetChecksAndCompile(exprs, celConfig)` to compile the CEL expressions against your provider's CEL configuration.
+
+### Container
+
+Providers that group related child health checks implement the `Container` interface:
+
+```go
+type Container interface {
+    SetComponents(config map[string]any)
+    GetComponents() []Instance
+    ComponentErrors() []error
+}
+```
+
+Methods:
+
+- `SetComponents()`: Stores raw component configuration (called by factory before Setup)
+- `GetComponents()`: Returns resolved child instances (available after Setup)
+- `ComponentErrors()`: Returns validation errors from component resolution
+
+The `BaseContainer` struct provides a default implementation. Call `ResolveComponents()` from your provider's `Setup()` method to resolve child instances from stored config.

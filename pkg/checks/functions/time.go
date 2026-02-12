@@ -27,7 +27,10 @@ func Time() []cel.EnvOption {
 				[]*cel.Type{cel.TimestampType},
 				cel.DurationType,
 				cel.UnaryBinding(func(arg ref.Val) ref.Val {
-					ts := arg.(types.Timestamp)
+					ts, ok := arg.(types.Timestamp)
+					if !ok {
+						return types.NewErr("time.Since: expected timestamp, got %T", arg)
+					}
 					return types.Duration{Duration: time.Since(ts.Time)}
 				}),
 			),
@@ -38,7 +41,10 @@ func Time() []cel.EnvOption {
 				[]*cel.Type{cel.TimestampType},
 				cel.DurationType,
 				cel.UnaryBinding(func(arg ref.Val) ref.Val {
-					ts := arg.(types.Timestamp)
+					ts, ok := arg.(types.Timestamp)
+					if !ok {
+						return types.NewErr("time.Until: expected timestamp, got %T", arg)
+					}
 					return types.Duration{Duration: time.Until(ts.Time)}
 				}),
 			),

@@ -7,9 +7,9 @@ import (
 
 type ProviderRegistry map[string]reflect.Type
 
-// Providers is a map of provider names to their types, used for registering providers.
+// providers is the internal registry of provider names to their types.
 var (
-	Providers = ProviderRegistry{}
+	providers = ProviderRegistry{}
 	mu        sync.RWMutex
 )
 
@@ -18,7 +18,7 @@ func Register(name string, provider Instance) {
 	mu.Lock()
 	defer mu.Unlock()
 
-	Providers[name] = reflect.TypeOf(provider)
+	providers[name] = reflect.TypeOf(provider)
 }
 
 // List returns a list of registered providers.
@@ -26,9 +26,16 @@ func ProviderList() []string {
 	mu.RLock()
 	defer mu.RUnlock()
 
-	providers := make([]string, 0, len(Providers))
-	for provider := range Providers {
-		providers = append(providers, provider)
+	list := make([]string, 0, len(providers))
+	for provider := range providers {
+		list = append(list, provider)
 	}
+	return list
+}
+
+// RegistryForTesting returns the provider registry for test assertions.
+func RegistryForTesting() ProviderRegistry {
+	mu.RLock()
+	defer mu.RUnlock()
 	return providers
 }

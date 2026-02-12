@@ -40,7 +40,7 @@ components:
       podinfo:
         type: kubernetes
         spec:
-          type: deployment
+          kind: Deployment
           name: podinfo
           namespace: default
       cilium:
@@ -53,7 +53,7 @@ components:
   app-pods:
     type: kubernetes
     spec:
-      type: pod
+      kind: Pod
       namespace: default
       labelSelector: "app=myapp"
     timeout: 1s

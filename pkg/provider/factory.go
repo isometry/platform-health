@@ -95,7 +95,7 @@ func WithTimeout(timeout time.Duration) Option {
 // For configured instances, use NewInstance instead.
 func New(providerType string) (Instance, error) {
 	mu.RLock()
-	registeredType, ok := Providers[providerType]
+	registeredType, ok := providers[providerType]
 	mu.RUnlock()
 	if !ok {
 		return nil, fmt.Errorf("unknown provider type: %q", providerType)
@@ -110,7 +110,7 @@ func New(providerType string) (Instance, error) {
 // If no name is provided via WithName, defaults to the provider type.
 func NewInstance(providerType string, opts ...Option) (Instance, error) {
 	mu.RLock()
-	registeredType, ok := Providers[providerType]
+	registeredType, ok := providers[providerType]
 	mu.RUnlock()
 	if !ok {
 		return nil, fmt.Errorf("unknown provider type: %q", providerType)

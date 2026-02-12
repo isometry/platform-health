@@ -13,7 +13,7 @@ Once the Vault Provider is configured, any query to the platform health server w
 ph check vault --address https://vault.example.com
 
 # Check with CEL expression
-ph check vault --address https://vault.example.com --check='!health.Standby'
+ph check vault --address https://vault.example.com --check='!health.standby'
 ```
 
 ### Context Inspection
@@ -41,37 +41,37 @@ The Vault Provider is configured through the platform-health server's configurat
 
 The Vault provider exposes a `health` variable containing all fields from the sys/health endpoint:
 
-- `health.Initialized`: Whether Vault has been initialized (bool)
-- `health.Sealed`: Whether Vault is sealed (bool)
-- `health.Standby`: Whether Vault is in standby mode (bool)
-- `health.PerformanceStandby`: Whether Vault is a performance standby (bool)
-- `health.ReplicationPerformanceMode`: Replication performance mode (string)
-- `health.ReplicationDRMode`: Disaster recovery replication mode (string)
-- `health.ServerTimeUTC`: Server time in UTC (int64, Unix timestamp)
-- `health.Version`: Vault version (string)
-- `health.ClusterName`: Name of the Vault cluster (string)
-- `health.ClusterID`: Unique identifier for the cluster (string)
+- `health.initialized`: Whether Vault has been initialized (bool)
+- `health.sealed`: Whether Vault is sealed (bool)
+- `health.standby`: Whether Vault is in standby mode (bool)
+- `health.performanceStandby`: Whether Vault is a performance standby (bool)
+- `health.replicationPerformanceMode`: Replication performance mode (string)
+- `health.replicationDRMode`: Disaster recovery replication mode (string)
+- `health.serverTimeUTC`: Server time in UTC (int64, Unix timestamp)
+- `health.version`: Vault version (string)
+- `health.clusterName`: Name of the Vault cluster (string)
+- `health.clusterID`: Unique identifier for the cluster (string)
 
 ### Example CEL Expressions
 
 ```cel
 // Check Vault is not in standby mode
-!health.Standby
+!health.standby
 
 // Verify specific Vault version
-health.Version.startsWith("1.15")
+health.version.startsWith("1.15")
 
 // Check for minimum version (simple string comparison)
-health.Version >= "1.14.0"
+health.version >= "1.14.0"
 
 // Ensure active node (not standby or performance standby)
-!health.Standby && !health.PerformanceStandby
+!health.standby && !health.performanceStandby
 
 // Verify cluster name matches expected
-health.ClusterName == "production-vault"
+health.clusterName == "production-vault"
 
 // Check DR replication is disabled
-health.ReplicationDRMode == "" || health.ReplicationDRMode == "disabled"
+health.replicationDRMode == "" || health.replicationDRMode == "disabled"
 ```
 
 ## Examples
@@ -97,7 +97,7 @@ components:
     spec:
       address: https://vault.example.com
     checks:
-      - check: '!health.Standby'
+      - check: '!health.standby'
         message: "Vault node is in standby mode"
 ```
 
@@ -110,7 +110,7 @@ components:
     spec:
       address: https://vault.example.com
     checks:
-      - check: 'health.Version.startsWith("1.15")'
+      - check: 'health.version.startsWith("1.15")'
         message: "Vault must be version 1.15.x"
 ```
 
@@ -123,9 +123,9 @@ components:
     spec:
       address: https://vault.example.com
     checks:
-      - check: 'health.ClusterName == "production-vault"'
+      - check: 'health.clusterName == "production-vault"'
         message: "Must be connected to production cluster"
-      - check: '!health.Standby && !health.PerformanceStandby'
+      - check: '!health.standby && !health.performanceStandby'
         message: "Must be an active node"
 ```
 
@@ -138,6 +138,6 @@ components:
     spec:
       address: https://vault-dr.example.com
     checks:
-      - check: 'health.ReplicationDRMode == "secondary"'
+      - check: 'health.replicationDRMode == "secondary"'
         message: "DR cluster must be in secondary mode"
 ```

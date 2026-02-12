@@ -19,7 +19,7 @@ ph context my-app -o yaml
 
 ## CEL Expression Syntax
 
-CEL expressions must evaluate to a boolean (`true` for healthy, `false` for unhealthy). Expressions have access to provider-specific context variables (e.g., `response` for REST, `resource` for Kubernetes).
+CEL expressions must evaluate to a boolean (`true` for healthy, `false` for unhealthy). Expressions have access to provider-specific context variables (e.g., `response` for HTTP, `resource` for Kubernetes).
 
 ## Common CEL Patterns
 

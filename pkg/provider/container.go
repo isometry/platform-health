@@ -61,5 +61,9 @@ func (b *BaseContainer) ResolveComponents() error {
 		b.resolved = append(b.resolved, instance)
 	}
 
-	return nil // errors collected in resolutionErrors, not returned
+	if len(b.resolved) == 0 && len(b.resolutionErrors) > 0 {
+		return errors.Join(b.resolutionErrors...)
+	}
+
+	return nil
 }

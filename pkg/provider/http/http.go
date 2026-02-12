@@ -135,6 +135,8 @@ func (c *Component) getCheckContext(ctx context.Context) (map[string]any, []*any
 	if response.TLS != nil {
 		if detail, err := anypb.New(tlsprovider.Detail(response.TLS)); err == nil {
 			details = []*anypb.Any{detail}
+		} else {
+			slog.Warn("failed to serialize TLS detail", "error", err)
 		}
 	}
 
@@ -167,9 +169,20 @@ func (c *Component) GetHealth(ctx context.Context) *ph.HealthCheckResponse {
 		return component.Unhealthy(err.Error())
 	}
 
-	// Apply CEL checks
-	if msgs := c.EvaluateChecks(ctx, checkCtx); len(msgs) > 0 {
-		return component.Unhealthy(msgs...)
+	// Apply CEL checks (or default status validation if no checks configured)
+	if c.HasChecks() {
+		if msgs := c.EvaluateChecks(ctx, checkCtx); len(msgs) > 0 {
+			return component.Unhealthy(msgs...)
+		}
+	} else {
+		// Default: validate successful HTTP status code
+		if responseData, ok := checkCtx["response"].(map[string]any); ok {
+			if status, ok := responseData["status"].(int); ok {
+				if status < 200 || status >= 400 {
+					return component.Unhealthy(fmt.Sprintf("HTTP %d", status))
+				}
+			}
+		}
 	}
 
 	// Add details if requested

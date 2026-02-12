@@ -138,8 +138,14 @@ func displayContext(cmd *cobra.Command, checkProvider provider.InstanceWithCheck
 	v := phctx.Viper(cmd.Context())
 	output := v.GetString("output-format")
 
-	defaultExprs, _ := cmd.Flags().GetStringArray("expr")
-	eachExprs, _ := cmd.Flags().GetStringArray("expr-each")
+	defaultExprs, err := cmd.Flags().GetStringArray("expr")
+	if err != nil {
+		return fmt.Errorf("failed to get expr flag: %w", err)
+	}
+	eachExprs, err := cmd.Flags().GetStringArray("expr-each")
+	if err != nil {
+		return fmt.Errorf("failed to get expr-each flag: %w", err)
+	}
 
 	if len(defaultExprs) > 0 || len(eachExprs) > 0 {
 		celConfig := checkProvider.GetCheckConfig()

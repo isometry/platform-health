@@ -96,6 +96,7 @@ func (f *FlagValue) BuildFlag(flagSet *pflag.FlagSet, flagName string) {
 		flagSet.DurationP(flagName, f.Shorthand, defaultVal, f.Usage)
 	default:
 		slog.Warn("unrecognized flag kind", "flag", flagName, "kind", f.Kind)
+		return
 	}
 
 	if f.NoOptDefault != "" {
