@@ -3,6 +3,7 @@ package context
 
 import (
 	"bytes"
+	gocontext "context"
 	"encoding/json"
 	"fmt"
 	"strings"
@@ -130,12 +131,19 @@ func runProviderContext(cmd *cobra.Command, providerType string) error {
 // Uses --expr and --expr-each flags for expression evaluation.
 // If no expressions are provided, the full context is displayed.
 func displayContext(cmd *cobra.Command, checkProvider provider.InstanceWithChecks) error {
-	celCtx, err := checkProvider.GetCheckContext(cmd.Context())
+	v := phctx.Viper(cmd.Context())
+	timeout := v.GetDuration("timeout")
+	if instTimeout := checkProvider.GetTimeout(); instTimeout > 0 {
+		timeout = instTimeout
+	}
+	ctx, cancel := gocontext.WithTimeout(cmd.Context(), timeout)
+	defer cancel()
+
+	celCtx, err := checkProvider.GetCheckContext(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to get check context: %w", err)
 	}
 
-	v := phctx.Viper(cmd.Context())
 	output := v.GetString("output-format")
 
 	defaultExprs, err := cmd.Flags().GetStringArray("expr")

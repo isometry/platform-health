@@ -12,8 +12,9 @@ import (
 // InstanceWithChecks indicates a provider supports CEL expressions for health checks.
 // Providers implementing this interface can participate in dynamic CLI commands
 // and context inspection via `ph context`.
-// Note: Providers implementing InstanceWithChecks should also implement Instance.
 type InstanceWithChecks interface {
+	Instance
+
 	// GetCheckConfig returns the provider's CEL variable declarations.
 	// This defines what variables are available in CEL expressions.
 	GetCheckConfig() *checks.CEL

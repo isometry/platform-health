@@ -7,6 +7,7 @@ import (
 
 var contextFlags = cliflags.Merge(
 	cliflags.ConfigFlags(),
+	cliflags.TimeoutFlags(),
 	provider.FlagValues{
 		"output-format": {
 			Shorthand:    "o",

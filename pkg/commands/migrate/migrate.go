@@ -12,6 +12,19 @@ import (
 	"github.com/isometry/platform-health/pkg/phctx"
 )
 
+// frameworkKeys are component-level keys that should NOT go under spec.
+var frameworkKeys = map[string]bool{
+	"checks":     true,
+	"components": true,
+	"timeout":    true,
+	"includes":   true,
+}
+
+// typeRewrites maps obsolete provider type names to their replacements.
+var typeRewrites = map[string]string{
+	"rest": "http",
+}
+
 func New() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "migrate <input-file>",
@@ -24,6 +37,23 @@ func New() *cobra.Command {
 	migrateFlags.Register(cmd.Flags(), false)
 
 	return cmd
+}
+
+// transformRest promotes fields from the "request" sub-map to the top level,
+// matching the HTTP provider's spec shape (url, method, body, headers).
+func transformRest(config map[string]any) {
+	reqValue, ok := config["request"]
+	if !ok {
+		return
+	}
+	reqMap, ok := reqValue.(map[string]any)
+	if !ok {
+		return
+	}
+	for k, v := range reqMap {
+		config[k] = v
+	}
+	delete(config, "request")
 }
 
 func run(cmd *cobra.Command, args []string) error {
@@ -98,24 +128,44 @@ func run(cmd *cobra.Command, args []string) error {
 				renames = append(renames, fmt.Sprintf("  %s -> %s (%s)", name, finalName, inst.providerType))
 			}
 
-			// Build new instance config
-			newInstance := make(map[string]any)
-			newInstance["type"] = inst.providerType
+			// Rewrite obsolete type names
+			providerType := inst.providerType
+			if newType, ok := typeRewrites[providerType]; ok {
+				renames = append(renames, fmt.Sprintf("  %s: type %s -> %s", finalName, providerType, newType))
+				providerType = newType
+			}
 
-			// Copy all fields except "name"
+			// Transform provider-specific config (e.g. flatten rest's request sub-map)
+			if inst.providerType == "rest" {
+				transformRest(inst.config)
+			}
+
+			// Build new instance config, routing keys to framework level or spec
+			newInstance := make(map[string]any)
+			newInstance["type"] = providerType
+
+			spec := make(map[string]any)
 			for key, val := range inst.config {
-				if key != "name" {
+				switch {
+				case key == "name":
+					// skip: becomes the map key
+				case frameworkKeys[key]:
 					newInstance[key] = val
+				default:
+					spec[key] = val
 				}
+			}
+			if len(spec) > 0 {
+				newInstance["spec"] = spec
 			}
 
 			components[finalName] = newInstance
 		}
 	}
 
-	// Print rename warnings
+	// Print warnings
 	if len(renames) > 0 {
-		_, _ = fmt.Fprintln(cmd.ErrOrStderr(), "Warning: renamed clashing instances:")
+		_, _ = fmt.Fprintln(cmd.ErrOrStderr(), "Warning: migration notes:")
 		for _, r := range renames {
 			_, _ = fmt.Fprintln(cmd.ErrOrStderr(), r)
 		}
