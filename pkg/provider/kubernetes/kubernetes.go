@@ -291,7 +291,7 @@ func (c *Component) checkBySelector(ctx context.Context, clients *client.KubeCli
 
 		childComponent := &ph.HealthCheckResponse{
 			Name: resourceName,
-			// Kind omitted - inherits from parent in hierarchical view, populated by Flatten() for flat mode
+			Type: ProviderType,
 		}
 
 		result := c.applyKStatus(item, childComponent)

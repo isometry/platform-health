@@ -105,3 +105,51 @@ func TestParseDuration(t *testing.T) {
 		})
 	}
 }
+
+func TestBuildInstanceOptions(t *testing.T) {
+	tests := []struct {
+		name      string
+		config    map[string]any
+		wantError string
+	}{
+		{
+			name:   "valid spec map",
+			config: map[string]any{"spec": map[string]any{"url": "http://example.com"}},
+		},
+		{
+			name:   "valid components map",
+			config: map[string]any{"components": map[string]any{"child": map[string]any{"type": "tcp"}}},
+		},
+		{
+			name:      "spec: string instead of map",
+			config:    map[string]any{"spec": "invalid"},
+			wantError: "invalid spec: expected map",
+		},
+		{
+			name:      "spec: slice instead of map",
+			config:    map[string]any{"spec": []any{"a", "b"}},
+			wantError: "invalid spec: expected map",
+		},
+		{
+			name:      "components: slice instead of map",
+			config:    map[string]any{"components": []any{}},
+			wantError: "invalid components: expected map",
+		},
+		{
+			name:      "components: string instead of map",
+			config:    map[string]any{"components": "invalid"},
+			wantError: "invalid components: expected map",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			_, err := buildInstanceOptions("test", tt.config)
+			if tt.wantError != "" {
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), tt.wantError)
+			} else {
+				require.NoError(t, err)
+			}
+		})
+	}
+}

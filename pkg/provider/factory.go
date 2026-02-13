@@ -237,10 +237,18 @@ func validateComponentConfig(rawConfig any, validationErrors *[]error) (configMa
 func buildInstanceOptions(name string, configMap map[string]any) ([]Option, error) {
 	opts := []Option{WithName(name)}
 
-	if specMap, hasSpec := configMap["spec"].(map[string]any); hasSpec {
+	if specRaw, hasSpec := configMap["spec"]; hasSpec {
+		specMap, ok := specRaw.(map[string]any)
+		if !ok {
+			return nil, fmt.Errorf("invalid spec: expected map, got %T", specRaw)
+		}
 		opts = append(opts, WithSpec(specMap))
 	}
-	if components, hasComponents := configMap["components"].(map[string]any); hasComponents {
+	if componentsRaw, hasComponents := configMap["components"]; hasComponents {
+		components, ok := componentsRaw.(map[string]any)
+		if !ok {
+			return nil, fmt.Errorf("invalid components: expected map, got %T", componentsRaw)
+		}
 		opts = append(opts, WithComponents(components))
 	}
 	if timeoutRaw, hasTimeout := configMap["timeout"]; hasTimeout {

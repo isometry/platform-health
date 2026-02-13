@@ -101,6 +101,7 @@ func TestCheckByName_Healthy(t *testing.T) {
 	result := instance.GetHealth(t.Context())
 	assert.Equal(t, ph.Status_HEALTHY, result.Status)
 	assert.Equal(t, "test-provider", result.Name)
+	assert.Equal(t, kubernetes.ProviderType, result.Type)
 }
 
 func TestCheckByName_NotFound(t *testing.T) {
@@ -134,7 +135,11 @@ func TestCheckBySelector_MultipleResources(t *testing.T) {
 
 	result := instance.GetHealth(t.Context())
 	assert.Equal(t, ph.Status_HEALTHY, result.Status)
+	assert.Equal(t, kubernetes.ProviderType, result.Type)
 	assert.Len(t, result.Components, 3)
+	for _, comp := range result.Components {
+		assert.Equal(t, kubernetes.ProviderType, comp.Type)
+	}
 }
 
 func TestCheckBySelector_EmptyResult(t *testing.T) {
