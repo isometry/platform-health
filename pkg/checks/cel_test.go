@@ -444,3 +444,259 @@ func TestCheckFixtures(t *testing.T) {
 		})
 	}
 }
+
+func TestNormalizeValue(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    any
+		expected any
+	}{
+		{
+			name:     "nil",
+			input:    nil,
+			expected: nil,
+		},
+		{
+			name:     "string scalar",
+			input:    "hello",
+			expected: "hello",
+		},
+		{
+			name:     "int scalar",
+			input:    42,
+			expected: 42,
+		},
+		{
+			name:     "bool scalar",
+			input:    true,
+			expected: true,
+		},
+		{
+			name:     "empty map[any]any",
+			input:    map[any]any{},
+			expected: map[string]any{},
+		},
+		{
+			name:     "map[any]any with string keys",
+			input:    map[any]any{"a": 1, "b": 2},
+			expected: map[string]any{"a": 1, "b": 2},
+		},
+		{
+			name:     "map[any]any with non-string keys",
+			input:    map[any]any{1: "one", true: "yes"},
+			expected: map[string]any{"1": "one", "true": "yes"},
+		},
+		{
+			name:  "map[string]any with nested map[any]any",
+			input: map[string]any{"inner": map[any]any{"k": "v"}},
+			expected: map[string]any{"inner": map[string]any{"k": "v"}},
+		},
+		{
+			name:  "deeply nested: map[any]any -> []any -> map[any]any",
+			input: map[any]any{"list": []any{map[any]any{"nested": true}}},
+			expected: map[string]any{"list": []any{map[string]any{"nested": true}}},
+		},
+		{
+			name:     "[]any with map[any]any elements",
+			input:    []any{map[any]any{"a": 1}, "plain", map[any]any{"b": 2}},
+			expected: []any{map[string]any{"a": 1}, "plain", map[string]any{"b": 2}},
+		},
+		{
+			name:     "[]any without maps unchanged",
+			input:    []any{1, "two", true},
+			expected: []any{1, "two", true},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := normalizeValue(tt.input)
+			assert.Equal(t, tt.expected, result)
+
+			// All results must be JSON-serializable
+			_, err := json.Marshal(result)
+			assert.NoError(t, err, "normalized value should be JSON-serializable")
+		})
+	}
+}
+
+func TestEvaluateAnyMapNormalization(t *testing.T) {
+	celConfig := NewCEL(
+		cel.Variable("response", cel.MapType(cel.StringType, cel.DynType)),
+	)
+
+	ctx := map[string]any{
+		"response": map[string]any{
+			"status": int64(200),
+			"body":   "ok",
+		},
+	}
+
+	tests := []struct {
+		name  string
+		expr  string
+		check func(t *testing.T, result any)
+	}{
+		{
+			name: "map literal returns map[string]any",
+			expr: `{"ok": response.status == 200}`,
+			check: func(t *testing.T, result any) {
+				m, ok := result.(map[string]any)
+				require.True(t, ok, "expected map[string]any, got %T", result)
+				assert.Equal(t, true, m["ok"])
+			},
+		},
+		{
+			name: "nested map literal is normalized",
+			expr: `{"outer": {"inner": response.status}}`,
+			check: func(t *testing.T, result any) {
+				m, ok := result.(map[string]any)
+				require.True(t, ok, "expected map[string]any, got %T", result)
+				inner, ok := m["outer"].(map[string]any)
+				require.True(t, ok, "expected nested map[string]any, got %T", m["outer"])
+				assert.Equal(t, int64(200), inner["inner"])
+			},
+		},
+		{
+			name: "map inside list is normalized",
+			expr: `[{"status": response.status}]`,
+			check: func(t *testing.T, result any) {
+				list, ok := result.([]any)
+				require.True(t, ok, "expected []any, got %T", result)
+				require.Len(t, list, 1)
+				m, ok := list[0].(map[string]any)
+				require.True(t, ok, "expected map[string]any in list, got %T", list[0])
+				assert.Equal(t, int64(200), m["status"])
+			},
+		},
+		{
+			name: "scalar result unchanged",
+			expr: `response.status`,
+			check: func(t *testing.T, result any) {
+				assert.Equal(t, int64(200), result)
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result, err := celConfig.EvaluateAny(tt.expr, ctx)
+			require.NoError(t, err)
+
+			tt.check(t, result)
+
+			// All results must be JSON-serializable
+			_, err = json.Marshal(result)
+			assert.NoError(t, err, "result should be JSON-serializable")
+		})
+	}
+}
+
+func TestEvaluateAnyErrors(t *testing.T) {
+	celConfig := NewCEL(
+		cel.Variable("response", cel.MapType(cel.StringType, cel.DynType)),
+	)
+
+	ctx := map[string]any{
+		"response": map[string]any{"status": int64(200)},
+	}
+
+	t.Run("invalid syntax returns compile error", func(t *testing.T) {
+		_, err := celConfig.EvaluateAny("invalid syntax!!!", ctx)
+		assert.Error(t, err)
+	})
+
+	t.Run("missing field returns eval error", func(t *testing.T) {
+		_, err := celConfig.EvaluateAny("response.nonexistent.deep", ctx)
+		assert.Error(t, err)
+	})
+}
+
+func TestEvaluateEach(t *testing.T) {
+	celConfig := NewCEL(
+		cel.Variable("item", cel.DynType),
+		cel.Variable("items", cel.ListType(cel.DynType)),
+	)
+
+	t.Run("iterates over items", func(t *testing.T) {
+		ctx := map[string]any{
+			"items": []any{
+				map[string]any{"value": int64(1)},
+				map[string]any{"value": int64(2)},
+				map[string]any{"value": int64(3)},
+			},
+		}
+		results, err := celConfig.EvaluateEach("item.value * 2", ctx, "items", "item")
+		require.NoError(t, err)
+		assert.Equal(t, []any{int64(2), int64(4), int64(6)}, results)
+	})
+
+	t.Run("falls back to single eval when key absent", func(t *testing.T) {
+		ctx := map[string]any{
+			"items": []any{
+				map[string]any{"value": int64(10)},
+			},
+		}
+		results, err := celConfig.EvaluateEach("items.size()", ctx, "missing_key", "item")
+		require.NoError(t, err)
+		assert.Equal(t, []any{int64(1)}, results)
+	})
+
+	t.Run("map results in each mode are normalized", func(t *testing.T) {
+		ctx := map[string]any{
+			"items": []any{
+				map[string]any{"v": int64(1)},
+			},
+		}
+		results, err := celConfig.EvaluateEach(`{"doubled": item.v * 2}`, ctx, "items", "item")
+		require.NoError(t, err)
+		require.Len(t, results, 1)
+		m, ok := results[0].(map[string]any)
+		require.True(t, ok, "expected map[string]any, got %T", results[0])
+		assert.Equal(t, int64(2), m["doubled"])
+
+		_, err = json.Marshal(results)
+		assert.NoError(t, err, "results should be JSON-serializable")
+	})
+
+	t.Run("error in item wraps index", func(t *testing.T) {
+		ctx := map[string]any{
+			"items": []any{
+				map[string]any{"v": int64(1)},
+				"not_a_map",
+			},
+		}
+		_, err := celConfig.EvaluateEach("item.v", ctx, "items", "item")
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "items[1]")
+	})
+}
+
+func TestEvaluateEachConfigured(t *testing.T) {
+	t.Run("nil iteration keys evaluates once", func(t *testing.T) {
+		celConfig := NewCEL(
+			cel.Variable("x", cel.IntType),
+		)
+		ctx := map[string]any{"x": int64(42)}
+		results, err := celConfig.EvaluateEachConfigured("x + 1", ctx)
+		require.NoError(t, err)
+		assert.Equal(t, []any{int64(43)}, results)
+	})
+
+	t.Run("with iteration keys iterates over items", func(t *testing.T) {
+		celConfig := NewCEL(
+			cel.Variable("item", cel.DynType),
+			cel.Variable("items", cel.ListType(cel.DynType)),
+		).WithIterationKeys("items", "item")
+
+		ctx := map[string]any{
+			"items": []any{
+				map[string]any{"n": int64(10)},
+				map[string]any{"n": int64(20)},
+			},
+		}
+		results, err := celConfig.EvaluateEachConfigured("item.n", ctx)
+		require.NoError(t, err)
+		assert.Equal(t, []any{int64(10), int64(20)}, results)
+	})
+}

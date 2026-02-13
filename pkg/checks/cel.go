@@ -291,7 +291,37 @@ func (c *CEL) EvaluateAny(expr string, celCtx map[string]any) (any, error) {
 		return nil, err
 	}
 
-	return result.ConvertToNative(reflect.TypeFor[any]())
+	native, err := result.ConvertToNative(reflect.TypeFor[any]())
+	if err != nil {
+		return nil, err
+	}
+	return normalizeValue(native), nil
+}
+
+// normalizeValue recursively converts map[any]any (produced by cel-go's
+// ConvertToNative for map-valued expressions) to map[string]any so that
+// results are JSON-serializable.
+func normalizeValue(v any) any {
+	switch val := v.(type) {
+	case map[any]any:
+		result := make(map[string]any, len(val))
+		for k, v := range val {
+			result[fmt.Sprint(k)] = normalizeValue(v)
+		}
+		return result
+	case map[string]any:
+		for k, v := range val {
+			val[k] = normalizeValue(v)
+		}
+		return val
+	case []any:
+		for i, item := range val {
+			val[i] = normalizeValue(item)
+		}
+		return val
+	default:
+		return v
+	}
 }
 
 // EvaluateEach evaluates a CEL expression for each item in a collection.
