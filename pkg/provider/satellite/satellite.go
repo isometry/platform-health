@@ -20,17 +20,20 @@ import (
 	"github.com/isometry/platform-health/pkg/provider"
 )
 
-const ProviderType = "satellite"
+const (
+	ProviderType   = "satellite"
+	DefaultTimeout = 30 * time.Second
+)
 
 type Component struct {
-	Name       string        `mapstructure:"-"`
-	Host       string        `mapstructure:"host"`
-	Port       int           `mapstructure:"port"`
-	TLS        bool          `mapstructure:"tls"`
-	Insecure   bool          `mapstructure:"insecure"`
-	Timeout    time.Duration `mapstructure:"timeout" default:"30s"`
-	Components []string      `mapstructure:"components"`
-	FailFast   bool          `mapstructure:"fail_fast"`
+	provider.Base
+
+	Host       string   `mapstructure:"host"`
+	Port       int      `mapstructure:"port"`
+	TLS        bool     `mapstructure:"tls"`
+	Insecure   bool     `mapstructure:"insecure"`
+	Components []string `mapstructure:"components"`
+	FailFast   bool     `mapstructure:"fail_fast"`
 }
 
 func init() {
@@ -39,10 +42,9 @@ func init() {
 
 func (c *Component) LogValue() slog.Value {
 	logAttr := []slog.Attr{
-		slog.String("name", c.Name),
+		slog.String("name", c.GetName()),
 		slog.String("host", c.Host),
 		slog.Int("port", c.Port),
-		slog.Any("timeout", c.Timeout),
 	}
 	if len(c.Components) > 0 {
 		logAttr = append(logAttr, slog.Int("components", len(c.Components)))
@@ -54,21 +56,15 @@ func (c *Component) LogValue() slog.Value {
 }
 
 func (c *Component) Setup() error {
+	if c.GetTimeout() == 0 {
+		c.SetTimeout(DefaultTimeout)
+	}
 	defaults.SetDefaults(c)
-
 	return nil
 }
 
 func (c *Component) GetType() string {
 	return ProviderType
-}
-
-func (c *Component) GetName() string {
-	return c.Name
-}
-
-func (c *Component) SetName(name string) {
-	c.Name = name
 }
 
 func (i *Component) GetHealth(ctx context.Context) *ph.HealthCheckResponse {
@@ -77,12 +73,9 @@ func (i *Component) GetHealth(ctx context.Context) *ph.HealthCheckResponse {
 
 	component := &ph.HealthCheckResponse{
 		Type: ProviderType,
-		Name: i.Name,
+		Name: i.GetName(),
 	}
 	defer component.LogStatus(log)
-
-	ctx, cancel := context.WithTimeout(ctx, i.Timeout)
-	defer cancel()
 
 	if i.Port == 443 || i.Port == 8443 {
 		i.TLS = true

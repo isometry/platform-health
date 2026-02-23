@@ -23,7 +23,7 @@ func TestRegisterAuto(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			registeredProvider, ok := provider.Providers[tt.name]
+			registeredProvider, ok := provider.RegistryForTesting()[tt.name]
 			assert.True(t, ok, "Provider was not auto-registered")
 			assert.Equal(t, reflect.TypeOf(tt.provider), registeredProvider)
 		})
@@ -45,7 +45,7 @@ func TestRegisterManual(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			provider.Register(tt.name, tt.provider)
 
-			registeredProvider, ok := provider.Providers[tt.name]
+			registeredProvider, ok := provider.RegistryForTesting()[tt.name]
 			assert.True(t, ok, "Provider was not registered")
 			assert.Equal(t, reflect.TypeOf(tt.provider), registeredProvider)
 		})

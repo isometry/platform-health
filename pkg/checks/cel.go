@@ -9,136 +9,361 @@ import (
 
 	"github.com/google/cel-go/cel"
 	"github.com/google/cel-go/ext"
+
+	"github.com/isometry/platform-health/pkg/checks/functions"
 )
 
+// standardFunctions provides custom CEL functions available to all expressions.
+var standardFunctions = functions.All()
+
+// standardExtensions provides standard CEL library extensions available to all environments.
+var standardExtensions = []cel.EnvOption{
+	ext.Bindings(), // cel.bind()
+	ext.Strings(),  // .lowerAscii(), .upperAscii(), .trim(), .replace(), etc.
+	ext.Lists(),    // .slice(), .flatten(), etc.
+	ext.Encoders(), // base64.encode/decode, etc.
+	ext.Math(),     // math.greatest(), math.least(), etc.
+	ext.Sets(),     // sets.contains(), sets.intersects(), etc.
+}
+
+// IterationKeys defines how to iterate over multiple items in a provider's context.
+// Only applicable to providers that return collections (e.g., Kubernetes with label selectors).
+type IterationKeys struct {
+	ManyKey   string // Key in context containing []any of items (e.g., "items")
+	SingleKey string // Key used when evaluating per-item (e.g., "resource")
+}
+
 // CEL holds configuration for CEL expression evaluation including
-// variable declarations and a cache for compiled programs.
+// variable declarations and a cache for compiled ASTs.
 type CEL struct {
-	cache     sync.Map // map[string]cel.Program
-	variables []cel.EnvOption
+	cache         sync.Map // map[string]*cel.Ast
+	variables     []cel.EnvOption
+	iterationKeys *IterationKeys // nil if provider doesn't support per-item iteration
+	once          sync.Once
+	env           *cel.Env
+	err           error
 }
 
 // NewCEL creates a CEL configuration with the given variable declarations.
+// Standard functions (like `time.Now()`) are automatically included.
 // Each provider should create a package-level instance.
 func NewCEL(variables ...cel.EnvOption) *CEL {
 	return &CEL{
-		variables: variables,
+		variables: append(standardFunctions, variables...),
 	}
 }
 
-// NewEvaluator creates a CEL evaluator for the given expressions.
-func (c *CEL) NewEvaluator(exprs []Expression) (*Evaluator, error) {
+// WithIterationKeys configures iteration support for per-item evaluation.
+// Providers that return collections (e.g., Kubernetes with label selectors) should call this
+// to enable --expr-each in the context command.
+func (c *CEL) WithIterationKeys(manyKey, singleKey string) *CEL {
+	c.iterationKeys = &IterationKeys{ManyKey: manyKey, SingleKey: singleKey}
+	return c
+}
+
+// SupportsEachMode returns true if this CEL configuration supports per-item iteration.
+func (c *CEL) SupportsEachMode() bool {
+	return c.iterationKeys != nil
+}
+
+// getEnv returns the cached CEL environment, creating it if necessary.
+func (c *CEL) getEnv() (*cel.Env, error) {
+	c.once.Do(func() {
+		c.env, c.err = cel.NewEnv(append(c.variables, standardExtensions...)...)
+	})
+	if c.err != nil {
+		return nil, fmt.Errorf("failed to create CEL environment: %w", c.err)
+	}
+	return c.env, nil
+}
+
+// Mode represents a check execution mode (default or per-item).
+type Mode int
+
+const (
+	ModeDefault Mode = iota // checks with no mode or empty mode
+	ModeEach                // checks with mode: "each" (per-item)
+)
+
+// Check represents a single compiled CEL check.
+type Check struct {
+	env  *cel.Env
+	ast  *cel.Ast
+	expr Expression
+}
+
+// Evaluate runs this check against the context with optional runtime function bindings.
+// Bindings are added via env.Extend() to inject runtime-specific implementations
+// (e.g., kubernetes.Get with client context).
+// Returns ("", nil) on success, (message, nil) on check failure, ("", err) on evaluation error.
+func (c *Check) Evaluate(celCtx map[string]any, bindings ...cel.EnvOption) (string, error) {
+	env := c.env
+	if len(bindings) > 0 {
+		var err error
+		env, err = c.env.Extend(bindings...)
+		if err != nil {
+			return "", fmt.Errorf("CEL environment extension failed: %w", err)
+		}
+	}
+
+	program, err := env.Program(c.ast)
+	if err != nil {
+		return "", fmt.Errorf("CEL program creation failed: %w", err)
+	}
+
+	result, _, err := program.Eval(celCtx)
+	if err != nil {
+		return "", fmt.Errorf("CEL evaluation failed: %w", err)
+	}
+
+	value, err := result.ConvertToNative(reflect.TypeFor[bool]())
+	if err != nil {
+		return "", fmt.Errorf("CEL result conversion failed: %w", err)
+	}
+
+	if boolResult, ok := value.(bool); !ok || !boolResult {
+		if c.expr.Message != "" {
+			return c.expr.Message, nil
+		}
+		return fmt.Sprintf("CEL check failed: %s", c.expr.Expression), nil
+	}
+
+	return "", nil
+}
+
+// Compile compiles a single expression into a Check.
+func (c *CEL) Compile(expr Expression) (*Check, error) {
+	env, err := c.getEnv()
+	if err != nil {
+		return nil, err
+	}
+
+	ast, err := c.getOrCompileAST(expr.Expression, env)
+	if err != nil {
+		return nil, err
+	}
+
+	return &Check{env: env, ast: ast, expr: expr}, nil
+}
+
+// CompileAll compiles multiple expressions into Checks.
+func (c *CEL) CompileAll(exprs []Expression) ([]*Check, error) {
 	if len(exprs) == 0 {
 		return nil, nil
 	}
 
-	// Create CEL environment with provided variables and extensions
-	env, err := cel.NewEnv(append(c.variables, ext.Lists())...)
+	env, err := c.getEnv()
 	if err != nil {
-		return nil, fmt.Errorf("failed to create CEL environment: %w", err)
+		return nil, err
 	}
 
-	// Pre-compile all expressions
-	programs := make([]cel.Program, len(exprs))
-	for idx, expr := range exprs {
-		program, err := c.getOrCompile(expr.Expression, env)
+	compiled := make([]*Check, len(exprs))
+	for i, expr := range exprs {
+		ast, err := c.getOrCompileAST(expr.Expression, env)
 		if err != nil {
-			return nil, fmt.Errorf("CEL expression [%d] compilation error: %w", idx, err)
+			return nil, fmt.Errorf("check[%d]: %w", i, err)
 		}
-		programs[idx] = program
+		compiled[i] = &Check{env: env, ast: ast, expr: expr}
 	}
-
-	return &Evaluator{
-		programs: programs,
-		exprs:    exprs,
-	}, nil
+	return compiled, nil
 }
 
-// getOrCompile returns a cached program or compiles and caches a new one.
-func (c *CEL) getOrCompile(expr string, env *cel.Env) (cel.Program, error) {
-	// Check cache first
-	if cached, ok := c.cache.Load(expr); ok {
-		return cached.(cel.Program), nil
-	}
-
-	// Compile expression
+// compileExpr compiles an expression and validates it returns boolean.
+func compileExpr(env *cel.Env, expr string) (*cel.Ast, error) {
 	ast, issues := env.Compile(expr)
 	if issues != nil && issues.Err() != nil {
 		return nil, issues.Err()
 	}
 	if ast.OutputType() != cel.BoolType {
-		return nil, fmt.Errorf("expression must return boolean")
+		return nil, fmt.Errorf("expression must return boolean, got %v", ast.OutputType())
 	}
-	program, err := env.Program(ast)
+	return ast, nil
+}
+
+// getOrCompileAST returns a cached AST or compiles and caches a new one.
+func (c *CEL) getOrCompileAST(expr string, env *cel.Env) (*cel.Ast, error) {
+	if cached, ok := c.cache.Load(expr); ok {
+		return cached.(*cel.Ast), nil
+	}
+
+	ast, err := compileExpr(env, expr)
 	if err != nil {
 		return nil, err
 	}
 
-	// Cache and return
-	c.cache.Store(expr, program)
-	return program, nil
+	c.cache.Store(expr, ast)
+	return ast, nil
 }
 
 // Expression represents a CEL expression validation rule
 type Expression struct {
-	Expression string `mapstructure:"expr"`
+	Expression string `mapstructure:"check"`
 	Message    string `mapstructure:"message"`
+	Mode       string `mapstructure:"mode"` // "each" for per-item evaluation, empty for default
 }
 
-// Evaluator holds compiled CEL programs for evaluation
-type Evaluator struct {
-	programs []cel.Program
-	exprs    []Expression
+// Each returns true if this expression should be evaluated per-item
+func (e Expression) Each() bool {
+	return e.Mode == "each"
+}
+
+// ParseConfig converts raw YAML config to []Expression.
+// Accepts either:
+//   - A slice of strings (simple expressions)
+//   - A slice of maps with "check" and optional "message" keys
+func ParseConfig(raw any) ([]Expression, error) {
+	rawSlice, ok := raw.([]any)
+	if !ok {
+		return nil, fmt.Errorf("checks must be an array")
+	}
+
+	exprs := make([]Expression, 0, len(rawSlice))
+	for i, item := range rawSlice {
+		switch v := item.(type) {
+		case string:
+			exprs = append(exprs, Expression{Expression: v})
+		case map[string]any:
+			expr := Expression{}
+			if e, ok := v["check"].(string); ok {
+				expr.Expression = e
+			} else {
+				return nil, fmt.Errorf("check[%d]: missing 'check' field", i)
+			}
+			if m, ok := v["message"].(string); ok {
+				expr.Message = m
+			}
+			if m, ok := v["mode"].(string); ok {
+				if m != "" && m != "each" {
+					return nil, fmt.Errorf("check[%d]: invalid mode %q (must be 'each' or empty)", i, m)
+				}
+				expr.Mode = m
+			}
+			exprs = append(exprs, expr)
+		default:
+			return nil, fmt.Errorf("check[%d]: invalid type %T", i, item)
+		}
+	}
+	return exprs, nil
 }
 
 // ValidateExpression validates CEL expression syntax at configuration time.
 // Variables should be declared using cel.Variable() options.
 func ValidateExpression(expression string, variables ...cel.EnvOption) error {
-	env, err := cel.NewEnv(append(variables, ext.Lists())...)
+	allOpts := make([]cel.EnvOption, 0, len(standardFunctions)+len(variables)+len(standardExtensions))
+	allOpts = append(allOpts, standardFunctions...)
+	allOpts = append(allOpts, variables...)
+	allOpts = append(allOpts, standardExtensions...)
+	env, err := cel.NewEnv(allOpts...)
 	if err != nil {
 		return fmt.Errorf("failed to create CEL environment: %w", err)
 	}
 
-	ast, issues := env.Compile(expression)
-	if issues != nil && issues.Err() != nil {
-		return fmt.Errorf("invalid CEL expression: %w", issues.Err())
-	}
-
-	if ast.OutputType() != cel.BoolType {
-		return fmt.Errorf("CEL expression must return boolean, got %v", ast.OutputType())
+	if _, err := compileExpr(env, expression); err != nil {
+		return fmt.Errorf("invalid CEL expression: %w", err)
 	}
 
 	return nil
 }
 
-// Evaluate runs all compiled CEL programs against the provided context.
-// Returns nil if all expressions evaluate to true, or an error describing
-// the first failing expression.
-func (e *Evaluator) Evaluate(ctx map[string]any) error {
-	if e == nil || len(e.programs) == 0 {
-		return nil
+// EvaluateAny compiles and evaluates a CEL expression returning its result.
+// Unlike Check.Evaluate(), this does not require boolean output - any type is allowed.
+// The result is converted to native Go types for serialization.
+// Note: Uses the cached environment but compiles the AST directly (no caching)
+// since the boolean output validation in getOrCompileAST() doesn't apply here.
+func (c *CEL) EvaluateAny(expr string, celCtx map[string]any) (any, error) {
+	env, err := c.getEnv()
+	if err != nil {
+		return nil, err
 	}
 
-	for idx, program := range e.programs {
-		result, _, err := program.Eval(ctx)
-		if err != nil {
-			return fmt.Errorf("CEL expression [%d] failed to evaluate: %w", idx, err)
-		}
+	ast, issues := env.Compile(expr)
+	if issues != nil && issues.Err() != nil {
+		return nil, issues.Err()
+	}
 
-		// Convert result to native boolean
-		value, err := result.ConvertToNative(reflect.TypeOf(false))
-		if err != nil {
-			return fmt.Errorf("CEL expression [%d] result conversion failed: %w", idx, err)
-		}
+	program, err := env.Program(ast)
+	if err != nil {
+		return nil, err
+	}
 
-		// Check if result is boolean true
-		if boolResult, ok := value.(bool); !ok || !boolResult {
-			if e.exprs[idx].Message != "" {
-				return fmt.Errorf("%s", e.exprs[idx].Message)
+	result, _, err := program.Eval(celCtx)
+	if err != nil {
+		return nil, err
+	}
+
+	native, err := result.ConvertToNative(reflect.TypeFor[any]())
+	if err != nil {
+		return nil, err
+	}
+	return normalizeValue(native), nil
+}
+
+// normalizeValue recursively converts map[any]any (produced by cel-go's
+// ConvertToNative for map-valued expressions) to map[string]any so that
+// results are JSON-serializable.
+func normalizeValue(v any) any {
+	switch val := v.(type) {
+	case map[any]any:
+		result := make(map[string]any, len(val))
+		for k, v := range val {
+			result[fmt.Sprint(k)] = normalizeValue(v)
+		}
+		return result
+	case map[string]any:
+		for k, v := range val {
+			val[k] = normalizeValue(v)
+		}
+		return val
+	case []any:
+		for i, item := range val {
+			val[i] = normalizeValue(item)
+		}
+		return val
+	default:
+		return v
+	}
+}
+
+// EvaluateEach evaluates a CEL expression for each item in a collection.
+// Parameters:
+//   - expr: the CEL expression to evaluate
+//   - celCtx: the full CEL context
+//   - manyKey: the key in celCtx containing a []any of items (e.g., "items")
+//   - singleKey: the key to use when creating per-item context (e.g., "resource")
+//
+// If manyKey exists and is a []any, evaluates expr against each item with context {singleKey: item}.
+// Otherwise, evaluates expr once against the full context and returns a single-element slice.
+func (c *CEL) EvaluateEach(expr string, celCtx map[string]any, manyKey, singleKey string) ([]any, error) {
+	if items, ok := celCtx[manyKey].([]any); ok {
+		results := make([]any, len(items))
+		for i, item := range items {
+			itemCtx := map[string]any{singleKey: item}
+			result, err := c.EvaluateAny(expr, itemCtx)
+			if err != nil {
+				return nil, fmt.Errorf("%s[%d]: %w", manyKey, i, err)
 			}
-			return fmt.Errorf("CEL expression failed: %s", e.exprs[idx].Expression)
+			results[i] = result
 		}
+		return results, nil
 	}
 
-	return nil
+	result, err := c.EvaluateAny(expr, celCtx)
+	if err != nil {
+		return nil, err
+	}
+	return []any{result}, nil
+}
+
+// EvaluateEachConfigured evaluates a CEL expression using the configured iteration keys.
+// If IterationKeys is configured, iterates over the collection; otherwise evaluates once.
+// This is the preferred method for context inspection where keys come from the provider.
+func (c *CEL) EvaluateEachConfigured(expr string, celCtx map[string]any) ([]any, error) {
+	if c.iterationKeys == nil {
+		result, err := c.EvaluateAny(expr, celCtx)
+		if err != nil {
+			return nil, err
+		}
+		return []any{result}, nil
+	}
+	return c.EvaluateEach(expr, celCtx, c.iterationKeys.ManyKey, c.iterationKeys.SingleKey)
 }

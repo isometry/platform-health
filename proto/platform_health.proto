@@ -19,11 +19,11 @@ message HealthCheckRequest {
 }
 
 message HealthCheckResponse {
-  string type = 1; // e.g. "tcp", "rest", "grpc", "kafka", "s3"
+  string type = 1; // e.g. "tcp", "http", "grpc", "kubernetes"
   string name = 2; // instance name
   optional string serverId = 3; // unique identifier for server/satellite instance
   Status status = 4;
-  string message = 5;
+  repeated string messages = 5;
   repeated google.protobuf.Any details = 6;
   repeated HealthCheckResponse components = 7;
   google.protobuf.Duration duration = 8;

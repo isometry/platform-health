@@ -5,6 +5,7 @@ import (
 	"log/slog"
 	"runtime"
 
+	"github.com/spf13/viper"
 	slogctx "github.com/veqryn/slog-context"
 )
 
@@ -12,6 +13,7 @@ import (
 type contextKey struct{ name string }
 
 var (
+	viperKey          = contextKey{"viper"}
 	failFastKey       = contextKey{"failFast"}
 	parallelismKey    = contextKey{"parallelism"}
 	hopsKey           = contextKey{"hops"}
@@ -21,6 +23,29 @@ var (
 // Logger returns a logger from context with additional attributes
 func Logger(ctx context.Context, args ...any) *slog.Logger {
 	return slogctx.FromCtx(ctx).With(args...)
+}
+
+// Viper context helpers
+
+// NewViper creates an owned viper instance with :: delimiter.
+// The :: delimiter allows dots in component names (e.g., google.com).
+func NewViper() *viper.Viper {
+	return viper.NewWithOptions(viper.KeyDelimiter("::"))
+}
+
+// ContextWithViper returns a context with viper instance stored
+func ContextWithViper(ctx context.Context, v *viper.Viper) context.Context {
+	return context.WithValue(ctx, viperKey, v)
+}
+
+// Viper returns the viper instance from context.
+// Panics if viper was not set - this is a programming error.
+func Viper(ctx context.Context) *viper.Viper {
+	v, ok := ctx.Value(viperKey).(*viper.Viper)
+	if !ok {
+		panic("viper not found in context - must call ContextWithViper first")
+	}
+	return v
 }
 
 // Fail-fast context helpers

@@ -19,16 +19,18 @@ import (
 	"github.com/isometry/platform-health/pkg/provider"
 )
 
-const ProviderType = "grpc"
+const (
+	ProviderType   = "grpc"
+	DefaultTimeout = 1 * time.Second
+)
 
 type Component struct {
-	Name     string        `mapstructure:"-"`
-	Host     string        `mapstructure:"host"`
-	Port     int           `mapstructure:"port"`
-	Service  string        `mapstructure:"service"`
-	TLS      bool          `mapstructure:"tls" default:"false"`
-	Insecure bool          `mapstructure:"insecure" default:"false"`
-	Timeout  time.Duration `mapstructure:"timeout" default:"1s"`
+	provider.Base
+	Host     string `mapstructure:"host"`
+	Port     int    `mapstructure:"port" default:"8080"`
+	Service  string `mapstructure:"service"`
+	TLS      bool   `mapstructure:"tls" default:"false"`
+	Insecure bool   `mapstructure:"insecure" default:"false"`
 }
 
 func init() {
@@ -37,30 +39,23 @@ func init() {
 
 func (c *Component) LogValue() slog.Value {
 	logAttr := []slog.Attr{
-		slog.String("name", c.Name),
+		slog.String("name", c.GetName()),
 		slog.String("host", c.Host),
 		slog.Int("port", c.Port),
-		slog.Any("timeout", c.Timeout),
 	}
 	return slog.GroupValue(logAttr...)
 }
 
 func (c *Component) Setup() error {
+	if c.GetTimeout() == 0 {
+		c.SetTimeout(DefaultTimeout)
+	}
 	defaults.SetDefaults(c)
-
 	return nil
 }
 
 func (c *Component) GetType() string {
 	return ProviderType
-}
-
-func (c *Component) GetName() string {
-	return c.Name
-}
-
-func (c *Component) SetName(name string) {
-	c.Name = name
 }
 
 func (c *Component) GetHealth(ctx context.Context) *ph.HealthCheckResponse {
@@ -69,15 +64,12 @@ func (c *Component) GetHealth(ctx context.Context) *ph.HealthCheckResponse {
 
 	component := &ph.HealthCheckResponse{
 		Type: ProviderType,
-		Name: c.Name,
+		Name: c.GetName(),
 	}
 	defer component.LogStatus(log)
 
 	// query the standard grpc health service on host:port
 	// to check if the service is healthy
-
-	ctx, cancel := context.WithTimeout(ctx, c.Timeout)
-	defer cancel()
 
 	if c.Port == 443 {
 		c.TLS = true

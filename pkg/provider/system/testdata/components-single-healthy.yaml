@@ -1,0 +1,4 @@
+test:
+  type: mock
+  spec:
+    health: 0

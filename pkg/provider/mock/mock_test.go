@@ -21,29 +21,18 @@ func TestMock(t *testing.T) {
 		expect ph.Status
 	}{
 		{
-			name: "HealthyComponent",
-			mock: &mock.Component{
-				Name:   "TestComponent",
-				Health: ph.Status_HEALTHY,
-			},
+			name:   "HealthyComponent",
+			mock:   mock.Healthy("TestComponent"),
 			expect: ph.Status_HEALTHY,
 		},
 		{
-			name: "HealthyComponentWithSleep",
-			mock: &mock.Component{
-				Name:   "TestComponent",
-				Health: ph.Status_HEALTHY,
-				Sleep:  50 * time.Millisecond,
-			},
+			name:   "HealthyComponentWithSleep",
+			mock:   mock.Healthy("TestComponent", mock.WithSleep(50*time.Millisecond)),
 			expect: ph.Status_HEALTHY,
 		},
-
 		{
-			name: "UnhealthyComponent",
-			mock: &mock.Component{
-				Name:   "TestComponent",
-				Health: ph.Status_UNHEALTHY,
-			},
+			name:   "UnhealthyComponent",
+			mock:   mock.Unhealthy("TestComponent"),
 			expect: ph.Status_UNHEALTHY,
 		},
 	}
@@ -63,7 +52,7 @@ func TestMock(t *testing.T) {
 }
 
 func TestMock_Interfaces(t *testing.T) {
-	m := &mock.Component{Name: "test"}
+	m := mock.New("test")
 	require.NoError(t, m.Setup())
 
 	t.Run("InstanceWithChecks", func(t *testing.T) {
@@ -74,7 +63,7 @@ func TestMock_Interfaces(t *testing.T) {
 }
 
 func TestMock_GetCheckConfig(t *testing.T) {
-	m := &mock.Component{Name: "test"}
+	m := mock.New("test")
 	require.NoError(t, m.Setup())
 
 	celConfig := m.GetCheckConfig()
@@ -90,19 +79,19 @@ func TestMock_GetCheckContext(t *testing.T) {
 	}{
 		{
 			name:   "DefaultValues",
-			mock:   &mock.Component{Name: "test", Health: ph.Status_HEALTHY, Sleep: time.Nanosecond},
+			mock:   mock.Healthy("test", mock.WithSleep(time.Nanosecond)),
 			health: "HEALTHY",
 			sleep:  "1ns",
 		},
 		{
 			name:   "UnhealthyStatus",
-			mock:   &mock.Component{Name: "test", Health: ph.Status_UNHEALTHY},
+			mock:   mock.Unhealthy("test"),
 			health: "UNHEALTHY",
 			sleep:  "1ns",
 		},
 		{
 			name:   "CustomSleep",
-			mock:   &mock.Component{Name: "test", Health: ph.Status_HEALTHY, Sleep: 100 * time.Millisecond},
+			mock:   mock.Healthy("test", mock.WithSleep(100*time.Millisecond)),
 			health: "HEALTHY",
 			sleep:  "100ms",
 		},
@@ -133,12 +122,12 @@ func TestMock_CELEvaluation(t *testing.T) {
 	}{
 		{
 			name:         "NoChecks",
-			mock:         &mock.Component{Name: "test", Health: ph.Status_HEALTHY},
+			mock:         mock.Healthy("test"),
 			expectStatus: ph.Status_HEALTHY,
 		},
 		{
 			name: "PassingCheck",
-			mock: &mock.Component{Name: "test", Health: ph.Status_HEALTHY},
+			mock: mock.Healthy("test"),
 			checks: []checks.Expression{
 				{Expression: `mock.health == "HEALTHY"`},
 			},
@@ -146,16 +135,16 @@ func TestMock_CELEvaluation(t *testing.T) {
 		},
 		{
 			name: "FailingCheck",
-			mock: &mock.Component{Name: "test", Health: ph.Status_UNHEALTHY},
+			mock: mock.Unhealthy("test"),
 			checks: []checks.Expression{
 				{Expression: `mock.health == "HEALTHY"`},
 			},
 			expectStatus: ph.Status_UNHEALTHY,
-			expectMsg:    `CEL expression failed: mock.health == "HEALTHY"`,
+			expectMsg:    `CEL check failed: mock.health == "HEALTHY"`,
 		},
 		{
 			name: "FailingCheckWithMessage",
-			mock: &mock.Component{Name: "test", Health: ph.Status_UNHEALTHY},
+			mock: mock.Unhealthy("test"),
 			checks: []checks.Expression{
 				{Expression: `mock.health == "HEALTHY"`, Message: "mock is not healthy"},
 			},
@@ -164,7 +153,7 @@ func TestMock_CELEvaluation(t *testing.T) {
 		},
 		{
 			name: "MultipleChecks_AllPass",
-			mock: &mock.Component{Name: "test", Health: ph.Status_HEALTHY, Sleep: 10 * time.Millisecond},
+			mock: mock.Healthy("test", mock.WithSleep(10*time.Millisecond)),
 			checks: []checks.Expression{
 				{Expression: `mock.health == "HEALTHY"`},
 				{Expression: `mock.sleep == "10ms"`},
@@ -173,7 +162,7 @@ func TestMock_CELEvaluation(t *testing.T) {
 		},
 		{
 			name: "MultipleChecks_OneFails",
-			mock: &mock.Component{Name: "test", Health: ph.Status_HEALTHY},
+			mock: mock.Healthy("test"),
 			checks: []checks.Expression{
 				{Expression: `mock.health == "HEALTHY"`},
 				{Expression: `mock.health == "UNHEALTHY"`, Message: "second check failed"},
@@ -185,20 +174,21 @@ func TestMock_CELEvaluation(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			tt.mock.SetChecks(tt.checks)
+			require.NoError(t, tt.mock.SetChecks(tt.checks))
 			require.NoError(t, tt.mock.Setup())
 
 			result := tt.mock.GetHealth(t.Context())
 			assert.Equal(t, tt.expectStatus, result.GetStatus())
 			if tt.expectMsg != "" {
-				assert.Contains(t, result.GetMessage(), tt.expectMsg)
+				require.NotEmpty(t, result.Messages)
+				assert.Contains(t, result.Messages[0], tt.expectMsg)
 			}
 		})
 	}
 }
 
 func TestMock_GetProviderFlags(t *testing.T) {
-	m := &mock.Component{Name: "test"}
+	m := mock.New("test")
 
 	flags := provider.ProviderFlags(m)
 
@@ -250,7 +240,7 @@ func TestMock_ConfigureFromFlags(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			m := &mock.Component{Name: "test"}
+			m := mock.New("test")
 
 			fs := pflag.NewFlagSet("test", pflag.ContinueOnError)
 			fs.String("health", "HEALTHY", "")

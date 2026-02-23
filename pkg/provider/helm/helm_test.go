@@ -3,6 +3,8 @@ package helm_test
 import (
 	"context"
 	"errors"
+	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -12,12 +14,28 @@ import (
 	"helm.sh/helm/v4/pkg/release/common"
 	release "helm.sh/helm/v4/pkg/release/v1"
 
+	"github.com/isometry/platform-health/internal/testutil"
 	"github.com/isometry/platform-health/pkg/checks"
 	ph "github.com/isometry/platform-health/pkg/platform_health"
 	"github.com/isometry/platform-health/pkg/provider"
 	"github.com/isometry/platform-health/pkg/provider/helm"
 	"github.com/isometry/platform-health/pkg/provider/helm/client"
 )
+
+// getTestdataPath returns the path to the testdata directory
+func getTestdataPath(t *testing.T) string {
+	t.Helper()
+	return testutil.TestdataPath(t)
+}
+
+// loadManifestFixture loads a manifest YAML file from testdata
+func loadManifestFixture(t *testing.T, filename string) string {
+	t.Helper()
+	path := filepath.Join(getTestdataPath(t), filename)
+	data, err := os.ReadFile(path)
+	require.NoError(t, err, "failed to read fixture %s", filename)
+	return string(data)
+}
 
 // setupMockFactory sets up a mock factory with the given release and error
 func setupMockFactory(t *testing.T, rel *release.Release, err error) {
@@ -95,17 +113,18 @@ func TestHelm_StatusVariants(t *testing.T) {
 			setupMockFactory(t, testRelease("my-release", tt.status), nil)
 
 			instance := &helm.Component{
-				Name:      "test-helm",
 				Release:   "my-release",
 				Namespace: "default",
 			}
+			instance.SetName("test-helm")
 			require.NoError(t, instance.Setup())
 
 			result := instance.GetHealth(t.Context())
 			assert.Equal(t, tt.expectedStatus, result.Status)
 			assert.Equal(t, "test-helm", result.Name)
 			if tt.expectContains != "" {
-				assert.Contains(t, result.Message, tt.expectContains)
+				require.NotEmpty(t, result.Messages)
+				assert.Contains(t, result.Messages[0], tt.expectContains)
 			}
 		})
 	}
@@ -115,15 +134,16 @@ func TestHelm_ReleaseNotFound(t *testing.T) {
 	setupMockFactory(t, nil, errors.New("release: not found"))
 
 	instance := &helm.Component{
-		Name:      "test-helm",
 		Release:   "nonexistent",
 		Namespace: "default",
 	}
+	instance.SetName("test-helm")
 	require.NoError(t, instance.Setup())
 
 	result := instance.GetHealth(t.Context())
 	assert.Equal(t, ph.Status_UNHEALTHY, result.Status)
-	assert.Contains(t, result.Message, "not found")
+	require.NotEmpty(t, result.Messages)
+	assert.Contains(t, result.Messages[0], "not found")
 }
 
 func TestHelm_FactoryError(t *testing.T) {
@@ -136,15 +156,16 @@ func TestHelm_FactoryError(t *testing.T) {
 	})
 
 	instance := &helm.Component{
-		Name:      "test-helm",
 		Release:   "my-release",
 		Namespace: "default",
 	}
+	instance.SetName("test-helm")
 	require.NoError(t, instance.Setup())
 
 	result := instance.GetHealth(t.Context())
 	assert.Equal(t, ph.Status_UNHEALTHY, result.Status)
-	assert.Contains(t, result.Message, "failed to initialize helm")
+	require.NotEmpty(t, result.Messages)
+	assert.Contains(t, result.Messages[0], "failed to initialize helm")
 }
 
 func TestHelm_Timeout(t *testing.T) {
@@ -160,16 +181,18 @@ func TestHelm_Timeout(t *testing.T) {
 	})
 
 	instance := &helm.Component{
-		Name:      "test-helm",
 		Release:   "my-release",
 		Namespace: "default",
-		Timeout:   50 * time.Millisecond,
 	}
+	instance.SetName("test-helm")
+	instance.SetTimeout(50 * time.Millisecond)
 	require.NoError(t, instance.Setup())
 
-	result := instance.GetHealth(t.Context())
+	// Use GetHealthWithDuration which applies the timeout
+	result := provider.GetHealthWithDuration(t.Context(), instance)
 	assert.Equal(t, ph.Status_UNHEALTHY, result.Status)
-	assert.Equal(t, "context deadline exceeded", result.Message)
+	require.NotEmpty(t, result.Messages)
+	assert.Contains(t, result.Messages[0], "context deadline exceeded")
 }
 
 func TestSetup_DefaultTimeout(t *testing.T) {
@@ -179,7 +202,8 @@ func TestSetup_DefaultTimeout(t *testing.T) {
 	}
 	require.NoError(t, instance.Setup())
 
-	assert.Equal(t, 5*time.Second, instance.Timeout)
+	// Setup() sets the provider's default timeout
+	assert.Equal(t, helm.DefaultTimeout, instance.GetTimeout())
 }
 
 func TestGetType(t *testing.T) {
@@ -201,14 +225,14 @@ func TestCEL_VersionCheck(t *testing.T) {
 	setupMockFactory(t, rel, nil)
 
 	instance := &helm.Component{
-		Name:      "test-helm",
 		Release:   "my-release",
 		Namespace: "default",
-		BaseWithChecks: provider.BaseWithChecks{Checks: []checks.Expression{
-			{Expression: "release.Revision >= 2", Message: "Need at least one upgrade"},
-		}},
 	}
+	instance.SetName("test-helm")
 	require.NoError(t, instance.Setup())
+	require.NoError(t, instance.SetChecks([]checks.Expression{
+		{Expression: "release.Revision >= 2", Message: "Need at least one upgrade"},
+	}))
 
 	result := instance.GetHealth(t.Context())
 	assert.Equal(t, ph.Status_HEALTHY, result.Status)
@@ -220,32 +244,33 @@ func TestCEL_VersionCheckFails(t *testing.T) {
 	setupMockFactory(t, rel, nil)
 
 	instance := &helm.Component{
-		Name:      "test-helm",
 		Release:   "my-release",
 		Namespace: "default",
-		BaseWithChecks: provider.BaseWithChecks{Checks: []checks.Expression{
-			{Expression: "release.Revision >= 2", Message: "Need at least one upgrade"},
-		}},
 	}
+	instance.SetName("test-helm")
 	require.NoError(t, instance.Setup())
+	require.NoError(t, instance.SetChecks([]checks.Expression{
+		{Expression: "release.Revision >= 2", Message: "Need at least one upgrade"},
+	}))
 
 	result := instance.GetHealth(t.Context())
 	assert.Equal(t, ph.Status_UNHEALTHY, result.Status)
-	assert.Contains(t, result.Message, "Need at least one upgrade")
+	require.NotEmpty(t, result.Messages)
+	assert.Contains(t, result.Messages[0], "Need at least one upgrade")
 }
 
 func TestCEL_ChartVersion(t *testing.T) {
 	setupMockFactory(t, testRelease("my-release", common.StatusDeployed), nil)
 
 	instance := &helm.Component{
-		Name:      "test-helm",
 		Release:   "my-release",
 		Namespace: "default",
-		BaseWithChecks: provider.BaseWithChecks{Checks: []checks.Expression{
-			{Expression: "chart.Version == '1.0.0'"},
-		}},
 	}
+	instance.SetName("test-helm")
 	require.NoError(t, instance.Setup())
+	require.NoError(t, instance.SetChecks([]checks.Expression{
+		{Expression: "chart.Version == '1.0.0'"},
+	}))
 
 	result := instance.GetHealth(t.Context())
 	assert.Equal(t, ph.Status_HEALTHY, result.Status)
@@ -255,14 +280,14 @@ func TestCEL_ConfigValidation(t *testing.T) {
 	setupMockFactory(t, testRelease("my-release", common.StatusDeployed), nil)
 
 	instance := &helm.Component{
-		Name:      "test-helm",
 		Release:   "my-release",
 		Namespace: "default",
-		BaseWithChecks: provider.BaseWithChecks{Checks: []checks.Expression{
-			{Expression: "'replicas' in release.Config && release.Config['replicas'] >= 3"},
-		}},
 	}
+	instance.SetName("test-helm")
 	require.NoError(t, instance.Setup())
+	require.NoError(t, instance.SetChecks([]checks.Expression{
+		{Expression: "'replicas' in release.Config && release.Config['replicas'] >= 3"},
+	}))
 
 	result := instance.GetHealth(t.Context())
 	assert.Equal(t, ph.Status_HEALTHY, result.Status)
@@ -274,32 +299,33 @@ func TestCEL_ConfigValidationFails(t *testing.T) {
 	setupMockFactory(t, rel, nil)
 
 	instance := &helm.Component{
-		Name:      "test-helm",
 		Release:   "my-release",
 		Namespace: "default",
-		BaseWithChecks: provider.BaseWithChecks{Checks: []checks.Expression{
-			{Expression: "release.Config['replicas'] >= 3", Message: "Need at least 3 replicas"},
-		}},
 	}
+	instance.SetName("test-helm")
 	require.NoError(t, instance.Setup())
+	require.NoError(t, instance.SetChecks([]checks.Expression{
+		{Expression: "release.Config['replicas'] >= 3", Message: "Need at least 3 replicas"},
+	}))
 
 	result := instance.GetHealth(t.Context())
 	assert.Equal(t, ph.Status_UNHEALTHY, result.Status)
-	assert.Contains(t, result.Message, "Need at least 3 replicas")
+	require.NotEmpty(t, result.Messages)
+	assert.Contains(t, result.Messages[0], "Need at least 3 replicas")
 }
 
 func TestCEL_NotDeprecated(t *testing.T) {
 	setupMockFactory(t, testRelease("my-release", common.StatusDeployed), nil)
 
 	instance := &helm.Component{
-		Name:      "test-helm",
 		Release:   "my-release",
 		Namespace: "default",
-		BaseWithChecks: provider.BaseWithChecks{Checks: []checks.Expression{
-			{Expression: "!chart.Deprecated", Message: "Chart is deprecated"},
-		}},
 	}
+	instance.SetName("test-helm")
 	require.NoError(t, instance.Setup())
+	require.NoError(t, instance.SetChecks([]checks.Expression{
+		{Expression: "!chart.Deprecated", Message: "Chart is deprecated"},
+	}))
 
 	result := instance.GetHealth(t.Context())
 	assert.Equal(t, ph.Status_HEALTHY, result.Status)
@@ -309,14 +335,14 @@ func TestCEL_LabelCheck(t *testing.T) {
 	setupMockFactory(t, testRelease("my-release", common.StatusDeployed), nil)
 
 	instance := &helm.Component{
-		Name:      "test-helm",
 		Release:   "my-release",
 		Namespace: "default",
-		BaseWithChecks: provider.BaseWithChecks{Checks: []checks.Expression{
-			{Expression: "'team' in release.Labels && 'env' in release.Labels"},
-		}},
 	}
+	instance.SetName("test-helm")
 	require.NoError(t, instance.Setup())
+	require.NoError(t, instance.SetChecks([]checks.Expression{
+		{Expression: "'team' in release.Labels && 'env' in release.Labels"},
+	}))
 
 	result := instance.GetHealth(t.Context())
 	assert.Equal(t, ph.Status_HEALTHY, result.Status)
@@ -328,19 +354,19 @@ func TestCEL_ChartValues(t *testing.T) {
 	// Test that Values contains chart defaults (not merged with Config)
 	// Config has overrides, Values has chart defaults
 	instance := &helm.Component{
-		Name:      "test-helm",
 		Release:   "my-release",
 		Namespace: "default",
-		BaseWithChecks: provider.BaseWithChecks{Checks: []checks.Expression{
-			// Check chart default value
-			{Expression: "chart.Values['replicas'] == 1"},
-			// Check nested default value
-			{Expression: "'image' in chart.Values && chart.Values['image']['tag'] == 'latest'"},
-			// Check Config has overrides
-			{Expression: "release.Config['replicas'] == 3"},
-		}},
 	}
+	instance.SetName("test-helm")
 	require.NoError(t, instance.Setup())
+	require.NoError(t, instance.SetChecks([]checks.Expression{
+		// Check chart default value
+		{Expression: "chart.Values['replicas'] == 1"},
+		// Check nested default value
+		{Expression: "'image' in chart.Values && chart.Values['image']['tag'] == 'latest'"},
+		// Check Config has overrides
+		{Expression: "release.Config['replicas'] == 3"},
+	}))
 
 	result := instance.GetHealth(t.Context())
 	assert.Equal(t, ph.Status_HEALTHY, result.Status)
@@ -350,11 +376,13 @@ func TestSetup_InvalidCEL(t *testing.T) {
 	instance := &helm.Component{
 		Release:   "my-release",
 		Namespace: "default",
-		BaseWithChecks: provider.BaseWithChecks{Checks: []checks.Expression{
-			{Expression: "invalid cel syntax [[["},
-		}},
 	}
-	err := instance.Setup()
+	require.NoError(t, instance.Setup())
+
+	// SetChecks should fail with invalid CEL expression
+	err := instance.SetChecks([]checks.Expression{
+		{Expression: "invalid cel syntax [[["},
+	})
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "invalid CEL expression")
 }
@@ -379,16 +407,16 @@ spec:
 	setupMockFactory(t, rel, nil)
 
 	instance := &helm.Component{
-		Name:      "test-helm",
 		Release:   "my-release",
 		Namespace: "default",
-		BaseWithChecks: provider.BaseWithChecks{Checks: []checks.Expression{
-			{Expression: "size(release.Manifest) == 2"},
-			{Expression: "release.Manifest[0].kind == 'ConfigMap'"},
-			{Expression: "release.Manifest[1].kind == 'Deployment'"},
-		}},
 	}
+	instance.SetName("test-helm")
 	require.NoError(t, instance.Setup())
+	require.NoError(t, instance.SetChecks([]checks.Expression{
+		{Expression: "size(release.Manifest) == 2"},
+		{Expression: "release.Manifest[0].kind == 'ConfigMap'"},
+		{Expression: "release.Manifest[1].kind == 'Deployment'"},
+	}))
 
 	result := instance.GetHealth(t.Context())
 	assert.Equal(t, ph.Status_HEALTHY, result.Status)
@@ -400,14 +428,14 @@ func TestCEL_ManifestsEmpty(t *testing.T) {
 	setupMockFactory(t, rel, nil)
 
 	instance := &helm.Component{
-		Name:      "test-helm",
 		Release:   "my-release",
 		Namespace: "default",
-		BaseWithChecks: provider.BaseWithChecks{Checks: []checks.Expression{
-			{Expression: "size(release.Manifest) == 0"},
-		}},
 	}
+	instance.SetName("test-helm")
 	require.NoError(t, instance.Setup())
+	require.NoError(t, instance.SetChecks([]checks.Expression{
+		{Expression: "size(release.Manifest) == 0"},
+	}))
 
 	result := instance.GetHealth(t.Context())
 	assert.Equal(t, ph.Status_HEALTHY, result.Status)
@@ -434,15 +462,15 @@ metadata:
 	setupMockFactory(t, rel, nil)
 
 	instance := &helm.Component{
-		Name:      "test-helm",
 		Release:   "my-release",
 		Namespace: "default",
-		BaseWithChecks: provider.BaseWithChecks{Checks: []checks.Expression{
-			{Expression: "release.Manifest.filter(m, m.kind == 'ConfigMap').size() == 2"},
-			{Expression: "release.Manifest.filter(m, m.kind == 'Deployment').size() == 1"},
-		}},
 	}
+	instance.SetName("test-helm")
 	require.NoError(t, instance.Setup())
+	require.NoError(t, instance.SetChecks([]checks.Expression{
+		{Expression: "release.Manifest.filter(m, m.kind == 'ConfigMap').size() == 2"},
+		{Expression: "release.Manifest.filter(m, m.kind == 'Deployment').size() == 1"},
+	}))
 
 	result := instance.GetHealth(t.Context())
 	assert.Equal(t, ph.Status_HEALTHY, result.Status)
@@ -462,4 +490,47 @@ func (s *slowStatusRunner) Run(ctx context.Context, name string) (*release.Relea
 	case <-time.After(s.delay):
 		return s.release, s.err
 	}
+}
+
+// Fixture-based tests
+
+func TestCEL_ManifestsFixture(t *testing.T) {
+	rel := testRelease("my-release", common.StatusDeployed)
+	rel.Manifest = loadManifestFixture(t, "manifests-multi.yaml")
+	setupMockFactory(t, rel, nil)
+
+	instance := &helm.Component{
+		Release:   "my-release",
+		Namespace: "default",
+	}
+	instance.SetName("test-helm")
+	require.NoError(t, instance.Setup())
+	require.NoError(t, instance.SetChecks([]checks.Expression{
+		{Expression: "size(release.Manifest) == 2"},
+		{Expression: "release.Manifest[0].kind == 'ConfigMap'"},
+		{Expression: "release.Manifest[1].kind == 'Deployment'"},
+	}))
+
+	result := instance.GetHealth(t.Context())
+	assert.Equal(t, ph.Status_HEALTHY, result.Status)
+}
+
+func TestCEL_ManifestsFilterFixture(t *testing.T) {
+	rel := testRelease("my-release", common.StatusDeployed)
+	rel.Manifest = loadManifestFixture(t, "manifests-filter.yaml")
+	setupMockFactory(t, rel, nil)
+
+	instance := &helm.Component{
+		Release:   "my-release",
+		Namespace: "default",
+	}
+	instance.SetName("test-helm")
+	require.NoError(t, instance.Setup())
+	require.NoError(t, instance.SetChecks([]checks.Expression{
+		{Expression: "release.Manifest.filter(m, m.kind == 'ConfigMap').size() == 2"},
+		{Expression: "release.Manifest.filter(m, m.kind == 'Deployment').size() == 1"},
+	}))
+
+	result := instance.GetHealth(t.Context())
+	assert.Equal(t, ph.Status_HEALTHY, result.Status)
 }

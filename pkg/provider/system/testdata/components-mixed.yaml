@@ -1,0 +1,8 @@
+healthy:
+  type: mock
+  spec:
+    health: 0
+unhealthy:
+  type: mock
+  spec:
+    health: 2

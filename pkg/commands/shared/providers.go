@@ -3,6 +3,7 @@ package shared
 
 import (
 	"fmt"
+	"log/slog"
 
 	"github.com/spf13/cobra"
 
@@ -22,12 +23,12 @@ type ProviderSubcommandOptions struct {
 // AddProviderSubcommands creates a subcommand for each qualifying provider.
 func AddProviderSubcommands(parent *cobra.Command, opts ProviderSubcommandOptions) {
 	for _, providerType := range provider.ProviderList() {
-		instance := provider.NewInstance(providerType)
-		if instance == nil {
+		instance, err := provider.New(providerType)
+		if err != nil {
+			slog.Error("failed to instantiate provider", "type", providerType, "error", err)
 			continue
 		}
 
-		// Check capability check
 		if opts.RequireChecks && !provider.SupportsChecks(instance) {
 			continue
 		}
@@ -47,7 +48,7 @@ func createProviderSubcommand(
 	cmd := &cobra.Command{
 		Use:   providerType,
 		Short: fmt.Sprintf("Ad-hoc %s provider", providerType),
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(cmd *cobra.Command, _ []string) error {
 			return opts.RunFunc(cmd, providerType)
 		},
 	}
@@ -56,7 +57,6 @@ func createProviderSubcommand(
 	providerFlags := provider.ProviderFlags(instance)
 	providerFlags.Register(cmd.Flags(), true)
 
-	// Add any extra flags
 	if opts.SetupFlags != nil {
 		opts.SetupFlags(cmd, instance)
 	}
@@ -65,18 +65,7 @@ func createProviderSubcommand(
 }
 
 // CreateAndConfigureProvider creates a provider instance and configures it from flags.
-// Note: caller must call instance.Setup() after any additional configuration.
+// The instance is fully configured and Setup() has been called.
 func CreateAndConfigureProvider(cmd *cobra.Command, providerType string) (provider.Instance, error) {
-	// Create new provider instance
-	instance := provider.NewInstance(providerType)
-	if instance == nil {
-		return nil, fmt.Errorf("provider type %q not registered", providerType)
-	}
-
-	// Configure from flags (via reflection)
-	if err := provider.ConfigureFromFlags(instance, cmd.Flags()); err != nil {
-		return nil, fmt.Errorf("failed to configure provider from flags: %w", err)
-	}
-
-	return instance, nil
+	return provider.NewInstance(providerType, provider.WithFlags(cmd.Flags()))
 }

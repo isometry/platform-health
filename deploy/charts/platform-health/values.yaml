@@ -36,15 +36,18 @@ serverArgs: &args
 #   components:
 #     ssh@localhost:
 #       type: localhost
-#       host: localhost
-#       port: 22
+#       spec:
+#         host: localhost
+#         port: 22
 #     gmail-smtps:
 #       type: tls
-#       host: smtp.gmail.com
-#       port: 465
+#       spec:
+#         host: smtp.gmail.com
+#         port: 465
 #     google:
 #       type: http
-#       url: https://google.com
+#       spec:
+#         url: https://google.com
 #
 # Explicitly passing nil (i.e. `serverConfig: ~`) disables ConfigMap generation,
 # leaving it to the user.

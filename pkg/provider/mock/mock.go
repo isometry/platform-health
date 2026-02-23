@@ -21,9 +21,9 @@ var celConfig = checks.NewCEL(
 )
 
 type Component struct {
-	provider.BaseWithChecks `mapstructure:",squash"`
+	provider.Base
+	provider.BaseWithChecks
 
-	Name   string        `mapstructure:"-"`
 	Health ph.Status     `mapstructure:"health" default:"HEALTHY"`
 	Sleep  time.Duration `mapstructure:"sleep" default:"1ns"`
 }
@@ -34,20 +34,16 @@ func init() {
 
 func (c *Component) Setup() error {
 	defaults.SetDefaults(c)
+	return nil
+}
 
-	return c.SetupChecks(celConfig)
+// SetChecks sets and compiles CEL expressions.
+func (c *Component) SetChecks(exprs []checks.Expression) error {
+	return c.SetChecksAndCompile(exprs, celConfig)
 }
 
 func (c *Component) GetType() string {
 	return ProviderType
-}
-
-func (c *Component) GetName() string {
-	return c.Name
-}
-
-func (c *Component) SetName(name string) {
-	c.Name = name
 }
 
 func (c *Component) GetHealth(ctx context.Context) *ph.HealthCheckResponse {
@@ -57,16 +53,16 @@ func (c *Component) GetHealth(ctx context.Context) *ph.HealthCheckResponse {
 		// normal completion
 	case <-ctx.Done():
 		return &ph.HealthCheckResponse{
-			Type:    ProviderType,
-			Name:    c.Name,
-			Status:  ph.Status_UNHEALTHY,
-			Message: ctx.Err().Error(),
+			Type:     ProviderType,
+			Name:     c.GetName(),
+			Status:   ph.Status_UNHEALTHY,
+			Messages: []string{ctx.Err().Error()},
 		}
 	}
 
 	component := &ph.HealthCheckResponse{
 		Type:   ProviderType,
-		Name:   c.Name,
+		Name:   c.GetName(),
 		Status: c.Health,
 	}
 
@@ -74,13 +70,13 @@ func (c *Component) GetHealth(ctx context.Context) *ph.HealthCheckResponse {
 	checkCtx, err := c.GetCheckContext(ctx)
 	if err != nil {
 		component.Status = ph.Status_UNHEALTHY
-		component.Message = err.Error()
+		component.Messages = append(component.Messages, err.Error())
 		return component
 	}
 
-	if err := c.EvaluateChecks(checkCtx); err != nil {
+	if msgs := c.EvaluateChecks(ctx, checkCtx); len(msgs) > 0 {
 		component.Status = ph.Status_UNHEALTHY
-		component.Message = err.Error()
+		component.Messages = append(component.Messages, msgs...)
 	}
 
 	return component

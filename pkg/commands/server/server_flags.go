@@ -1,33 +1,34 @@
 package server
 
 import (
-	"github.com/isometry/platform-health/pkg/commands/flags"
+	"github.com/isometry/platform-health/internal/cliflags"
+	"github.com/isometry/platform-health/pkg/provider"
 )
 
-var serverFlags = flags.Merge(
-	flags.ConfigFlags(),
-	flags.ParallelismFlags(),
-	flags.FlagValues{
+var serverFlags = cliflags.Merge(
+	cliflags.ConfigFlags(),
+	cliflags.ParallelismFlags(),
+	provider.FlagValues{
 		"listen": {
 			Shorthand:    "l",
-			Kind:         "string",
+			Kind:         provider.FlagKindString,
 			NoOptDefault: "localhost",
 			Usage:        "listen on host (default all interfaces)",
 		},
 		"port": {
 			Shorthand:    "p",
-			Kind:         "int",
+			Kind:         provider.FlagKindInt,
 			DefaultValue: 8080,
 			Usage:        "listen on port",
 		},
 		"no-grpc-health-v1": {
 			Shorthand: "H",
-			Kind:      "bool",
+			Kind:      provider.FlagKindBool,
 			Usage:     "disable gRPC Health v1",
 		},
 		"grpc-reflection": {
 			Shorthand: "R",
-			Kind:      "bool",
+			Kind:      provider.FlagKindBool,
 			Usage:     "enable gRPC reflection",
 		},
 	},

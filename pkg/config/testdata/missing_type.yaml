@@ -1,0 +1,5 @@
+components:
+  test:
+    # missing required 'type' key
+    spec:
+      sleep: 1s

@@ -2,6 +2,7 @@ package config
 
 import (
 	"context"
+	"log/slog"
 	"testing"
 	"time"
 
@@ -12,8 +13,12 @@ import (
 	"github.com/isometry/platform-health/pkg/provider/mock"
 )
 
-func init() {
-	log = phctx.Logger(context.Background())
+var testLog = slog.Default()
+
+// testContext creates a context with a viper instance for testing
+func testContext(t *testing.T) context.Context {
+	v := phctx.NewViper()
+	return phctx.ContextWithViper(t.Context(), v)
 }
 
 // findInstanceByName finds an instance by name in a slice
@@ -29,33 +34,37 @@ func findInstanceByName(instances []provider.Instance, name string) provider.Ins
 func TestGetInstances(t *testing.T) {
 	tests := []struct {
 		name     string
-		config   *concreteConfig
+		result   *LoadResult
 		expected int // expected number of instances
 	}{
 		{
 			name:     "EmptyConfig",
-			config:   &concreteConfig{},
+			result:   &LoadResult{config: make(concreteConfig)},
 			expected: 0,
 		},
 		{
 			name: "SingleProvider",
-			config: &concreteConfig{
-				"mock": []provider.Instance{
-					&mock.Component{Name: "comp1"},
-					&mock.Component{Name: "comp2"},
+			result: &LoadResult{
+				config: concreteConfig{
+					"mock": {
+						mock.Healthy("comp1"),
+						mock.Healthy("comp2"),
+					},
 				},
 			},
 			expected: 2,
 		},
 		{
 			name: "MultipleProviders",
-			config: &concreteConfig{
-				"mock": []provider.Instance{
-					&mock.Component{Name: "a"},
-					&mock.Component{Name: "b"},
-				},
-				"other": []provider.Instance{
-					&mock.Component{Name: "c"},
+			result: &LoadResult{
+				config: concreteConfig{
+					"mock": {
+						mock.Healthy("a"),
+						mock.Healthy("b"),
+					},
+					"other": {
+						mock.Healthy("c"),
+					},
 				},
 			},
 			expected: 3,
@@ -64,7 +73,7 @@ func TestGetInstances(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			instances := tt.config.GetInstances()
+			instances := tt.result.GetInstances()
 			assert.Equal(t, tt.expected, len(instances))
 		})
 	}
@@ -86,8 +95,8 @@ func TestHarden(t *testing.T) {
 		{
 			name: "Single Provider Multiple Instances",
 			abstract: abstractConfig{
-				"comp1": map[string]any{"type": "mock", "name": "1"},
-				"comp2": map[string]any{"type": "mock", "name": "2"},
+				"comp1": map[string]any{"type": "mock", "spec": map[string]any{}},
+				"comp2": map[string]any{"type": "mock", "spec": map[string]any{}},
 			},
 			expectedProviders: 1,
 			expectedTotal:     2,
@@ -95,8 +104,8 @@ func TestHarden(t *testing.T) {
 		{
 			name: "Multiple Providers",
 			abstract: abstractConfig{
-				"a": map[string]any{"type": "mock", "name": "a"},
-				"b": map[string]any{"type": "mock", "name": "b"},
+				"a": map[string]any{"type": "mock", "spec": map[string]any{}},
+				"b": map[string]any{"type": "mock", "spec": map[string]any{}},
 			},
 			expectedProviders: 1,
 			expectedTotal:     2,
@@ -104,7 +113,7 @@ func TestHarden(t *testing.T) {
 		{
 			name: "Unknown Provider",
 			abstract: abstractConfig{
-				"test": map[string]any{"type": "nonexistent", "name": "test"},
+				"test": map[string]any{"type": "nonexistent", "spec": map[string]any{}},
 			},
 			expectedProviders: 0,
 			expectedTotal:     0,
@@ -113,9 +122,10 @@ func TestHarden(t *testing.T) {
 			name: "Duration Parsing",
 			abstract: abstractConfig{
 				"duration-test": map[string]any{
-					"type":  "mock",
-					"name":  "duration-test",
-					"sleep": "5s",
+					"type": "mock",
+					"spec": map[string]any{
+						"sleep": "5s",
+					},
 				},
 			},
 			expectedProviders: 1,
@@ -125,22 +135,27 @@ func TestHarden(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := tt.abstract.harden()
-			assert.Equal(t, tt.expectedProviders, len(*result), "providers count mismatch")
-			assert.Equal(t, tt.expectedTotal, result.totalInstances(), "total instances mismatch")
+			instances, _ := tt.abstract.harden(testLog, false)
+			assert.Equal(t, tt.expectedProviders, len(instances), "providers count mismatch")
+			// Count total instances
+			total := 0
+			for _, insts := range instances {
+				total += len(insts)
+			}
+			assert.Equal(t, tt.expectedTotal, total, "total instances mismatch")
 		})
 	}
 }
 
 func TestHardenSetName(t *testing.T) {
 	abstract := abstractConfig{
-		"myinstance": map[string]any{"type": "mock"},
+		"myinstance": map[string]any{"type": "mock", "spec": map[string]any{}},
 	}
 
-	result := abstract.harden()
+	result, _ := abstract.harden(testLog, false)
 
 	// Check instance name is set from key
-	instance := findInstanceByName((*result)["mock"], "myinstance")
+	instance := findInstanceByName(result["mock"], "myinstance")
 	assert.NotNil(t, instance)
 	assert.Equal(t, "myinstance", instance.GetName())
 }
@@ -148,53 +163,58 @@ func TestHardenSetName(t *testing.T) {
 func TestHardenDurationParsing(t *testing.T) {
 	abstract := abstractConfig{
 		"test": map[string]any{
-			"type":  "mock",
-			"name":  "test",
-			"sleep": "5s",
+			"type": "mock",
+			"spec": map[string]any{
+				"sleep": "5s",
+			},
 		},
 	}
 
-	result := abstract.harden()
-	assert.Equal(t, 1, len((*result)["mock"]))
+	result, _ := abstract.harden(testLog, false)
+	assert.Equal(t, 1, len(result["mock"]))
 
-	instance := findInstanceByName((*result)["mock"], "test").(*mock.Component)
+	instance := findInstanceByName(result["mock"], "test").(*mock.Component)
 	assert.Equal(t, 5*time.Second, instance.Sleep)
 }
 
 func TestCountByProvider(t *testing.T) {
-	config := &concreteConfig{
-		"mock": []provider.Instance{
-			&mock.Component{Name: "a"},
-			&mock.Component{Name: "b"},
-			&mock.Component{Name: "c"},
+	result := &LoadResult{
+		config: concreteConfig{
+			"mock": {
+				mock.Healthy("a"),
+				mock.Healthy("b"),
+				mock.Healthy("c"),
+			},
 		},
 	}
 
-	counts := config.countByProvider()
+	counts := result.countByProvider()
 	assert.Equal(t, 3, counts["mock"])
 }
 
 func TestTotalInstances(t *testing.T) {
 	tests := []struct {
 		name     string
-		config   *concreteConfig
+		result   *LoadResult
 		expected int
 	}{
 		{
 			name:     "Empty",
-			config:   &concreteConfig{},
+			result:   &LoadResult{config: make(concreteConfig)},
 			expected: 0,
 		},
 		{
 			name: "Multiple Providers",
-			config: &concreteConfig{
-				"mock": []provider.Instance{
-					&mock.Component{},
-					&mock.Component{},
-				},
-				"other": []provider.Instance{
-					&mock.Component{},
-					&mock.Component{},
+			result: &LoadResult{
+				config: concreteConfig{
+					"mock": {
+						&mock.Component{},
+						&mock.Component{},
+					},
+					"other": {
+						&mock.Component{},
+						&mock.Component{},
+					},
 				},
 			},
 			expected: 4,
@@ -203,7 +223,116 @@ func TestTotalInstances(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			assert.Equal(t, tt.expected, tt.config.totalInstances())
+			assert.Equal(t, tt.expected, len(tt.result.GetInstances()))
+		})
+	}
+}
+
+// TestUnknownComponentKeysFixtures tests unknown key detection using testdata fixtures
+func TestUnknownComponentKeysFixtures(t *testing.T) {
+	testdataPath := getTestdataPath()
+
+	tests := []struct {
+		name            string
+		configFile      string
+		strict          bool
+		expectErrors    int
+		expectInstances int
+	}{
+		{
+			name:            "Unknown component key in strict mode",
+			configFile:      "unknown_component_key",
+			strict:          true,
+			expectErrors:    1,
+			expectInstances: 1, // instance is still created despite unknown key
+		},
+		{
+			name:            "Unknown component key in non-strict mode",
+			configFile:      "unknown_component_key",
+			strict:          false,
+			expectErrors:    0, // only warning, no error
+			expectInstances: 1,
+		},
+		{
+			name:            "Multiple unknown keys in strict mode",
+			configFile:      "multiple_unknown_keys",
+			strict:          true,
+			expectErrors:    2, // two unknown keys
+			expectInstances: 1,
+		},
+		{
+			name:            "Missing required key 'type' in strict mode",
+			configFile:      "missing_type",
+			strict:          true,
+			expectErrors:    1,
+			expectInstances: 0,
+		},
+		{
+			name:            "Missing required key 'type' in non-strict mode",
+			configFile:      "missing_type",
+			strict:          false,
+			expectErrors:    0, // only warning
+			expectInstances: 0,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result, err := Load(testContext(t), []string{testdataPath}, tt.configFile, tt.strict)
+			assert.NoError(t, err, "Load should not return error")
+			assert.Equal(t, tt.expectErrors, len(result.ValidationErrors()), "validation error count mismatch")
+			assert.Equal(t, tt.expectInstances, len(result.GetInstances()), "instance count mismatch")
+		})
+	}
+}
+
+// TestUnknownSpecKeysFixtures tests unknown spec key detection using testdata fixtures
+func TestUnknownSpecKeysFixtures(t *testing.T) {
+	testdataPath := getTestdataPath()
+
+	tests := []struct {
+		name            string
+		configFile      string
+		strict          bool
+		expectErrors    int
+		expectInstances int
+	}{
+		{
+			name:            "Unknown spec key in strict mode",
+			configFile:      "unknown_spec_key",
+			strict:          true,
+			expectErrors:    1,
+			expectInstances: 1, // instance is still created
+		},
+		{
+			name:            "Unknown spec key in non-strict mode",
+			configFile:      "unknown_spec_key",
+			strict:          false,
+			expectErrors:    0, // only warning, no error
+			expectInstances: 1,
+		},
+		{
+			name:            "Valid spec keys only",
+			configFile:      "valid_spec_keys",
+			strict:          true,
+			expectErrors:    0,
+			expectInstances: 1,
+		},
+		{
+			name:            "Mix of valid and unknown spec keys",
+			configFile:      "mixed_spec_keys",
+			strict:          true,
+			expectErrors:    1,
+			expectInstances: 1,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result, err := Load(testContext(t), []string{testdataPath}, tt.configFile, tt.strict)
+			assert.NoError(t, err, "Load should not return error")
+			assert.Equal(t, tt.expectErrors, len(result.ValidationErrors()), "validation error count mismatch")
+			assert.Equal(t, tt.expectInstances, len(result.GetInstances()), "instance count mismatch")
 		})
 	}
 }

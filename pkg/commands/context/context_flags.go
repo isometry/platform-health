@@ -1,15 +1,17 @@
 package context
 
 import (
-	"github.com/isometry/platform-health/pkg/commands/flags"
+	"github.com/isometry/platform-health/internal/cliflags"
+	"github.com/isometry/platform-health/pkg/provider"
 )
 
-var contextFlags = flags.Merge(
-	flags.ConfigFlags(),
-	flags.FlagValues{
+var contextFlags = cliflags.Merge(
+	cliflags.ConfigFlags(),
+	cliflags.TimeoutFlags(),
+	provider.FlagValues{
 		"output-format": {
 			Shorthand:    "o",
-			Kind:         "string",
+			Kind:         provider.FlagKindString,
 			DefaultValue: "json",
 			Usage:        "output format (json|yaml)",
 		},

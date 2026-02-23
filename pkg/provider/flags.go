@@ -1,17 +1,109 @@
 package provider
 
 import (
+	"cmp"
 	"errors"
 	"fmt"
+	"log/slog"
 	"reflect"
 	"strconv"
 	"strings"
 	"time"
 
 	"github.com/spf13/pflag"
-
-	"github.com/isometry/platform-health/pkg/commands/flags"
 )
+
+// Flag kind constants for FlagValue.Kind.
+const (
+	FlagKindBool        = "bool"
+	FlagKindCount       = "count"
+	FlagKindInt         = "int"
+	FlagKindString      = "string"
+	FlagKindStringSlice = "stringSlice"
+	FlagKindIntSlice    = "intSlice"
+	FlagKindDuration    = "duration"
+)
+
+// FlagValue represents a single flag definition with metadata.
+type FlagValue struct {
+	Shorthand    string
+	Kind         string
+	DefaultValue any
+	NoOptDefault string
+	Usage        string
+}
+
+// FlagValues is a map of flag names to their definitions.
+type FlagValues map[string]FlagValue
+
+// Register adds all flags in the set to the given pflag.FlagSet.
+func (f FlagValues) Register(flagSet *pflag.FlagSet, sort bool) {
+	for flagName, flag := range f {
+		flag.BuildFlag(flagSet, flagName)
+	}
+	flagSet.SortFlags = sort
+}
+
+// BuildFlag creates a pflag from the FlagValue definition.
+func (f *FlagValue) BuildFlag(flagSet *pflag.FlagSet, flagName string) {
+	switch f.Kind {
+	case FlagKindBool:
+		defaultVal := false
+		if f.DefaultValue != nil {
+			defaultVal = f.DefaultValue.(bool)
+		}
+		flagSet.BoolP(flagName, f.Shorthand, defaultVal, f.Usage)
+	case FlagKindCount:
+		flagSet.CountP(flagName, f.Shorthand, f.Usage)
+	case FlagKindInt:
+		defaultVal := 0
+		if f.DefaultValue != nil {
+			defaultVal = f.DefaultValue.(int)
+		}
+		flagSet.IntP(flagName, f.Shorthand, defaultVal, f.Usage)
+	case FlagKindString:
+		defaultVal := ""
+		if f.DefaultValue != nil {
+			defaultVal = f.DefaultValue.(string)
+		}
+		flagSet.StringP(flagName, f.Shorthand, defaultVal, f.Usage)
+	case FlagKindStringSlice:
+		var defaultVal []string
+		if f.DefaultValue != nil {
+			defaultVal = f.DefaultValue.([]string)
+		}
+		flagSet.StringSliceP(flagName, f.Shorthand, defaultVal, f.Usage)
+	case FlagKindIntSlice:
+		var defaultVal []int
+		if f.DefaultValue != nil {
+			defaultVal = f.DefaultValue.([]int)
+		}
+		flagSet.IntSliceP(flagName, f.Shorthand, defaultVal, f.Usage)
+	case FlagKindDuration:
+		var defaultVal time.Duration
+		if f.DefaultValue != nil {
+			switch v := f.DefaultValue.(type) {
+			case time.Duration:
+				defaultVal = v
+			case string:
+				var err error
+				defaultVal, err = time.ParseDuration(v)
+				if err != nil {
+					slog.Warn("invalid duration default value", "flag", flagName, "value", v, "error", err)
+				}
+			}
+		}
+		flagSet.DurationP(flagName, f.Shorthand, defaultVal, f.Usage)
+	default:
+		slog.Warn("unrecognized flag kind", "flag", flagName, "kind", f.Kind)
+		return
+	}
+
+	if f.NoOptDefault != "" {
+		flag := flagSet.Lookup(flagName)
+		flag.NoOptDefVal = f.NoOptDefault
+	}
+}
 
 // ProviderFlags derives flag definitions from a provider instance using reflection.
 // It reads struct tags to determine flag names, types, defaults, and descriptions:
@@ -21,12 +113,12 @@ import (
 //   - flag:"[name],[option]": name override (optional), option is "inline" or "nested"
 //   - flag:",inline": for struct fields, flatten without prefix (kind instead of resource.kind)
 //   - flag:",nested": for struct fields, flatten with prefix (resource.kind)
-func ProviderFlags(instance Instance) flags.FlagValues {
-	result := make(flags.FlagValues)
+func ProviderFlags(instance Instance) FlagValues {
+	result := make(FlagValues)
 	providerType := instance.GetType()
 
 	val := reflect.ValueOf(instance)
-	if val.Kind() == reflect.Ptr {
+	if val.Kind() == reflect.Pointer {
 		val = val.Elem()
 	}
 	if val.Kind() != reflect.Struct {
@@ -38,7 +130,7 @@ func ProviderFlags(instance Instance) flags.FlagValues {
 }
 
 // deriveFlags recursively extracts flag definitions from struct fields.
-func deriveFlags(val reflect.Value, prefix string, providerType string, result flags.FlagValues) {
+func deriveFlags(val reflect.Value, prefix string, providerType string, result FlagValues) {
 	typ := val.Type()
 	for i := 0; i < typ.NumField(); i++ {
 		field := typ.Field(i)
@@ -54,11 +146,14 @@ func deriveFlags(val reflect.Value, prefix string, providerType string, result f
 			continue
 		}
 
-		// Parse flag tag: "name,option" where name is optional and option is "inline" or "nested"
+		// Parse flag tag: "name,option" where name overrides flag name, option is "inline" or "nested"
 		flagTag := field.Tag.Get("flag")
 		var flagOption string
-		if parts := strings.Split(flagTag, ","); len(parts) >= 2 {
-			flagOption = parts[1]
+		if parts := strings.Split(flagTag, ","); len(parts) >= 1 {
+			flagName = cmp.Or(parts[0], flagName) // Use flag name override if provided
+			if len(parts) >= 2 {
+				flagOption = parts[1]
+			}
 		}
 
 		// Check if this is a struct that should be inlined or nested
@@ -97,7 +192,7 @@ func deriveFlags(val reflect.Value, prefix string, providerType string, result f
 			description = fmt.Sprintf("set %s %s", providerType, flagName)
 		}
 
-		result[flagName] = flags.FlagValue{
+		result[flagName] = FlagValue{
 			Kind:         kind,
 			DefaultValue: defaultValue,
 			Usage:        description,
@@ -109,7 +204,7 @@ func deriveFlags(val reflect.Value, prefix string, providerType string, result f
 // It uses reflection to map flags to struct fields based on mapstructure tags.
 func ConfigureFromFlags(instance Instance, fs *pflag.FlagSet) error {
 	val := reflect.ValueOf(instance)
-	if val.Kind() == reflect.Ptr {
+	if val.Kind() == reflect.Pointer {
 		val = val.Elem()
 	}
 	if val.Kind() != reflect.Struct {
@@ -149,11 +244,14 @@ func configureFields(val reflect.Value, prefix string, fs *pflag.FlagSet, errs *
 			continue
 		}
 
-		// Parse flag tag: "name,option" where name is optional and option is "inline" or "nested"
+		// Parse flag tag: "name,option" where name overrides flag name, option is "inline" or "nested"
 		flagTag := field.Tag.Get("flag")
 		var flagOption string
-		if parts := strings.Split(flagTag, ","); len(parts) >= 2 {
-			flagOption = parts[1]
+		if parts := strings.Split(flagTag, ","); len(parts) >= 1 {
+			flagName = cmp.Or(parts[0], flagName) // Use flag name override if provided
+			if len(parts) >= 2 {
+				flagOption = parts[1]
+			}
 		}
 
 		// Check if this is a struct that should be inlined or nested
@@ -187,25 +285,28 @@ func configureFields(val reflect.Value, prefix string, fs *pflag.FlagSet, errs *
 // goTypeToFlagKind maps Go types to pflag kind strings.
 func goTypeToFlagKind(t reflect.Type) (string, bool) {
 	switch t.Kind() {
+	case reflect.Pointer:
+		// Unwrap pointer to get underlying type's flag kind
+		return goTypeToFlagKind(t.Elem())
 	case reflect.String:
-		return "string", true
+		return FlagKindString, true
 	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
-		if t == reflect.TypeOf(time.Duration(0)) {
-			return "duration", true
+		if t == reflect.TypeFor[time.Duration]() {
+			return FlagKindDuration, true
 		}
 		// Check if this is a protobuf enum (int32 with String() method)
 		if isProtobufEnum(t) {
-			return "string", true
+			return FlagKindString, true
 		}
-		return "int", true
+		return FlagKindInt, true
 	case reflect.Bool:
-		return "bool", true
+		return FlagKindBool, true
 	case reflect.Slice:
 		switch t.Elem().Kind() {
 		case reflect.String:
-			return "stringSlice", true
+			return FlagKindStringSlice, true
 		case reflect.Int:
-			return "intSlice", true
+			return FlagKindIntSlice, true
 		}
 	}
 	return "", false
@@ -260,10 +361,13 @@ func parseDefaultValue(defaultStr string, t reflect.Type) any {
 	}
 
 	switch t.Kind() {
+	case reflect.Pointer:
+		// Parse as underlying type (the flag system handles pointers transparently)
+		return parseDefaultValue(defaultStr, t.Elem())
 	case reflect.String:
 		return defaultStr
 	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
-		if t == reflect.TypeOf(time.Duration(0)) {
+		if t == reflect.TypeFor[time.Duration]() {
 			return defaultStr // Duration flags accept string defaults
 		}
 		// Protobuf enums use string defaults (e.g., "HEALTHY")
@@ -301,6 +405,18 @@ func parseDefaultValue(defaultStr string, t reflect.Type) any {
 // setFieldFromFlag reads a flag value and sets it on the struct field.
 func setFieldFromFlag(fieldVal reflect.Value, fieldType reflect.Type, fs *pflag.FlagSet, flagName string) error {
 	switch fieldType.Kind() {
+	case reflect.Pointer:
+		// Create new value of the underlying type
+		elemType := fieldType.Elem()
+		newVal := reflect.New(elemType)
+
+		// Recursively set the underlying value from the flag
+		if err := setFieldFromFlag(newVal.Elem(), elemType, fs, flagName); err != nil {
+			return err
+		}
+
+		// Set the pointer field to point to the new value
+		fieldVal.Set(newVal)
 	case reflect.String:
 		v, err := fs.GetString(flagName)
 		if err != nil {
@@ -308,7 +424,7 @@ func setFieldFromFlag(fieldVal reflect.Value, fieldType reflect.Type, fs *pflag.
 		}
 		fieldVal.SetString(v)
 	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
-		if fieldType == reflect.TypeOf(time.Duration(0)) {
+		if fieldType == reflect.TypeFor[time.Duration]() {
 			v, err := fs.GetDuration(flagName)
 			if err != nil {
 				return err

@@ -14,14 +14,16 @@ import (
 	"github.com/isometry/platform-health/pkg/provider"
 )
 
-const ProviderType = "tcp"
+const (
+	ProviderType   = "tcp"
+	DefaultTimeout = 1 * time.Second
+)
 
 type Component struct {
-	Name    string        `mapstructure:"-"`
-	Host    string        `mapstructure:"host"`
-	Port    int           `mapstructure:"port" default:"80"`
-	Closed  bool          `mapstructure:"closed" default:"false"`
-	Timeout time.Duration `mapstructure:"timeout" default:"1s"`
+	provider.Base
+	Host   string `mapstructure:"host"`
+	Port   int    `mapstructure:"port" default:"80"`
+	Closed bool   `mapstructure:"closed" default:"false"`
 }
 
 func init() {
@@ -30,18 +32,19 @@ func init() {
 
 func (c *Component) LogValue() slog.Value {
 	logAttr := []slog.Attr{
-		slog.String("name", c.Name),
+		slog.String("name", c.GetName()),
 		slog.String("host", c.Host),
 		slog.Int("port", c.Port),
 		slog.Bool("closed", c.Closed),
-		slog.Any("timeout", c.Timeout),
 	}
 	return slog.GroupValue(logAttr...)
 }
 
 func (c *Component) Setup() error {
+	if c.GetTimeout() == 0 {
+		c.SetTimeout(DefaultTimeout)
+	}
 	defaults.SetDefaults(c)
-
 	return nil
 }
 
@@ -49,24 +52,13 @@ func (c *Component) GetType() string {
 	return ProviderType
 }
 
-func (c *Component) GetName() string {
-	return c.Name
-}
-
-func (c *Component) SetName(name string) {
-	c.Name = name
-}
-
 func (c *Component) GetHealth(ctx context.Context) *ph.HealthCheckResponse {
 	log := phctx.Logger(ctx, slog.String("provider", ProviderType), slog.Any("instance", c))
 	log.Debug("checking")
 
-	ctx, cancel := context.WithTimeout(ctx, c.Timeout)
-	defer cancel()
-
 	component := &ph.HealthCheckResponse{
 		Type: ProviderType,
-		Name: c.Name,
+		Name: c.GetName(),
 	}
 	defer component.LogStatus(log)
 

@@ -11,7 +11,6 @@ import (
 	_ "github.com/isometry/platform-health/pkg/provider/helm"
 	_ "github.com/isometry/platform-health/pkg/provider/http"
 	_ "github.com/isometry/platform-health/pkg/provider/kubernetes"
-	_ "github.com/isometry/platform-health/pkg/provider/rest"
 	_ "github.com/isometry/platform-health/pkg/provider/satellite"
 	_ "github.com/isometry/platform-health/pkg/provider/system"
 	_ "github.com/isometry/platform-health/pkg/provider/tcp"

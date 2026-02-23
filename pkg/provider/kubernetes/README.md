@@ -11,24 +11,27 @@ Once the Kubernetes Provider is configured, any query to the platform health ser
 The Kubernetes Provider is configured through the platform-health server's configuration file. Each instance is defined with its name as the YAML key under `components`.
 
 - `type` (required): Must be `kubernetes`.
-- `resource`: The Kubernetes resource to check:
-  - `group` (required): The API group of the Kubernetes resource.
+- `timeout` (optional): Per-instance timeout override.
+- `spec`: Provider-specific configuration:
+  - `group` (optional): The API group of the Kubernetes resource. Many common kinds auto-map to their correct group.
   - `version` (optional): The API version of the Kubernetes resource. If not specified, the API server's preferred version is used automatically.
-  - `kind` (required): The kind of the Kubernetes resource.
-  - `namespace`: The namespace of the Kubernetes resource. Use `"*"` to select resources across all namespaces (only valid with `labelSelector`, not `name`).
+  - `kind` (required): The kind of the Kubernetes resource (e.g., "Deployment", "Pod").
+  - `namespace` (optional): The namespace of the Kubernetes resource. Use `"*"` to select resources across all namespaces (only valid with `labelSelector`, not `name`).
   - `name` (optional): The name of a specific Kubernetes resource. Mutually exclusive with `labelSelector`.
   - `labelSelector` (optional): Select resources by label selector using Kubernetes native syntax (e.g., `app=nginx,env=prod`). Supports equality (`=`, `==`, `!=`) and set-based (`in`, `notin`) operators. When multiple resources match, each is checked and results are aggregated. Mutually exclusive with `name`. If neither `name` nor `labelSelector` is specified, all resources of the kind in the namespace are selected.
+  - `context` (optional): Kubeconfig context to use.
+  - `kstatus` (default: `true`): Whether to evaluate resource health using the [kstatus](https://github.com/kubernetes-sigs/cli-utils/tree/master/pkg/kstatus) library. When enabled, resources must reach "Current" status to be considered healthy.
+  - `detail` (default: `false`): Include resource details in response.
+  - `summarize` (default: `false`): In label selector mode, accumulate errors into messages instead of sub-components.
 - `checks`: A list of CEL expressions to validate the resource. Each check has:
-  - `expr` (required): A CEL expression that must evaluate to `true` for the resource to be healthy.
+  - `check` (required): A CEL expression that must evaluate to `true` for the resource to be healthy.
   - `message` (optional): Custom error message when the check fails.
-- `kstatus` (default: `true`): Whether to evaluate resource health using the [kstatus](https://github.com/kubernetes-sigs/cli-utils/tree/master/pkg/kstatus) library. When enabled, resources must reach "Current" status to be considered healthy. A `Detail_KStatus` is included in the response with status, message, and conditions.
-- `timeout` (default: `10s`): Timeout for the Kubernetes API request.
 
 Many common resource kinds (see [common/generator.go](common/generator.go)) are internally mapped to the correct `group` if that option is left at default.
 
 For queries to succeed, the platform-health server must be run in a context with appropriate access privileges to list and get the monitored resources. Running "in-cluster", this means an appropriate service account, role and role binding must be configured.
 
-## CEL Expression Context
+## CEL Check Context
 
 The CEL context differs based on the selection mode:
 
@@ -81,6 +84,61 @@ items.all(r, r.status.readyReplicas >= r.spec.replicas)
 items.map(r, r.status.readyReplicas).sum() >= 10
 ```
 
+## Dynamic Resource Lookup with `kubernetes.Get()`
+
+The Kubernetes provider includes a custom CEL function `kubernetes.Get()` that enables dynamic lookup of other Kubernetes resources during check evaluation. This is useful for validating cross-resource dependencies.
+
+### Function Signature
+
+```cel
+kubernetes.Get({"kind": "...", ...}) -> map | list | null
+```
+
+### Parameters
+
+| Key | Required | Default | Description |
+|-----|----------|---------|-------------|
+| `kind` | Yes | - | Resource kind (case-insensitive, e.g., `"pod"`, `"Deployment"`) |
+| `name` | Conditional | - | Resource name (required if no `labelSelector`) |
+| `labelSelector` | Conditional | - | Label selector (required if no `name`) |
+| `namespace` | No | `""` | Namespace (empty for cluster-scoped resources) |
+| `group` | No | *auto* | API group (auto-resolved for common kinds) |
+| `version` | No | *auto* | API version (auto-discovered by REST mapper) |
+
+**Note:** `name` and `labelSelector` are mutually exclusive.
+
+### Return Values
+
+- **Single mode** (`name` provided): Returns the resource as a map, or `null` if not found
+- **List mode** (`labelSelector` provided): Returns a list of matching resources (possibly empty)
+
+### Auto-Resolution
+
+- **Group**: Common resource kinds (Deployment, Pod, ConfigMap, etc.) automatically resolve to their correct API group
+- **Version**: If not specified, uses the API server's preferred version
+
+### kubernetes.Get() Examples
+
+```cel
+// Check if a PodDisruptionBudget exists for this deployment
+kubernetes.Get({"kind": "poddisruptionbudget", "namespace": resource.metadata.namespace, "name": resource.metadata.name}) != null
+
+// Check if a ConfigMap has a required key
+kubernetes.Get({"kind": "configmap", "namespace": "production", "name": "app-config"}).data["DATABASE_URL"] != ""
+
+// Cluster-scoped resource lookup (omit namespace)
+kubernetes.Get({"kind": "namespace", "name": "production"}) != null
+
+// List mode: verify all related pods are running
+kubernetes.Get({"kind": "pod", "namespace": resource.metadata.namespace, "labelSelector": "app=nginx"}).all(p, p.status.phase == "Running")
+
+// Dynamic namespace from current resource
+kubernetes.Get({"kind": "secret", "namespace": resource.metadata.namespace, "name": "db-creds"}) != null
+
+// Explicit group for CRDs
+kubernetes.Get({"group": "cert-manager.io", "kind": "Certificate", "namespace": "prod", "name": "my-cert"}) != null
+```
+
 ## Examples
 
 ### Basic Deployment Health Check
@@ -89,12 +147,12 @@ items.map(r, r.status.readyReplicas).sum() >= 10
 components:
   my-app:
     type: kubernetes
-    resource:
+    spec:
       kind: Deployment
       name: my-app
       namespace: production
     checks:
-      - expr: "resource.status.readyReplicas >= resource.spec.replicas"
+      - check: "resource.status.readyReplicas >= resource.spec.replicas"
         message: "Not all replicas are ready"
 ```
 
@@ -104,10 +162,11 @@ components:
 components:
   my-app:
     type: kubernetes
-    kind: Deployment
-    resource: my-app
+    spec:
+      kind: Deployment
+      name: my-app
     checks:
-      - expr: "resource.status.conditions.exists(c, c.type == 'Available' && c.status == 'True')"
+      - check: "resource.status.conditions.exists(c, c.type == 'Available' && c.status == 'True')"
         message: "Deployment is not available"
 ```
 
@@ -117,14 +176,15 @@ components:
 components:
   my-app:
     type: kubernetes
-    kind: Deployment
-    resource: my-app
+    spec:
+      kind: Deployment
+      name: my-app
     checks:
-      - expr: "resource.status.readyReplicas >= 1"
+      - check: "resource.status.readyReplicas >= 1"
         message: "No replicas ready"
-      - expr: "resource.status.updatedReplicas == resource.spec.replicas"
+      - check: "resource.status.updatedReplicas == resource.spec.replicas"
         message: "Rolling update in progress"
-      - expr: "resource.metadata.labels['version'] == 'v2'"
+      - check: "resource.metadata.labels['version'] == 'v2'"
         message: "Expected version v2"
 ```
 
@@ -134,10 +194,11 @@ components:
 components:
   my-database:
     type: kubernetes
-    kind: StatefulSet
-    resource: my-database
+    spec:
+      kind: StatefulSet
+      name: my-database
     checks:
-      - expr: "resource.status.readyReplicas == resource.spec.replicas"
+      - check: "resource.status.readyReplicas == resource.spec.replicas"
         message: "StatefulSet not fully ready"
 ```
 
@@ -149,9 +210,10 @@ For resources without status conditions, simply omit the `checks` field to verif
 components:
   my-service:
     type: kubernetes
-    kind: Service
-    resource: my-service
-    namespace: default
+    spec:
+      kind: Service
+      name: my-service
+      namespace: default
 ```
 
 ### Pod Phase Check
@@ -160,10 +222,11 @@ components:
 components:
   my-pod:
     type: kubernetes
-    kind: Pod
-    resource: my-pod
+    spec:
+      kind: Pod
+      name: my-pod
     checks:
-      - expr: "resource.status.phase == 'Running'"
+      - check: "resource.status.phase == 'Running'"
         message: "Pod is not running"
 ```
 
@@ -173,11 +236,34 @@ components:
 components:
   app-config:
     type: kubernetes
-    kind: ConfigMap
-    resource: app-config
+    spec:
+      kind: ConfigMap
+      name: app-config
     checks:
-      - expr: "'database_url' in resource.data"
+      - check: "'database_url' in resource.data"
         message: "Missing database_url in ConfigMap"
+```
+
+### Cross-Resource Validation with kubernetes.Get()
+
+Validate that related resources exist or have specific properties:
+
+```yaml
+components:
+  my-deployment:
+    type: kubernetes
+    spec:
+      kind: Deployment
+      name: my-app
+      namespace: production
+    checks:
+      # Verify PDB exists for this deployment
+      - check: 'kubernetes.Get({"kind": "poddisruptionbudget", "namespace": resource.metadata.namespace, "name": resource.metadata.name}) != null'
+        message: "Missing PodDisruptionBudget for deployment"
+
+      # Verify ConfigMap has required database URL
+      - check: 'kubernetes.Get({"kind": "configmap", "namespace": "production", "name": "app-config"}).data["DATABASE_URL"] != ""'
+        message: "ConfigMap missing DATABASE_URL"
 ```
 
 ### Disable kstatus Evaluation
@@ -188,14 +274,14 @@ For resources where kstatus evaluation is not appropriate (e.g., custom resource
 components:
   my-custom-resource:
     type: kubernetes
-    resource:
+    spec:
       group: example.com
       version: v1
       kind: MyCustomResource
       name: my-custom-resource
-    kstatus: false
+      kstatus: false
     checks:
-      - expr: "resource.status.ready == true"
+      - check: "resource.status.ready == true"
         message: "Custom resource is not ready"
 ```
 
@@ -207,7 +293,7 @@ Select all resources of a kind in a namespace by omitting both `name` and `label
 components:
   all-system-deployments:
     type: kubernetes
-    resource:
+    spec:
       kind: Deployment
       namespace: kube-system
 ```
@@ -218,12 +304,12 @@ components:
 components:
   require-deployments:
     type: kubernetes
-    resource:
+    spec:
       kind: Deployment
       namespace: production
       labelSelector: "app=myapp"
     checks:
-      - expr: "items.size() >= 1"
+      - check: "items.size() >= 1"
         message: "No deployments found"
 ```
 
@@ -235,12 +321,12 @@ Use `namespace: "*"` to select resources across all namespaces:
 components:
   cluster-wide-pods:
     type: kubernetes
-    resource:
+    spec:
       kind: Pod
       namespace: "*"
       labelSelector: "app.kubernetes.io/part-of=myapp"
     checks:
-      - expr: "items.size() >= 1"
+      - check: "items.size() >= 1"
         message: "No pods found cluster-wide"
 ```
 
@@ -254,14 +340,14 @@ Select resources matching a label selector. CEL checks use `items` for cardinali
 components:
   vault-pods:
     type: kubernetes
-    resource:
+    spec:
       kind: Pod
       namespace: vault
       labelSelector: "app.kubernetes.io/name=vault"
     checks:
-      - expr: "items.size() >= 3"
+      - check: "items.size() >= 3"
         message: "Less than 3 vault pods found"
-      - expr: "items.all(r, r.status.phase == 'Running')"
+      - check: "items.all(r, r.status.phase == 'Running')"
         message: "Not all pods are running"
 ```
 
@@ -273,12 +359,12 @@ Use comma-separated conditions for AND logic, or set-based operators for OR logi
 components:
   app-deployments:
     type: kubernetes
-    resource:
+    spec:
       kind: Deployment
       namespace: production
       labelSelector: "app.kubernetes.io/part-of=myapp,tier in (frontend,backend)"
     checks:
-      - expr: "items.all(r, r.status.readyReplicas >= r.spec.replicas)"
+      - check: "items.all(r, r.status.readyReplicas >= r.spec.replicas)"
         message: "Not all deployments are fully ready"
 ```
 

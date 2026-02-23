@@ -1,12 +1,15 @@
 package migrate
 
-import "github.com/isometry/platform-health/pkg/commands/flags"
+import (
+	"github.com/isometry/platform-health/internal/cliflags"
+	"github.com/isometry/platform-health/pkg/provider"
+)
 
-var migrateFlags = flags.Merge(
-	flags.FlagValues{
+var migrateFlags = cliflags.Merge(
+	provider.FlagValues{
 		"output": {
 			Shorthand: "O",
-			Kind:      "string",
+			Kind:      provider.FlagKindString,
 			Usage:     "output file path (default: stdout)",
 		},
 	},

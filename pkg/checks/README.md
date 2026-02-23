@@ -19,15 +19,56 @@ ph context my-app -o yaml
 
 ## CEL Expression Syntax
 
-CEL expressions must evaluate to a boolean (`true` for healthy, `false` for unhealthy). Expressions have access to provider-specific context variables (e.g., `response` for REST, `resource` for Kubernetes).
+CEL expressions must evaluate to a boolean (`true` for healthy, `false` for unhealthy). Expressions have access to provider-specific context variables (e.g., `response` for HTTP, `resource` for Kubernetes).
+
+### Check Modes
+
+Each check can optionally specify a `mode` field:
+
+- **default** (no `mode` field): The expression is evaluated once against the full provider context.
+- **`mode: "each"`**: The expression is evaluated per-item for providers that return collections (e.g., Kubernetes with label selectors). Each item is evaluated independently, and failures reference the specific item.
+
+```yaml
+checks:
+  - check: "resource.status.readyReplicas >= resource.spec.replicas"
+    message: "Not all replicas ready"
+    mode: "each"
+```
+
+## Built-in Functions
+
+The following custom functions are available in all CEL expressions:
+
+- `time.Now()` - Returns the current timestamp
+- `time.Since(timestamp)` - Returns the duration elapsed since the given timestamp
+- `time.Until(timestamp)` - Returns the duration until the given timestamp
+
+```yaml
+checks:
+  - check: "time.Until(tls.validUntil) > duration('168h')"
+    message: "Certificate expires within 7 days"
+```
+
+## Standard Extensions
+
+The following CEL extension libraries are available:
+
+- **Strings**: Additional string functions (`charAt`, `indexOf`, `replace`, `split`, `substring`, `trim`, `upperAscii`, `lowerAscii`)
+- **Lists**: List manipulation functions (`slice`, `flatten`)
+- **Encoders**: Base64 encoding/decoding (`base64.encode`, `base64.decode`)
+- **Math**: Math functions (`math.greatest`, `math.least`)
+- **Sets**: Set operations (`sets.contains`, `sets.intersects`, `sets.equivalent`)
+- **Bindings**: Variable binding via `cel.bind()`
 
 ## Common CEL Patterns
+
+> **Note:** The examples below use `data` as a generic illustrative placeholder variable. Actual CEL context variables are provider-specific — for example, `response` for [HTTP](../provider/http), `resource` for [Kubernetes](../provider/kubernetes), `tls` for [TLS](../provider/tls), `health` for [Vault](../provider/vault), and `release`/`chart` for [Helm](../provider/helm). See each provider's README for its available CEL variables, or use `ph context` to inspect the evaluation context.
 
 ### Simple Field Validation
 
 ```yaml
 checks:
-  - expr: "data.ready == true"
+  - check: "data.ready == true"
     message: "Service not ready"
 ```
 
@@ -35,7 +76,7 @@ checks:
 
 ```yaml
 checks:
-  - expr: "data.services.database.connected == true"
+  - check: "data.services.database.connected == true"
     message: "Database not connected"
 ```
 
@@ -43,7 +84,7 @@ checks:
 
 ```yaml
 checks:
-  - expr: "data.activeConnections < 1000"
+  - check: "data.activeConnections < 1000"
     message: "Too many active connections"
 ```
 
@@ -51,9 +92,9 @@ checks:
 
 ```yaml
 checks:
-  - expr: "size(data.errors) == 0"
+  - check: "size(data.errors) == 0"
     message: "System has reported errors"
-  - expr: "size(data.items) > 0"
+  - check: "size(data.items) > 0"
     message: "No items in response"
 ```
 
@@ -61,9 +102,9 @@ checks:
 
 ```yaml
 checks:
-  - expr: 'data.message.contains("SUCCESS")'
+  - check: 'data.message.contains("SUCCESS")'
     message: "Success message not found"
-  - expr: 'data.version.startsWith("2.")'
+  - check: 'data.version.startsWith("2.")'
     message: "Wrong API version"
 ```
 
@@ -71,9 +112,9 @@ checks:
 
 ```yaml
 checks:
-  - expr: "data.value >= 200 && data.value < 300"
+  - check: "data.value >= 200 && data.value < 300"
     message: "Value outside expected range"
-  - expr: 'data.state == "active" || data.state == "standby"'
+  - check: 'data.state == "active" || data.state == "standby"'
     message: "Service in unexpected state"
 ```
 
@@ -81,9 +122,9 @@ checks:
 
 ```yaml
 checks:
-  - expr: 'data.id.matches("\\d{3}-\\d{2}-\\d{4}")'
+  - check: 'data.id.matches("\\d{3}-\\d{2}-\\d{4}")'
     message: "Invalid format in response"
-  - expr: 'data.status.matches("(?i)success|ok|healthy")'
+  - check: 'data.status.matches("(?i)success|ok|healthy")'
     message: "No success indicator found"
 ```
 
@@ -91,7 +132,7 @@ checks:
 
 ```yaml
 checks:
-  - expr: "data.conditions.exists(c, c.type == 'Ready' && c.status == 'True')"
+  - check: "data.conditions.exists(c, c.type == 'Ready' && c.status == 'True')"
     message: "Ready condition not met"
 ```
 
@@ -99,7 +140,7 @@ checks:
 
 ```yaml
 checks:
-  - expr: "'required_key' in data.config"
+  - check: "'required_key' in data.config"
     message: "Required key missing from config"
 ```
 
