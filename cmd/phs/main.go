@@ -7,6 +7,7 @@ import (
 	"github.com/isometry/platform-health/pkg/commands/root"
 
 	// import providers to trigger registration
+	_ "github.com/isometry/platform-health/pkg/provider/dns"
 	_ "github.com/isometry/platform-health/pkg/provider/grpc"
 	_ "github.com/isometry/platform-health/pkg/provider/helm"
 	_ "github.com/isometry/platform-health/pkg/provider/http"

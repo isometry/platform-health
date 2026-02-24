@@ -1,0 +1,28 @@
+syntax = "proto3";
+
+package platform_health.detail.v1;
+
+option go_package = "github.com/isometry/platform-health/pkg/platform_health/details";
+
+message Detail_DNS {
+  string host = 1;
+  string server = 2;
+  string query_type = 3;
+  repeated DNSRecord records = 4;
+  DNSSECStatus dnssec = 5;
+}
+
+message DNSRecord {
+  string type = 1;
+  string value = 2;
+  uint32 ttl = 3;
+  uint32 priority = 4;
+  uint32 weight = 5;
+  uint32 port = 6;
+  string target = 7;
+}
+
+message DNSSECStatus {
+  bool enabled = 1;
+  bool authenticated = 2;
+}
