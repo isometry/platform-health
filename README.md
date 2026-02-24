@@ -14,6 +14,7 @@ Probes use a compile-time [provider plugin system](pkg/provider) that supports e
 
 * [`system`](pkg/provider/system): Hierarchical grouping of related health checks with status aggregation
 * [`satellite`](pkg/provider/satellite): A separate satellite instance of the Platform Health server
+* [`ssh`](pkg/provider/ssh): SSH protocol handshake with host key verification
 * [`tcp`](pkg/provider/tcp): TCP connectivity checks
 * [`tls`](pkg/provider/tls): TLS handshake and certificate verification
 * [`http`](pkg/provider/http): HTTP(S) health checks with CEL-based response validation, full REST/GraphQL API support, and TLS details
@@ -256,6 +257,7 @@ Several providers support CEL (Common Expression Language) expressions for custo
 
 - [`http`](pkg/provider/http): HTTP request and response details with JSON parsing for REST/GraphQL API validation
 - [`tls`](pkg/provider/tls): TLS connection and certificate details
+- [`ssh`](pkg/provider/ssh): SSH host key and connection details
 - [`kubernetes`](pkg/provider/kubernetes): Full resource(s), including metadata, spec, status, etc.
 - [`helm`](pkg/provider/helm): Release info, chart metadata, values and manifests
 
