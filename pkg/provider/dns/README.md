@@ -10,7 +10,7 @@ Once the DNS Provider is configured, any query to the platform health server wil
 
 The DNS Provider is configured through the platform-health server's configuration file. Each instance is defined with its name as the YAML key under `components`.
 
-- `kind` (required): Must be `dns`.
+- `type` (required): Must be `dns`.
 - `spec`: Provider-specific configuration:
   - `host` (required): The hostname to query.
   - `server` (optional): DNS server IP address (no port). If not specified, uses the system resolver.
@@ -55,7 +55,7 @@ DNSSEC validation status:
 ```yaml
 components:
   google-dns:
-    kind: dns
+    type: dns
     spec:
       host: google.com
 ```
@@ -65,7 +65,7 @@ components:
 ```yaml
 components:
   api-cname:
-    kind: dns
+    type: dns
     spec:
       host: api.example.com
       server: "10.0.0.1"
@@ -80,7 +80,7 @@ components:
 ```yaml
 components:
   secure-lookup:
-    kind: dns
+    type: dns
     spec:
       host: cloudflare.com
       server: "1.1.1.1"             # Port auto-selected as 853 due to tls: true
@@ -99,7 +99,7 @@ components:
 ```yaml
 components:
   mail-config:
-    kind: dns
+    type: dns
     spec:
       host: example.com
       type: MX
@@ -113,7 +113,7 @@ components:
 ```yaml
 components:
   comprehensive-check:
-    kind: dns
+    type: dns
     spec:
       host: example.com
       type: A

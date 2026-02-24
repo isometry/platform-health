@@ -8,6 +8,7 @@ import (
 	"net"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/google/cel-go/cel"
 	"github.com/mcuadros/go-defaults"
@@ -21,7 +22,10 @@ import (
 	"github.com/isometry/platform-health/pkg/provider"
 )
 
-const ProviderKind = "dns"
+const (
+	ProviderType   = "dns"
+	DefaultTimeout = 5 * time.Second
+)
 
 type Component struct {
 	provider.Base
@@ -46,7 +50,7 @@ var celConfig = checks.NewCEL(
 )
 
 func init() {
-	provider.Register(ProviderKind, new(Component))
+	provider.Register(ProviderType, new(Component))
 }
 
 func (c *Component) LogValue() slog.Value {
@@ -68,6 +72,9 @@ func (c *Component) LogValue() slog.Value {
 }
 
 func (c *Component) Setup() error {
+	if c.GetTimeout() == 0 {
+		c.SetTimeout(DefaultTimeout)
+	}
 	defaults.SetDefaults(c)
 
 	// Validate record type
@@ -83,8 +90,8 @@ func (c *Component) SetChecks(exprs []checks.Expression) error {
 	return c.SetChecksAndCompile(exprs, celConfig)
 }
 
-func (c *Component) GetKind() string {
-	return ProviderKind
+func (c *Component) GetType() string {
+	return ProviderType
 }
 
 // GetCheckConfig returns the DNS provider's CEL variable declarations.
@@ -114,11 +121,11 @@ func (c *Component) GetCheckContext(ctx context.Context) (map[string]any, error)
 }
 
 func (c *Component) GetHealth(ctx context.Context) *ph.HealthCheckResponse {
-	log := phctx.Logger(ctx, slog.String("provider", ProviderKind), slog.Any("instance", c))
+	log := phctx.Logger(ctx, slog.String("provider", ProviderType), slog.Any("instance", c))
 	log.Debug("checking")
 
 	component := &ph.HealthCheckResponse{
-		Kind: ProviderKind,
+		Type: ProviderType,
 		Name: c.GetName(),
 	}
 	defer component.LogStatus(log)
@@ -133,10 +140,10 @@ func (c *Component) GetHealth(ctx context.Context) *ph.HealthCheckResponse {
 	if c.Detail {
 		records := checkCtx["records"].([]map[string]any)
 		dnssecStatus := checkCtx["dnssec"].(map[string]any)
-		if detail, err := anypb.New(detailFromContext(c, records, dnssecStatus)); err != nil {
-			return component.Unhealthy(err.Error())
-		} else {
+		if detail, err := anypb.New(detailFromContext(c, records, dnssecStatus)); err == nil {
 			component.Details = append(component.Details, detail)
+		} else {
+			slog.Warn("failed to serialize DNS detail", "host", c.Host, "error", err)
 		}
 	}
 

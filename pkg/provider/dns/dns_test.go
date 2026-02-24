@@ -12,6 +12,7 @@ import (
 
 	"github.com/isometry/platform-health/pkg/checks"
 	ph "github.com/isometry/platform-health/pkg/platform_health"
+	"github.com/isometry/platform-health/pkg/platform_health/details"
 	"github.com/isometry/platform-health/pkg/provider"
 	"github.com/isometry/platform-health/pkg/provider/dns"
 )
@@ -101,6 +102,33 @@ func testRecords() map[uint16][]mdns.RR {
 				Ns:  "ns1.example.com.",
 			},
 		},
+		mdns.TypeSRV: {
+			&mdns.SRV{
+				Hdr:      mdns.RR_Header{Name: "_sip._tcp.example.com.", Rrtype: mdns.TypeSRV, Class: mdns.ClassINET, Ttl: 300},
+				Priority: 10,
+				Weight:   60,
+				Port:     5060,
+				Target:   "sip.example.com.",
+			},
+		},
+		mdns.TypeSOA: {
+			&mdns.SOA{
+				Hdr:     mdns.RR_Header{Name: "example.com.", Rrtype: mdns.TypeSOA, Class: mdns.ClassINET, Ttl: 300},
+				Ns:      "ns1.example.com.",
+				Mbox:    "admin.example.com.",
+				Serial:  2024010101,
+				Refresh: 3600,
+				Retry:   900,
+				Expire:  604800,
+				Minttl:  86400,
+			},
+		},
+		mdns.TypePTR: {
+			&mdns.PTR{
+				Hdr: mdns.RR_Header{Name: "1.2.0.192.in-addr.arpa.", Rrtype: mdns.TypePTR, Class: mdns.ClassINET, Ttl: 300},
+				Ptr: "example.com.",
+			},
+		},
 	}
 }
 
@@ -160,6 +188,30 @@ func TestDNS(t *testing.T) {
 			expected:   ph.Status_HEALTHY,
 		},
 		{
+			name:       "SRV record lookup",
+			host:       "_sip._tcp.example.com",
+			recordType: "SRV",
+			port:       serverPort,
+			timeout:    5 * time.Second,
+			expected:   ph.Status_HEALTHY,
+		},
+		{
+			name:       "SOA record lookup",
+			host:       "example.com",
+			recordType: "SOA",
+			port:       serverPort,
+			timeout:    5 * time.Second,
+			expected:   ph.Status_HEALTHY,
+		},
+		{
+			name:       "PTR record lookup",
+			host:       "1.2.0.192.in-addr.arpa",
+			recordType: "PTR",
+			port:       serverPort,
+			timeout:    5 * time.Second,
+			expected:   ph.Status_HEALTHY,
+		},
+		{
 			name:       "Custom DNS server",
 			host:       "example.com",
 			recordType: "A",
@@ -212,11 +264,73 @@ func TestDNS(t *testing.T) {
 			result := provider.GetHealthWithDuration(t.Context(), instance)
 
 			assert.NotNil(t, result)
-			assert.Equal(t, dns.ProviderKind, result.GetKind())
+			assert.Equal(t, dns.ProviderType, result.GetType())
 			assert.Equal(t, tt.name, result.GetName())
 			assert.Equal(t, tt.expected, result.GetStatus())
 		})
 	}
+}
+
+func TestDNS_Detail(t *testing.T) {
+	serverPort := setupMockDNSServer(t, testRecords(), true)
+
+	t.Run("A record detail", func(t *testing.T) {
+		instance := &dns.Component{
+			Host:   "example.com",
+			Type:   "A",
+			Server: "127.0.0.1",
+			Port:   serverPort,
+			DNSSEC: true,
+			Detail: true,
+		}
+		instance.SetName("detail-a")
+		instance.SetTimeout(5 * time.Second)
+		require.NoError(t, instance.Setup())
+
+		result := provider.GetHealthWithDuration(t.Context(), instance)
+
+		require.Equal(t, ph.Status_HEALTHY, result.GetStatus())
+		require.NotEmpty(t, result.GetDetails(), "details should be populated when Detail is true")
+
+		detail := new(details.Detail_DNS)
+		require.NoError(t, result.GetDetails()[0].UnmarshalTo(detail))
+
+		assert.Equal(t, "example.com", detail.GetHost())
+		assert.Equal(t, "A", detail.GetQueryType())
+		assert.Len(t, detail.GetRecords(), 1)
+		assert.NotNil(t, detail.GetDnssec())
+		assert.True(t, detail.GetDnssec().GetEnabled())
+		assert.True(t, detail.GetDnssec().GetAuthenticated())
+	})
+
+	t.Run("SRV record detail", func(t *testing.T) {
+		instance := &dns.Component{
+			Host:   "_sip._tcp.example.com",
+			Type:   "SRV",
+			Server: "127.0.0.1",
+			Port:   serverPort,
+			Detail: true,
+		}
+		instance.SetName("detail-srv")
+		instance.SetTimeout(5 * time.Second)
+		require.NoError(t, instance.Setup())
+
+		result := provider.GetHealthWithDuration(t.Context(), instance)
+
+		require.Equal(t, ph.Status_HEALTHY, result.GetStatus())
+		require.NotEmpty(t, result.GetDetails())
+
+		detail := new(details.Detail_DNS)
+		require.NoError(t, result.GetDetails()[0].UnmarshalTo(detail))
+
+		require.Len(t, detail.GetRecords(), 1)
+		rec := detail.GetRecords()[0]
+		assert.Equal(t, "SRV", rec.GetType())
+		assert.Equal(t, "sip.example.com.", rec.GetTarget())
+		assert.Equal(t, uint32(10), rec.GetPriority())
+		assert.Equal(t, uint32(60), rec.GetWeight())
+		assert.Equal(t, uint32(5060), rec.GetPort())
+	})
 }
 
 func TestDNS_CELChecks(t *testing.T) {
@@ -258,6 +372,14 @@ func TestDNS_CELChecks(t *testing.T) {
 			host: "example.com",
 			checks: []checks.Expression{
 				{Expression: "records.all(r, r.ttl > 0)", Message: "TTL must be positive"},
+			},
+			expected: ph.Status_HEALTHY,
+		},
+		{
+			name: "Check specific TTL value",
+			host: "example.com",
+			checks: []checks.Expression{
+				{Expression: `records.all(r, r.ttl >= 300u)`, Message: "TTL below 300"},
 			},
 			expected: ph.Status_HEALTHY,
 		},
@@ -343,7 +465,7 @@ func TestDNS_ProviderInterface(t *testing.T) {
 	instance.SetName("test-instance")
 	require.NoError(t, instance.Setup())
 
-	assert.Equal(t, dns.ProviderKind, instance.GetKind())
+	assert.Equal(t, dns.ProviderType, instance.GetType())
 	assert.Equal(t, "test-instance", instance.GetName())
 
 	instance.SetName("renamed")
