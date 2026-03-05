@@ -125,6 +125,35 @@ func transformHTTPStatus(config map[string]any) string {
 	return fmt.Sprintf("status %v -> CEL check: %s", statusSlice, expr)
 }
 
+// dropKubernetesConditions removes legacy condition fields that are now covered by kstatus.
+// Handles two formats:
+//   - Format A: flat conditionType + conditionStatus fields
+//   - Format B: condition sub-map with type + status keys
+//
+// Returns a migration note if fields were dropped.
+func dropKubernetesConditions(config map[string]any) string {
+	var dropped bool
+
+	// Format A: flat fields
+	if _, ok := config["conditionType"]; ok {
+		delete(config, "conditionType")
+		delete(config, "conditionStatus")
+		dropped = true
+	}
+
+	// Format B: condition sub-map
+	if _, ok := config["condition"].(map[string]any); ok {
+		delete(config, "condition")
+		dropped = true
+	}
+
+	if !dropped {
+		return ""
+	}
+
+	return "dropped legacy condition fields (covered by kstatus)"
+}
+
 func run(cmd *cobra.Command, args []string) error {
 	v := phctx.Viper(cmd.Context())
 	cliflags.BindFlags(cmd, v)
@@ -216,6 +245,13 @@ func run(cmd *cobra.Command, args []string) error {
 				}
 			}
 
+			// Convert legacy kubernetes condition fields to CEL check
+			if providerType == "kubernetes" {
+				if note := dropKubernetesConditions(inst.config); note != "" {
+					renames = append(renames, fmt.Sprintf("  %s: %s", finalName, note))
+				}
+			}
+
 			// Rewrite legacy check expression keys (expr/expression -> check)
 			transformChecks(inst.config)
 
@@ -227,7 +263,12 @@ func run(cmd *cobra.Command, args []string) error {
 			for key, val := range inst.config {
 				switch {
 				case key == "name":
-					// skip: becomes the map key
+					switch providerType {
+					case "kubernetes":
+						spec[key] = val
+					case "helm":
+						spec["release"] = val
+					}
 				case frameworkKeys[key]:
 					newInstance[key] = val
 				default:
