@@ -253,9 +253,10 @@ func (c *Component) checkBySelector(ctx context.Context, clients *client.KubeCli
 
 		var filtered []unstructured.Unstructured
 		for _, item := range list.Items {
-			if requestedNames[item.GetName()] {
+			resourceID := formatResourceID(item.GetName(), item.GetNamespace())
+			if requestedNames[resourceID] {
 				filtered = append(filtered, item)
-				delete(requestedNames, item.GetName())
+				delete(requestedNames, resourceID)
 			}
 		}
 
@@ -290,7 +291,7 @@ func (c *Component) checkBySelector(ctx context.Context, clients *client.KubeCli
 		resourceNS := item.GetNamespace()
 
 		childComponent := &ph.HealthCheckResponse{
-			Name: resourceName,
+			Name: formatResourceID(resourceName, resourceNS),
 			Type: ProviderType,
 		}
 
