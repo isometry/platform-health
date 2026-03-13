@@ -23,7 +23,7 @@ image:
 replicaCount: 1
 
 # Arguments to pass to the platform-health server
-serverArgs: &args
+serverArgs:
   - server
   - --log-level=2
 
