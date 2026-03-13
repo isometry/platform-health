@@ -142,6 +142,54 @@ func TestCheckBySelector_MultipleResources(t *testing.T) {
 	}
 }
 
+func TestCheckBySelector_NamespaceQualifiedNames(t *testing.T) {
+	setupMockFactory(t,
+		testDeployment("token", "default", true),
+		testDeployment("auth", "default", true),
+	)
+
+	instance := &kubernetes.Component{
+		Kind:      "Deployment",
+		Namespace: "default",
+	}
+	require.NoError(t, instance.Setup())
+
+	result := instance.GetHealth(t.Context())
+	assert.Equal(t, ph.Status_HEALTHY, result.Status)
+	require.Len(t, result.Components, 2)
+
+	names := make(map[string]bool)
+	for _, comp := range result.Components {
+		names[comp.Name] = true
+	}
+	assert.True(t, names["token@default"], "expected namespace-qualified name token@default")
+	assert.True(t, names["auth@default"], "expected namespace-qualified name auth@default")
+}
+
+func TestCheckBySelector_ClusterScopedBareNames(t *testing.T) {
+	// Cluster-scoped resources (no namespace) should have bare names
+	setupMockFactory(t,
+		testDeployment("node-1", "", true),
+		testDeployment("node-2", "", true),
+	)
+
+	instance := &kubernetes.Component{
+		Kind: "Deployment",
+	}
+	require.NoError(t, instance.Setup())
+
+	result := instance.GetHealth(t.Context())
+	assert.Equal(t, ph.Status_HEALTHY, result.Status)
+	require.Len(t, result.Components, 2)
+
+	names := make(map[string]bool)
+	for _, comp := range result.Components {
+		names[comp.Name] = true
+	}
+	assert.True(t, names["node-1"], "cluster-scoped resource should have bare name")
+	assert.True(t, names["node-2"], "cluster-scoped resource should have bare name")
+}
+
 func TestCheckBySelector_EmptyResult(t *testing.T) {
 	setupMockFactory(t)
 	// Empty result is HEALTHY by default (use CEL checks to require resources)
@@ -301,7 +349,7 @@ func TestCELChecks_PerItemFails(t *testing.T) {
 	// Find the failing component and verify failure attribution
 	var foundFailure bool
 	for _, comp := range result.Components {
-		if comp.Name == "app-2" {
+		if comp.Name == "app-2@default" {
 			assert.Equal(t, ph.Status_UNHEALTHY, comp.Status)
 			require.NotEmpty(t, comp.Messages)
 			assert.Contains(t, comp.Messages[0], "Deployment not ready")
