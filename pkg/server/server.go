@@ -92,7 +92,10 @@ func filterInstances(instances []provider.Instance, components []string) ([]prov
 	return result, invalidComponents
 }
 
-// filteredInstance wraps a provider.Instance to pass sub-component paths via context
+// filteredInstance wraps a provider.Instance to pass sub-component paths via context.
+// Known limitation: wrapping an Instance in this struct loses any GetOrder()/GetAlways()
+// metadata, since those are checked via ad-hoc type assertions in orderOf/alwaysOf and are
+// not part of the Instance interface. Filtered instances default to order=0, always=false.
 type filteredInstance struct {
 	provider.Instance
 	subPaths [][]string
