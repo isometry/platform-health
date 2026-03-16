@@ -21,6 +21,8 @@ var KnownComponentKeys = map[string]bool{
 	"components": false, // optional: nested children (Container providers)
 	"timeout":    false, // optional: per-instance timeout override
 	"includes":   false, // optional: include other configuration files
+	"order":      false, // optional: execution order (lower runs first)
+	"always":     false, // optional: always execute even after fail-fast
 }
 
 // Option configures instance creation.
@@ -35,6 +37,10 @@ type instanceConfig struct {
 	flags      *pflag.FlagSet
 	timeout    time.Duration
 	hasTimeout bool
+	order      int
+	hasOrder   bool
+	always     bool
+	hasAlways  bool
 }
 
 // WithName sets the instance name.
@@ -86,6 +92,25 @@ func WithTimeout(timeout time.Duration) Option {
 	return func(c *instanceConfig) error {
 		c.timeout = timeout
 		c.hasTimeout = true
+		return nil
+	}
+}
+
+// WithOrder sets the execution order for the instance.
+// Instances with lower order values run first. Default is 0.
+func WithOrder(order int) Option {
+	return func(c *instanceConfig) error {
+		c.order = order
+		c.hasOrder = true
+		return nil
+	}
+}
+
+// WithAlways marks the instance to always execute, even after fail-fast triggers.
+func WithAlways(always bool) Option {
+	return func(c *instanceConfig) error {
+		c.always = always
+		c.hasAlways = true
 		return nil
 	}
 }
@@ -179,6 +204,18 @@ func NewInstance(providerType string, opts ...Option) (Instance, error) {
 		concreteInstance.SetTimeout(cfg.timeout)
 	}
 
+	// Apply order/always via type assertion (framework concerns on Base)
+	if cfg.hasOrder {
+		if o, ok := concreteInstance.(interface{ SetOrder(int) }); ok {
+			o.SetOrder(cfg.order)
+		}
+	}
+	if cfg.hasAlways {
+		if a, ok := concreteInstance.(interface{ SetAlways(bool) }); ok {
+			a.SetAlways(cfg.always)
+		}
+	}
+
 	// Validate and apply checks (requires InstanceWithChecks)
 	if len(cfg.checks) > 0 {
 		checkProvider := AsInstanceWithChecks(concreteInstance)
@@ -265,6 +302,20 @@ func buildInstanceOptions(name string, configMap map[string]any) ([]Option, erro
 		}
 		opts = append(opts, WithChecks(exprs))
 	}
+	if orderRaw, hasOrder := configMap["order"]; hasOrder {
+		order, err := parseIntValue(orderRaw)
+		if err != nil {
+			return nil, fmt.Errorf("invalid order: %w", err)
+		}
+		opts = append(opts, WithOrder(order))
+	}
+	if alwaysRaw, hasAlways := configMap["always"]; hasAlways {
+		always, ok := alwaysRaw.(bool)
+		if !ok {
+			return nil, fmt.Errorf("invalid always: expected bool, got %T", alwaysRaw)
+		}
+		opts = append(opts, WithAlways(always))
+	}
 
 	return opts, nil
 }
@@ -311,6 +362,20 @@ func ParseDuration(v any) (time.Duration, error) {
 		return time.Duration(val * float64(time.Second)), nil
 	default:
 		return 0, fmt.Errorf("unsupported duration type: %T", v)
+	}
+}
+
+// parseIntValue parses an integer from various numeric types that YAML may produce.
+func parseIntValue(v any) (int, error) {
+	switch val := v.(type) {
+	case int:
+		return val, nil
+	case int64:
+		return int(val), nil
+	case float64:
+		return int(val), nil
+	default:
+		return 0, fmt.Errorf("unsupported type: %T", v)
 	}
 }
 

@@ -19,6 +19,16 @@ func WithHealth(s ph.Status) Option {
 	return func(c *Component) { c.Health = s }
 }
 
+// WithOrder sets the execution order for the mock.
+func WithOrder(order int) Option {
+	return func(c *Component) { c.SetOrder(order) }
+}
+
+// WithAlways marks the mock to always execute even after fail-fast.
+func WithAlways(always bool) Option {
+	return func(c *Component) { c.SetAlways(always) }
+}
+
 // New creates a mock component with the given name and options.
 // Defaults to HEALTHY status if not specified via WithHealth.
 func New(name string, opts ...Option) *Component {

@@ -27,6 +27,10 @@ Methods:
 - `SetName()`: Sets the instance name
 - `GetTimeout()`: Returns the per-instance timeout override (0 means use parent context deadline)
 - `SetTimeout()`: Sets the per-instance timeout override
+- `GetOrder()`: Returns execution order group (default 0); lower values run first
+- `SetOrder()`: Sets execution order group
+- `GetAlways()`: Returns whether the instance always executes, even after fail-fast cancellation
+- `SetAlways()`: Sets the always-execute flag
 - `GetHealth()`: Performs the actual health check
 - `Setup()`: Sets default configuration and initializes the instance
 
