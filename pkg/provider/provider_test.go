@@ -211,13 +211,12 @@ func TestCheckSequentialGroupExecution(t *testing.T) {
 		responses, status := provider.Check(t.Context(), instances)
 
 		assert.Equal(t, ph.Status_HEALTHY, status)
-		assert.Len(t, responses, 3)
+		require.Len(t, responses, 3)
 
-		// All should be present
-		names := responseNames(responses)
-		assert.Contains(t, names, "first")
-		assert.Contains(t, names, "second")
-		assert.Contains(t, names, "third")
+		// Verify responses arrive in group order (sequential execution)
+		assert.Equal(t, "first", responses[0].GetName())
+		assert.Equal(t, "second", responses[1].GetName())
+		assert.Equal(t, "third", responses[2].GetName())
 	})
 }
 
@@ -239,16 +238,9 @@ func TestCheckAlwaysSurvivesWithinGroupFailFast(t *testing.T) {
 
 		assert.Equal(t, ph.Status_UNHEALTHY, status)
 
-		// Always instance "monitor" must be present and healthy
 		names := responseNames(responses)
 		assert.Contains(t, names, "trigger")
-		assert.Contains(t, names, "monitor")
-
-		idx := slices.IndexFunc(responses, func(r *ph.HealthCheckResponse) bool {
-			return r.GetName() == "monitor"
-		})
-		require.GreaterOrEqual(t, idx, 0)
-		assert.Equal(t, ph.Status_HEALTHY, responses[idx].Status)
+		requireResponseStatus(t, responses, "monitor", ph.Status_HEALTHY)
 	})
 }
 
@@ -268,12 +260,7 @@ func TestCheckAlwaysDoesNotTriggerFailFast(t *testing.T) {
 
 		assert.Equal(t, ph.Status_UNHEALTHY, status)
 		assert.Len(t, responses, 2)
-
-		idx := slices.IndexFunc(responses, func(r *ph.HealthCheckResponse) bool {
-			return r.GetName() == "normal"
-		})
-		require.GreaterOrEqual(t, idx, 0)
-		assert.Equal(t, ph.Status_HEALTHY, responses[idx].Status)
+		requireResponseStatus(t, responses, "normal", ph.Status_HEALTHY)
 	})
 }
 
@@ -299,27 +286,6 @@ func TestCheckCrossGroupFailFastWithAlways(t *testing.T) {
 		assert.Contains(t, names, "monitor")
 		// "app" should NOT be present — it's non-always in a later group after fail-fast
 		assert.NotContains(t, names, "app")
-	})
-}
-
-// TestCheckNonAlwaysOmittedAfterFailFast verifies that non-always instances
-// in later groups are completely omitted from the response.
-func TestCheckNonAlwaysOmittedAfterFailFast(t *testing.T) {
-	synctest.Test(t, func(t *testing.T) {
-		instances := []provider.Instance{
-			mock.Unhealthy("fail", mock.WithOrder(-10), mock.WithSleep(10*time.Millisecond)),
-			mock.Healthy("skip1", mock.WithOrder(0), mock.WithSleep(10*time.Millisecond)),
-			mock.Healthy("skip2", mock.WithOrder(10), mock.WithSleep(10*time.Millisecond)),
-		}
-
-		ctx := phctx.ContextWithFailFast(t.Context(), true)
-		responses, _ := provider.Check(ctx, instances)
-
-		// Only the failing instance from group -10 should be in responses
-		names := responseNames(responses)
-		assert.Contains(t, names, "fail")
-		assert.NotContains(t, names, "skip1")
-		assert.NotContains(t, names, "skip2")
 	})
 }
 
@@ -364,4 +330,13 @@ func responseNames(responses []*ph.HealthCheckResponse) []string {
 		names[i] = r.GetName()
 	}
 	return names
+}
+
+func requireResponseStatus(t *testing.T, responses []*ph.HealthCheckResponse, name string, status ph.Status) {
+	t.Helper()
+	idx := slices.IndexFunc(responses, func(r *ph.HealthCheckResponse) bool {
+		return r.GetName() == name
+	})
+	require.GreaterOrEqual(t, idx, 0, "response %q not found", name)
+	assert.Equal(t, status, responses[idx].Status)
 }

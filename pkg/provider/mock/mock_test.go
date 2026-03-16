@@ -207,16 +207,13 @@ func TestMock_GetProviderFlags(t *testing.T) {
 	})
 }
 
-func TestMock_WithOrder(t *testing.T) {
-	m := mock.New("test", mock.WithOrder(-5))
+func TestMock_OrderAndAlways(t *testing.T) {
+	m := mock.New("test", mock.WithOrder(-5), mock.WithAlways(true))
 	assert.Equal(t, -5, m.GetOrder())
-}
-
-func TestMock_WithAlways(t *testing.T) {
-	m := mock.New("test", mock.WithAlways(true))
 	assert.True(t, m.GetAlways())
 
 	m2 := mock.New("test")
+	assert.Equal(t, 0, m2.GetOrder())
 	assert.False(t, m2.GetAlways())
 }
 
