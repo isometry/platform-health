@@ -140,6 +140,48 @@ func TestBuildInstanceOptions(t *testing.T) {
 			config:    map[string]any{"components": "invalid"},
 			wantError: "invalid components: expected map",
 		},
+		// order
+		{
+			name:   "valid order: int",
+			config: map[string]any{"order": int(5)},
+		},
+		{
+			name:   "valid order: int64",
+			config: map[string]any{"order": int64(-10)},
+		},
+		{
+			name:   "valid order: float64",
+			config: map[string]any{"order": float64(3)},
+		},
+		{
+			name:      "invalid order: string",
+			config:    map[string]any{"order": "first"},
+			wantError: "invalid order",
+		},
+		{
+			name:      "invalid order: bool",
+			config:    map[string]any{"order": true},
+			wantError: "invalid order",
+		},
+		// always
+		{
+			name:   "valid always: true",
+			config: map[string]any{"always": true},
+		},
+		{
+			name:   "valid always: false",
+			config: map[string]any{"always": false},
+		},
+		{
+			name:      "invalid always: string",
+			config:    map[string]any{"always": "yes"},
+			wantError: "invalid always",
+		},
+		{
+			name:      "invalid always: int",
+			config:    map[string]any{"always": 1},
+			wantError: "invalid always",
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

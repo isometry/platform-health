@@ -2,6 +2,7 @@ package provider_test
 
 import (
 	"context"
+	"slices"
 	"testing"
 	"testing/synctest"
 	"time"
@@ -102,13 +103,10 @@ func TestCheckVaryingDelays(t *testing.T) {
 		assert.Len(t, responses, 3)
 
 		// Verify all responses are present
-		names := make(map[string]bool)
-		for _, r := range responses {
-			names[r.GetName()] = true
-		}
-		assert.True(t, names["fast"])
-		assert.True(t, names["medium"])
-		assert.True(t, names["slow"])
+		names := responseNames(responses)
+		assert.Contains(t, names, "fast")
+		assert.Contains(t, names, "medium")
+		assert.Contains(t, names, "slow")
 	})
 }
 
@@ -182,4 +180,188 @@ func TestCheckParallelismUnlimited(t *testing.T) {
 
 	assert.Equal(t, ph.Status_HEALTHY, status)
 	assert.Len(t, responses, 3)
+}
+
+// TestCheckDefaultOrderSingleGroup verifies that all instances with default
+// order=0 behave identically to the previous single-group implementation.
+func TestCheckDefaultOrderSingleGroup(t *testing.T) {
+	instances := []provider.Instance{
+		mock.Healthy("a"),
+		mock.Unhealthy("b"),
+		mock.Healthy("c"),
+	}
+
+	responses, status := provider.Check(t.Context(), instances)
+
+	assert.Equal(t, ph.Status_UNHEALTHY, status)
+	assert.Len(t, responses, 3)
+}
+
+// TestCheckSequentialGroupExecution verifies groups run in order.
+// Group -10 completes before group 0.
+func TestCheckSequentialGroupExecution(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		// Track execution order via timing
+		instances := []provider.Instance{
+			mock.Healthy("first", mock.WithOrder(-10), mock.WithSleep(10*time.Millisecond)),
+			mock.Healthy("second", mock.WithOrder(0), mock.WithSleep(10*time.Millisecond)),
+			mock.Healthy("third", mock.WithOrder(10), mock.WithSleep(10*time.Millisecond)),
+		}
+
+		responses, status := provider.Check(t.Context(), instances)
+
+		assert.Equal(t, ph.Status_HEALTHY, status)
+		assert.Len(t, responses, 3)
+
+		// All should be present
+		names := responseNames(responses)
+		assert.Contains(t, names, "first")
+		assert.Contains(t, names, "second")
+		assert.Contains(t, names, "third")
+	})
+}
+
+// TestCheckAlwaysSurvivesWithinGroupFailFast verifies that an always instance
+// within a group completes even when fail-fast cancels the errgroup context.
+func TestCheckAlwaysSurvivesWithinGroupFailFast(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		instances := []provider.Instance{
+			// Fast unhealthy triggers fail-fast
+			mock.Unhealthy("trigger", mock.WithSleep(10*time.Millisecond)),
+			// always=true instance with longer sleep should still complete
+			mock.Healthy("monitor", mock.WithAlways(true), mock.WithSleep(100*time.Millisecond)),
+			// Non-always slow instance may be cancelled
+			mock.Healthy("slow", mock.WithSleep(5*time.Second)),
+		}
+
+		ctx := phctx.ContextWithFailFast(t.Context(), true)
+		responses, status := provider.Check(ctx, instances)
+
+		assert.Equal(t, ph.Status_UNHEALTHY, status)
+
+		// Always instance "monitor" must be present and healthy
+		names := responseNames(responses)
+		assert.Contains(t, names, "trigger")
+		assert.Contains(t, names, "monitor")
+
+		idx := slices.IndexFunc(responses, func(r *ph.HealthCheckResponse) bool {
+			return r.GetName() == "monitor"
+		})
+		require.GreaterOrEqual(t, idx, 0)
+		assert.Equal(t, ph.Status_HEALTHY, responses[idx].Status)
+	})
+}
+
+// TestCheckAlwaysDoesNotTriggerFailFast verifies that an unhealthy always
+// instance does not cancel sibling instances.
+func TestCheckAlwaysDoesNotTriggerFailFast(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		instances := []provider.Instance{
+			// Unhealthy always instance should NOT trigger fail-fast
+			mock.Unhealthy("always-unhealthy", mock.WithAlways(true), mock.WithSleep(10*time.Millisecond)),
+			// This healthy instance should complete normally
+			mock.Healthy("normal", mock.WithSleep(100*time.Millisecond)),
+		}
+
+		ctx := phctx.ContextWithFailFast(t.Context(), true)
+		responses, status := provider.Check(ctx, instances)
+
+		assert.Equal(t, ph.Status_UNHEALTHY, status)
+		assert.Len(t, responses, 2)
+
+		idx := slices.IndexFunc(responses, func(r *ph.HealthCheckResponse) bool {
+			return r.GetName() == "normal"
+		})
+		require.GreaterOrEqual(t, idx, 0)
+		assert.Equal(t, ph.Status_HEALTHY, responses[idx].Status)
+	})
+}
+
+// TestCheckCrossGroupFailFastWithAlways verifies that after fail-fast triggers
+// in an earlier group, only always instances in later groups execute.
+func TestCheckCrossGroupFailFastWithAlways(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		instances := []provider.Instance{
+			// Group -10: unhealthy triggers fail-fast
+			mock.Unhealthy("infra", mock.WithOrder(-10), mock.WithSleep(10*time.Millisecond)),
+			// Group 0: only monitor (always=true) should run
+			mock.Healthy("app", mock.WithOrder(0), mock.WithSleep(10*time.Millisecond)),
+			mock.Healthy("monitor", mock.WithOrder(0), mock.WithAlways(true), mock.WithSleep(10*time.Millisecond)),
+		}
+
+		ctx := phctx.ContextWithFailFast(t.Context(), true)
+		responses, status := provider.Check(ctx, instances)
+
+		assert.Equal(t, ph.Status_UNHEALTHY, status)
+
+		names := responseNames(responses)
+		assert.Contains(t, names, "infra")
+		assert.Contains(t, names, "monitor")
+		// "app" should NOT be present — it's non-always in a later group after fail-fast
+		assert.NotContains(t, names, "app")
+	})
+}
+
+// TestCheckNonAlwaysOmittedAfterFailFast verifies that non-always instances
+// in later groups are completely omitted from the response.
+func TestCheckNonAlwaysOmittedAfterFailFast(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		instances := []provider.Instance{
+			mock.Unhealthy("fail", mock.WithOrder(-10), mock.WithSleep(10*time.Millisecond)),
+			mock.Healthy("skip1", mock.WithOrder(0), mock.WithSleep(10*time.Millisecond)),
+			mock.Healthy("skip2", mock.WithOrder(10), mock.WithSleep(10*time.Millisecond)),
+		}
+
+		ctx := phctx.ContextWithFailFast(t.Context(), true)
+		responses, _ := provider.Check(ctx, instances)
+
+		// Only the failing instance from group -10 should be in responses
+		names := responseNames(responses)
+		assert.Contains(t, names, "fail")
+		assert.NotContains(t, names, "skip1")
+		assert.NotContains(t, names, "skip2")
+	})
+}
+
+// TestCheckMultipleAlwaysAcrossOrderedGroups verifies that always instances
+// at different order levels all execute, even after fail-fast.
+func TestCheckMultipleAlwaysAcrossOrderedGroups(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		instances := []provider.Instance{
+			// Group -10: triggers fail-fast, plus an always
+			mock.Unhealthy("fail", mock.WithOrder(-10), mock.WithSleep(10*time.Millisecond)),
+			mock.Healthy("dns", mock.WithOrder(-10), mock.WithAlways(true), mock.WithSleep(10*time.Millisecond)),
+			// Group 0: only always should run
+			mock.Healthy("app", mock.WithOrder(0), mock.WithSleep(10*time.Millisecond)),
+			mock.Healthy("monitoring", mock.WithOrder(0), mock.WithAlways(true), mock.WithSleep(10*time.Millisecond)),
+			// Group 10: only always should run
+			mock.Healthy("cleanup", mock.WithOrder(10), mock.WithSleep(10*time.Millisecond)),
+			mock.Healthy("alerting", mock.WithOrder(10), mock.WithAlways(true), mock.WithSleep(10*time.Millisecond)),
+		}
+
+		ctx := phctx.ContextWithFailFast(t.Context(), true)
+		responses, status := provider.Check(ctx, instances)
+
+		assert.Equal(t, ph.Status_UNHEALTHY, status)
+
+		// All always instances + the failing trigger should be present
+		names := responseNames(responses)
+		assert.Contains(t, names, "fail")
+		assert.Contains(t, names, "dns")
+		assert.Contains(t, names, "monitoring")
+		assert.Contains(t, names, "alerting")
+		// Non-always in later groups should be absent
+		assert.NotContains(t, names, "app")
+		assert.NotContains(t, names, "cleanup")
+	})
+}
+
+// helpers
+
+func responseNames(responses []*ph.HealthCheckResponse) []string {
+	names := make([]string, len(responses))
+	for i, r := range responses {
+		names[i] = r.GetName()
+	}
+	return names
 }

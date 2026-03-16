@@ -57,3 +57,13 @@ components:
       namespace: default
       labelSelector: "app=myapp"
     timeout: 1s
+
+  # Ordered execution: runs after all default (order 0) checks complete
+  # always: true ensures execution even if earlier checks trigger fail-fast
+  istio-quit:
+    type: http
+    order: 1
+    always: true
+    spec:
+      url: http://localhost:15020/quitquitquit
+      method: POST

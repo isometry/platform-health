@@ -189,6 +189,8 @@ components:
       <key>: <value>
     checks: [...]              # optional CEL expressions
     timeout: <duration>        # optional per-instance timeout
+    order: <int>               # optional execution order (default: 0)
+    always: <bool>             # optional always-execute flag (default: false)
     components: {...}          # optional nested children (system provider)
 ```
 
@@ -250,6 +252,37 @@ components:
 ```
 
 The system is reported "healthy" only if all sub-components are healthy.
+
+### Execution Ordering
+
+By default, all instances execute in parallel (order 0). Use the `order` field to group instances into sequential execution waves — lower values run first, and instances within the same order group run in parallel.
+
+The `always` flag marks an instance to execute even after fail-fast cancellation. Always-flagged instances use the parent context rather than the errgroup's, so they survive cancellation. They also don't trigger fail-fast themselves.
+
+```yaml
+components:
+  # Order 0 (default): runs first, in parallel with other order-0 checks
+  api-health:
+    type: http
+    spec:
+      url: https://api.example.com/health
+
+  database:
+    type: tcp
+    spec:
+      host: db.example.com
+      port: 5432
+
+  # Order 1: runs after all order-0 checks complete
+  # always: true ensures this runs even if earlier checks trigger fail-fast
+  istio-quit:
+    type: http
+    order: 1
+    always: true
+    spec:
+      url: http://localhost:15020/quitquitquit
+      method: POST
+```
 
 ### CEL Expressions
 
