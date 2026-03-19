@@ -21,7 +21,7 @@ require (
 	golang.org/x/crypto v0.49.0
 	golang.org/x/sync v0.20.0
 	golang.org/x/term v0.41.0
-	google.golang.org/grpc v1.79.2
+	google.golang.org/grpc v1.79.3
 	google.golang.org/protobuf v1.36.11
 	helm.sh/helm/v4 v4.1.3
 	k8s.io/apimachinery v0.35.2
