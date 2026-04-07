@@ -2,6 +2,7 @@ package helm
 
 import (
 	"bytes"
+	"cmp"
 	"context"
 	"fmt"
 	"io"
@@ -168,12 +169,13 @@ func unmarshalManifest(manifestStr string) []map[string]any {
 
 func releaseToMaps(rel *release.Release) (releaseMap map[string]any, chartMap map[string]any) {
 	releaseMap = map[string]any{
-		"Name":      rel.Name,
-		"Namespace": rel.Namespace,
-		"Revision":  rel.Version, // Renamed from Version for Helm idiom
-		"Config":    rel.Config,  // User overrides
-		"Manifest":  unmarshalManifest(rel.Manifest),
-		"Labels":    rel.Labels,
+		"Name":        rel.Name,
+		"Namespace":   rel.Namespace,
+		"Revision":    rel.Version, // Renamed from Version for Helm idiom
+		"Config":      rel.Config,  // User overrides
+		"Manifest":    unmarshalManifest(rel.Manifest),
+		"Labels":      rel.Labels,
+		"ApplyMethod": cmp.Or(rel.ApplyMethod, string(release.ApplyMethodClientSideApply)),
 	}
 
 	// Add Info fields directly to release (flattened for cleaner access)

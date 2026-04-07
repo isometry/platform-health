@@ -40,6 +40,7 @@ The following variables are available in CEL expressions:
 - `release.Manifest` - Parsed manifest resources (list of maps, one per YAML document)
 - `release.Labels` - Release labels (map)
 - `release.Config` - User-provided value overrides (map)
+- `release.ApplyMethod` - Apply strategy used for the release: `"csa"` (client-side apply) or `"ssa"` (server-side apply). Defaults to `"csa"` for pre-v4 releases.
 
 ### Chart Properties
 

@@ -476,6 +476,42 @@ metadata:
 	assert.Equal(t, ph.Status_HEALTHY, result.Status)
 }
 
+func TestCEL_ApplyMethod(t *testing.T) {
+	tests := []struct {
+		name           string
+		applyMethod    string
+		check          string
+		expectedStatus ph.Status
+	}{
+		{"ssa_explicit", "ssa", `release.ApplyMethod == "ssa"`, ph.Status_HEALTHY},
+		{"csa_explicit", "csa", `release.ApplyMethod == "csa"`, ph.Status_HEALTHY},
+		{"csa_default", "", `release.ApplyMethod == "csa"`, ph.Status_HEALTHY},
+		{"ssa_fails_csa_check", "ssa", `release.ApplyMethod == "csa"`, ph.Status_UNHEALTHY},
+		{"empty_fails_ssa_check", "", `release.ApplyMethod == "ssa"`, ph.Status_UNHEALTHY},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			rel := testRelease("my-release", common.StatusDeployed)
+			rel.ApplyMethod = tt.applyMethod
+			setupMockFactory(t, rel, nil)
+
+			instance := &helm.Component{
+				Release:   "my-release",
+				Namespace: "default",
+			}
+			instance.SetName("test-helm")
+			require.NoError(t, instance.Setup())
+			require.NoError(t, instance.SetChecks([]checks.Expression{
+				{Expression: tt.check, Message: "apply method mismatch"},
+			}))
+
+			result := instance.GetHealth(t.Context())
+			assert.Equal(t, tt.expectedStatus, result.Status)
+		})
+	}
+}
+
 // slowStatusRunner is a mock that delays before returning
 type slowStatusRunner struct {
 	delay   time.Duration
