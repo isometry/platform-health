@@ -167,6 +167,35 @@ func unmarshalManifest(manifestStr string) []map[string]any {
 	return result
 }
 
+func toStrings[S ~string](ss []S) []string {
+	out := make([]string, len(ss))
+	for i, s := range ss {
+		out[i] = string(s)
+	}
+	return out
+}
+
+func hooksToMaps(hooks []*release.Hook) []map[string]any {
+	result := make([]map[string]any, 0, len(hooks))
+	for _, h := range hooks {
+		result = append(result, map[string]any{
+			"Name":              h.Name,
+			"Kind":              h.Kind,
+			"Path":              h.Path,
+			"Events":            toStrings(h.Events),
+			"Weight":            h.Weight,
+			"DeletePolicies":    toStrings(h.DeletePolicies),
+			"OutputLogPolicies": toStrings(h.OutputLogPolicies),
+			"LastRun": map[string]any{
+				"StartedAt":   h.LastRun.StartedAt,
+				"CompletedAt": h.LastRun.CompletedAt,
+				"Phase":       string(h.LastRun.Phase),
+			},
+		})
+	}
+	return result
+}
+
 func releaseToMaps(rel *release.Release) (releaseMap map[string]any, chartMap map[string]any) {
 	releaseMap = map[string]any{
 		"Name":        rel.Name,
@@ -176,6 +205,7 @@ func releaseToMaps(rel *release.Release) (releaseMap map[string]any, chartMap ma
 		"Manifest":    unmarshalManifest(rel.Manifest),
 		"Labels":      rel.Labels,
 		"ApplyMethod": cmp.Or(rel.ApplyMethod, string(release.ApplyMethodClientSideApply)),
+		"Hooks":       hooksToMaps(rel.Hooks),
 	}
 
 	// Add Info fields directly to release (flattened for cleaner access)

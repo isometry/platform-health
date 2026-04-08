@@ -41,6 +41,18 @@ The following variables are available in CEL expressions:
 - `release.Labels` - Release labels (map)
 - `release.Config` - User-provided value overrides (map)
 - `release.ApplyMethod` - Apply strategy used for the release: `"csa"` (client-side apply) or `"ssa"` (server-side apply). Defaults to `"csa"` for pre-v4 releases.
+- `release.Hooks` - List of lifecycle hooks (list of maps). Each hook has:
+  - `Name` - Hook resource name (string)
+  - `Kind` - Kubernetes kind, e.g. `"Job"` (string)
+  - `Path` - Chart-relative template path (string)
+  - `Events` - When the hook fires (list of strings: `"pre-install"`, `"post-install"`, `"pre-upgrade"`, `"post-upgrade"`, `"pre-delete"`, `"post-delete"`, `"pre-rollback"`, `"post-rollback"`, `"test"`)
+  - `Weight` - Execution order among same-event hooks (int)
+  - `DeletePolicies` - Cleanup policies (list of strings: `"hook-succeeded"`, `"hook-failed"`, `"before-hook-creation"`)
+  - `OutputLogPolicies` - Log capture policies (list of strings: `"hook-succeeded"`, `"hook-failed"`)
+  - `LastRun` - Last execution result (map):
+    - `StartedAt` - Execution start timestamp
+    - `CompletedAt` - Execution completion timestamp
+    - `Phase` - Result: `""` (never run), `"Unknown"`, `"Running"`, `"Succeeded"`, `"Failed"`
 
 ### Chart Properties
 
@@ -97,3 +109,21 @@ This example validates that:
 - The chart is not deprecated
 - Required labels are present
 - The replica count meets production requirements
+
+### Hook Validation
+
+```yaml
+components:
+  my-app:
+    type: helm
+    spec:
+      release: my-app
+      namespace: production
+    checks:
+      - check: '!release.Hooks.exists(h, h.LastRun.Phase == "Failed")'
+        message: "One or more hooks have failed"
+      - check: 'release.Hooks.filter(h, h.Events.exists(e, e == "test")).size() > 0'
+        message: "Release must have test hooks"
+      - check: 'release.ApplyMethod == "ssa"'
+        message: "Release must use server-side apply"
+```

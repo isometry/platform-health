@@ -93,6 +93,21 @@ func testRelease(name string, status common.Status) *release.Release {
 			"team": "platform",
 			"env":  "prod",
 		},
+		Hooks: []*release.Hook{
+			{
+				Name:   "my-release-pre-install",
+				Kind:   "Job",
+				Path:   "templates/pre-install.yaml",
+				Events: []release.HookEvent{release.HookPreInstall},
+				LastRun: release.HookExecution{
+					StartedAt:   time.Now().Add(-1 * time.Minute),
+					CompletedAt: time.Now().Add(-30 * time.Second),
+					Phase:       release.HookPhaseSucceeded,
+				},
+				Weight:         0,
+				DeletePolicies: []release.HookDeletePolicy{release.HookSucceeded},
+			},
+		},
 	}
 }
 
@@ -510,6 +525,92 @@ func TestCEL_ApplyMethod(t *testing.T) {
 			assert.Equal(t, tt.expectedStatus, result.Status)
 		})
 	}
+}
+
+func TestCEL_Hooks(t *testing.T) {
+	tests := []struct {
+		name  string
+		check string
+	}{
+		{"count", `size(release.Hooks) == 1`},
+		{"name", `release.Hooks[0].Name == "my-release-pre-install"`},
+		{"kind", `release.Hooks[0].Kind == "Job"`},
+		{"path", `release.Hooks[0].Path == "templates/pre-install.yaml"`},
+		{"event_exists", `release.Hooks[0].Events.exists(e, e == "pre-install")`},
+		{"phase_succeeded", `release.Hooks[0].LastRun.Phase == "Succeeded"`},
+		{"all_succeeded", `release.Hooks.all(h, h.LastRun.Phase == "" || h.LastRun.Phase == "Succeeded")`},
+		{"no_failed", `!release.Hooks.exists(h, h.LastRun.Phase == "Failed")`},
+		{"delete_policy", `release.Hooks[0].DeletePolicies.exists(p, p == "hook-succeeded")`},
+		{"weight", `release.Hooks[0].Weight == 0`},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			setupMockFactory(t, testRelease("my-release", common.StatusDeployed), nil)
+
+			instance := &helm.Component{
+				Release:   "my-release",
+				Namespace: "default",
+			}
+			instance.SetName("test-helm")
+			require.NoError(t, instance.Setup())
+			require.NoError(t, instance.SetChecks([]checks.Expression{
+				{Expression: tt.check},
+			}))
+
+			result := instance.GetHealth(t.Context())
+			assert.Equal(t, ph.Status_HEALTHY, result.Status)
+		})
+	}
+}
+
+func TestCEL_HooksEmpty(t *testing.T) {
+	rel := testRelease("my-release", common.StatusDeployed)
+	rel.Hooks = nil
+	setupMockFactory(t, rel, nil)
+
+	instance := &helm.Component{
+		Release:   "my-release",
+		Namespace: "default",
+	}
+	instance.SetName("test-helm")
+	require.NoError(t, instance.Setup())
+	require.NoError(t, instance.SetChecks([]checks.Expression{
+		{Expression: "size(release.Hooks) == 0"},
+	}))
+
+	result := instance.GetHealth(t.Context())
+	assert.Equal(t, ph.Status_HEALTHY, result.Status)
+}
+
+func TestCEL_HooksFailed(t *testing.T) {
+	rel := testRelease("my-release", common.StatusDeployed)
+	rel.Hooks = []*release.Hook{
+		{
+			Name:   "failing-hook",
+			Kind:   "Job",
+			Events: []release.HookEvent{release.HookPreUpgrade},
+			LastRun: release.HookExecution{
+				Phase: release.HookPhaseFailed,
+			},
+		},
+	}
+	setupMockFactory(t, rel, nil)
+
+	instance := &helm.Component{
+		Release:   "my-release",
+		Namespace: "default",
+	}
+	instance.SetName("test-helm")
+	require.NoError(t, instance.Setup())
+	require.NoError(t, instance.SetChecks([]checks.Expression{
+		{Expression: `!release.Hooks.exists(h, h.LastRun.Phase == "Failed")`, Message: "hook failed"},
+	}))
+
+	result := instance.GetHealth(t.Context())
+	assert.Equal(t, ph.Status_UNHEALTHY, result.Status)
+	require.NotEmpty(t, result.Messages)
+	assert.Contains(t, result.Messages[0], "hook failed")
 }
 
 // slowStatusRunner is a mock that delays before returning
