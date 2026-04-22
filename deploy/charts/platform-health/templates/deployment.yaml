@@ -55,7 +55,7 @@ spec:
       {{- end }}
       containers:
         - name: {{ include "chart.fullname" . }}
-          image: "{{ .Values.image.repository }}:{{ .Chart.AppVersion | default .Values.image.tag }}"
+          image: {{ include "platform-health.image" . | quote }}
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           ports:
             - containerPort: &port {{ .Values.containerPort }}
