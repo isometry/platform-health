@@ -65,3 +65,55 @@ Name of the service account to use
 {{- default "default" .Values.serviceAccount.name }}
 {{-   end }}
 {{- end }}
+
+{{/*
+Fully-assembled container image reference.
+
+Resolution rules:
+  - Repository path:
+      image.repository (if set)   -> used verbatim
+      else                        -> image.registry + "/" + image.name
+  - Tag:
+      image.tag non-empty         -> used verbatim
+      image.tag == "" (explicit)  -> omitted if image.digest is set, else falls back
+      image.tag unset/nil         -> Chart.AppVersion, else "latest"
+  - Digest (image.digest):
+      when set                    -> appended as "@<digest>"
+      combined with a tag renders as "<repo>:<tag>@<digest>" (OCI-valid).
+  - Values are concatenated raw and the fully-assembled reference is passed
+    through `tpl` once at the end, so individual fields (or the whole thing)
+    may contain template expressions (e.g.
+    "{{ `{{ .Values.global.oci_registry }}` }}").
+*/}}
+{{- define "platform-health.image" -}}
+{{- $img := .Values.image -}}
+{{- $repo := "" -}}
+{{- if $img.repository -}}
+{{-   $repo = $img.repository -}}
+{{- else -}}
+{{-   $registry := "" -}}
+{{-   if $img.registry -}}{{- $registry = $img.registry | trimSuffix "/" -}}{{- end -}}
+{{-   $name := "" -}}
+{{-   if $img.name -}}{{- $name = $img.name | trimPrefix "/" -}}{{- end -}}
+{{-   if $registry -}}
+{{-     $repo = printf "%s/%s" $registry $name -}}
+{{-   else -}}
+{{-     $repo = $name -}}
+{{-   end -}}
+{{- end -}}
+{{- $digest := default "" $img.digest -}}
+{{- $tag := "" -}}
+{{- if $img.tag -}}
+{{-   $tag = $img.tag -}}
+{{- else if kindIs "string" $img.tag -}}
+{{-   if not $digest -}}
+{{-     $tag = default "latest" .Chart.AppVersion -}}
+{{-   end -}}
+{{- else -}}
+{{-   $tag = default "latest" .Chart.AppVersion -}}
+{{- end -}}
+{{- $ref := $repo -}}
+{{- if $tag -}}{{- $ref = printf "%s:%s" $ref $tag -}}{{- end -}}
+{{- if $digest -}}{{- $ref = printf "%s@%s" $ref $digest -}}{{- end -}}
+{{- tpl $ref . -}}
+{{- end }}

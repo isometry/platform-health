@@ -15,9 +15,32 @@ nameOverride: ""
 fullnameOverride: ""
 
 # Application container :: custom configuration
+#
+# The image reference is assembled as:
+#   <registry>/<name>[:<tag>][@<digest>]
+# or, if `repository` is set, as:
+#   <repository>[:<tag>][@<digest>]
+#
+# All string fields below are passed through `tpl`, so values may themselves
+# contain template expressions — for example:
+#   image:
+#     registry: "{{ .Values.global.oci_registry }}"
 image:
-  repository: ghcr.io/isometry/platform-health
+  # Registry host (e.g. ghcr.io, quay.io, a pull-through mirror).
+  registry: ghcr.io
+  # Image path within the registry.
+  name: isometry/platform-health
+  # Full registry+name override. When set, `registry` and `name` are ignored.
+  # Useful for air-gapped deployments that repaste the entire path.
+  repository: ~
+  # Tag. When unset, defaults to Chart.AppVersion, falling back to "latest".
+  # Digests belong in `digest`, not here.
   tag: ~
+  # Content-addressed digest (e.g. "sha256:..."). When set, is appended as
+  # "@<digest>". If `tag` is also set, renders as "<name>:<tag>@<digest>"
+  # (OCI-valid: runtime pulls by digest, tag stays as a human-readable hint).
+  # Set `tag: ""` alongside `digest` to omit the tag segment entirely.
+  digest: ~
   pullPolicy: IfNotPresent
 
 replicaCount: 1
