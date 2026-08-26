@@ -2,18 +2,13 @@ package grpc
 
 import (
 	"context"
-	"crypto/tls"
-	"fmt"
 	"log/slog"
-	"net"
 	"time"
 
 	"github.com/mcuadros/go-defaults"
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials"
-	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/health/grpc_health_v1"
 
+	"github.com/isometry/platform-health/pkg/client"
 	"github.com/isometry/platform-health/pkg/phctx"
 	ph "github.com/isometry/platform-health/pkg/platform_health"
 	"github.com/isometry/platform-health/pkg/provider"
@@ -71,25 +66,12 @@ func (c *Component) GetHealth(ctx context.Context) *ph.HealthCheckResponse {
 	// query the standard grpc health service on host:port
 	// to check if the service is healthy
 
-	if c.Port == 443 {
-		c.TLS = true
-	}
-
-	dialOptions := []grpc.DialOption{}
-	if c.TLS {
-		tlsConf := &tls.Config{
-			ServerName: c.Host,
-		}
-		if c.Insecure {
-			tlsConf.InsecureSkipVerify = true
-		}
-		dialOptions = append(dialOptions, grpc.WithTransportCredentials(credentials.NewTLS(tlsConf)))
-	} else {
-		dialOptions = append(dialOptions, grpc.WithTransportCredentials(insecure.NewCredentials()))
-	}
-
-	address := net.JoinHostPort(c.Host, fmt.Sprint(c.Port))
-	conn, err := grpc.NewClient(address, dialOptions...)
+	conn, err := client.Dial(client.DialConfig{
+		Host:     c.Host,
+		Port:     c.Port,
+		TLS:      c.TLS,
+		Insecure: c.Insecure,
+	})
 	if err != nil {
 		return component.Unhealthy(err.Error())
 	}

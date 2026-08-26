@@ -2,18 +2,13 @@ package client
 
 import (
 	"context"
-	"crypto/tls"
-	"fmt"
 	"log/slog"
-	"net"
 
 	"github.com/spf13/cobra"
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials"
-	"google.golang.org/grpc/credentials/insecure"
 
 	"github.com/isometry/platform-health/internal/cliflags"
 	"github.com/isometry/platform-health/internal/output"
+	"github.com/isometry/platform-health/pkg/client"
 	"github.com/isometry/platform-health/pkg/netutil"
 	"github.com/isometry/platform-health/pkg/phctx"
 	ph "github.com/isometry/platform-health/pkg/platform_health"
@@ -56,33 +51,23 @@ func query(cmd *cobra.Command, _ []string) (err error) {
 	v := phctx.Viper(cmd.Context())
 	targetHost := v.GetString("server")
 	targetPort := v.GetInt("port")
-	address := net.JoinHostPort(targetHost, fmt.Sprint(targetPort))
 
 	ctx, cancel := context.WithTimeout(cmd.Context(), v.GetDuration("timeout"))
 	defer cancel()
 
 	log := phctx.Logger(ctx)
 
-	tlsEnabled := v.GetBool("tls") || targetPort == 443 || targetPort == 8443
-
-	dialOptions := []grpc.DialOption{}
-	if tlsEnabled {
-		tlsConf := &tls.Config{
-			ServerName: targetHost,
-		}
-		if v.GetBool("insecure") {
-			tlsConf.InsecureSkipVerify = true
-		}
-		dialOptions = append(dialOptions, grpc.WithTransportCredentials(credentials.NewTLS(tlsConf)))
-	} else {
-		dialOptions = append(dialOptions, grpc.WithTransportCredentials(insecure.NewCredentials()))
-	}
-
-	conn, err := grpc.NewClient(address, dialOptions...)
+	conn, err := client.Dial(client.DialConfig{
+		Host:     targetHost,
+		Port:     targetPort,
+		TLS:      v.GetBool("tls"),
+		Insecure: v.GetBool("insecure"),
+	})
 	if err != nil {
 		log.Error("failed to connect to server", slog.String("server", targetHost), slog.Any("error", err))
 		return err
 	}
+	defer func() { _ = conn.Close() }()
 
 	health := ph.NewHealthClient(conn)
 
