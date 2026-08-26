@@ -16,7 +16,6 @@ var commonGroupToKinds = map[string][]string{
 		"secret",
 		"persistentvolume",
 		"persistentvolumeclaim",
-		"storageclass",
 	},
 	"apps": {
 		"deployment",
@@ -41,7 +40,7 @@ var commonGroupToKinds = map[string][]string{
 	"gateway.networking.k8s.io": {
 		"gatewayclass",
 		"gateway",
-		"grcproute",
+		"grpcroute",
 		"httproute",
 		"tcproute",
 		"tlsroute",
@@ -49,6 +48,9 @@ var commonGroupToKinds = map[string][]string{
 	"policy": {
 		"poddisruptionbudget",
 		"podsecuritypolicy",
+	},
+	"storage.k8s.io": {
+		"storageclass",
 	},
 	"argoproj.io": {
 		"application",
