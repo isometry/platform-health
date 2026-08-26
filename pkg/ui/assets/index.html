@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>platform-health</title>
+<link rel="stylesheet" href="/app.css">
+<script src="/theme.js"></script>
+<script src="/app.js" defer></script>
+</head>
+<body>
+<div class="app">
+  <header class="app-header">
+    <button type="button" id="rail-toggle" class="rail-toggle" aria-controls="tree-rail" aria-expanded="true"></button>
+    <div class="brand">
+      <span class="brand-name">platform-health</span>
+      <span class="brand-target" id="target-address">connecting&hellip;</span>
+    </div>
+    <span class="unhealthy-pill" id="unhealthy-pill" hidden></span>
+    <div class="header-spacer"></div>
+    <button type="button" id="theme-toggle" class="theme-toggle"></button>
+    <span class="last-scan" id="last-scan">never scanned</span>
+    <button type="button" id="scan-now" class="scan-now">Scan now</button>
+  </header>
+  <div class="shell">
+    <div class="shell-main">
+      <nav class="tree-rail" id="tree-rail" aria-label="Component tree"></nav>
+      <div class="rail-resize-handle" id="rail-resize-handle" role="separator" aria-orientation="vertical" aria-label="Resize component tree panel" aria-controls="tree-rail" tabindex="0"></div>
+      <main class="graph-canvas" id="graph-canvas" aria-label="Health graph"></main>
+    </div>
+    <section class="detail-dock" id="detail-dock" aria-label="Component detail"></section>
+  </div>
+</div>
+</body>
+</html>

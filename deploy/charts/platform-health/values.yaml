@@ -92,6 +92,19 @@ service:
   extraLabels: {}
   annotations: {}
 
+# Dashboard sidecar :: custom configuration
+ui:
+  enabled: false
+  port: 8090
+  # Arguments to pass to the dashboard sidecar
+  args:
+    - ui
+    - --listen=0.0.0.0:8090
+    - --allow-remote
+    - --server=127.0.0.1
+    - --port=8080
+  resources: {}
+
 ingress:
   enabled: false
   className: "" # e.g. nginx

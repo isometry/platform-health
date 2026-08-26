@@ -21,7 +21,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        language: ["go"]
+        language: ["go", "javascript"]
 
     steps:
       - name: Checkout repository
@@ -42,6 +42,7 @@ jobs:
           go build ./cmd/ph
           go build ./cmd/phc
           go build ./cmd/phs
+          go build ./cmd/phui
 
       - name: Perform CodeQL Analysis
         uses: github/codeql-action/analyze@v4

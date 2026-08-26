@@ -16,6 +16,7 @@ import (
 	"github.com/isometry/platform-health/pkg/commands/context"
 	"github.com/isometry/platform-health/pkg/commands/migrate"
 	"github.com/isometry/platform-health/pkg/commands/server"
+	"github.com/isometry/platform-health/pkg/commands/ui"
 	"github.com/isometry/platform-health/pkg/commands/validate"
 	"github.com/isometry/platform-health/pkg/phctx"
 )
@@ -66,6 +67,7 @@ func New() *cobra.Command {
 	cmd.AddCommand(context.New())
 	cmd.AddCommand(migrate.New())
 	cmd.AddCommand(validate.New())
+	cmd.AddCommand(ui.New())
 
 	return cmd
 }

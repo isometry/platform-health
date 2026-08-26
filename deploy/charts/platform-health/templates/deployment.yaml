@@ -78,6 +78,31 @@ spec:
           volumeMounts:
             - name: config
               mountPath: /config
+        {{- if .Values.ui.enabled }}
+        - name: {{ include "chart.fullname" . }}-ui
+          image: {{ include "platform-health.image" . | quote }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - containerPort: {{ .Values.ui.port }}
+          args:
+            {{- toYaml .Values.ui.args | nindent 12 }}
+          {{- with .Values.containerSecurityContext }}
+          securityContext:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          livenessProbe:
+            httpGet:
+              path: /
+              port: {{ .Values.ui.port }}
+          readinessProbe:
+            httpGet:
+              path: /
+              port: {{ .Values.ui.port }}
+          {{- with .Values.ui.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+        {{- end }}
       volumes:
         - name: config
           configMap:

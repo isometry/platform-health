@@ -33,6 +33,10 @@ builds:
     id: server
     main: ./cmd/phs
     binary: phs
+  - <<: *standardBuild
+    id: ui
+    main: ./cmd/phui
+    binary: phui
 
 archives:
   - formats:
@@ -68,6 +72,7 @@ brews:
       bin.install "ph"
       bin.install "phc"
       bin.install "phs"
+      bin.install "phui"
 
 kos:
   - id: unified
