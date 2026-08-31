@@ -27,7 +27,7 @@ func (f *YAMLFormatter) Format(status *ph.HealthCheckResponse, cfg Config) ([]by
 	}
 
 	// Plain YAML: use standard marshaling
-	jsonBytes, err := protojson.Marshal(status)
+	jsonBytes, err := protojson.Marshal(sanitiseForMarshal(status))
 	if err != nil {
 		return nil, err
 	}

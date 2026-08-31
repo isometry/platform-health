@@ -18,7 +18,16 @@ spec:
   selector:
     {{- include "selectorLabels" . | nindent 4 }}
   ports:
+    {{- if .Values.ui.enabled }}
+    - name: grpc
+      port: {{ $service.port }}
+      targetPort: {{ .Values.containerPort }}
+    - name: http
+      port: {{ .Values.ui.port }}
+      targetPort: {{ .Values.ui.port }}
+    {{- else }}
     - port: {{ $service.port }}
       targetPort: {{ .Values.containerPort }}
+    {{- end }}
   type: {{ $service.type }}
 {{- end }}

@@ -336,3 +336,49 @@ func TestUnknownSpecKeysFixtures(t *testing.T) {
 		})
 	}
 }
+
+// TestComponentsKeyRequirement covers the distinction between an absent config
+// (start clean with zero components) and a config file that was found but has
+// no usable 'components' key, whether empty or in the pre-migrate format,
+// which must still error.
+func TestComponentsKeyRequirement(t *testing.T) {
+	testdataPath := getTestdataPath()
+
+	tests := []struct {
+		name            string
+		configFile      string
+		expectErr       bool
+		expectInstances int
+	}{
+		{
+			name:            "No config file at all",
+			configFile:      "does_not_exist",
+			expectErr:       false,
+			expectInstances: 0,
+		},
+		{
+			name:            "Config file found but empty",
+			configFile:      "empty",
+			expectErr:       true,
+			expectInstances: 0,
+		},
+		{
+			name:            "Config file with content but no components key",
+			configFile:      "no_components",
+			expectErr:       true,
+			expectInstances: 0,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result, err := Load(testContext(t), []string{testdataPath}, tt.configFile, false)
+			if tt.expectErr {
+				assert.Error(t, err)
+				return
+			}
+			assert.NoError(t, err)
+			assert.Equal(t, tt.expectInstances, len(result.GetInstances()))
+		})
+	}
+}

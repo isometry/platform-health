@@ -30,18 +30,29 @@ type HelmClientFactory interface {
 // DefaultHelmFactory creates real helm clients using kubernetes config
 type DefaultHelmFactory struct{}
 
+// configFlagsFor builds the ConfigFlags used to resolve the given context.
+// Setting Context lets ConfigFlags perform its own full credential
+// resolution, so client-certificate and inline-CA data are picked up in
+// full. Hand-copying APIServer, BearerToken and CAFile only forwards a
+// token or file path, so a client-cert kubeconfig would have no usable
+// credential and silently fall back to the current context.
+func configFlagsFor(kubeContext, namespace string) *genericclioptions.ConfigFlags {
+	kubeConfig := genericclioptions.NewConfigFlags(false)
+	if kubeContext != "" {
+		kubeConfig.Context = &kubeContext
+	}
+	kubeConfig.Namespace = &namespace
+	return kubeConfig
+}
+
 func (f *DefaultHelmFactory) GetStatusRunner(kubeContext, namespace string, log *slog.Logger) (StatusRunner, error) {
-	config, err := k8sclient.GetKubeConfig(kubeContext)
-	if err != nil {
+	// Validate early: this also produces the correct error when a context
+	// override is requested while running in-cluster.
+	if _, err := k8sclient.GetKubeConfig(kubeContext); err != nil {
 		return nil, err
 	}
 
-	// Create ConfigFlags from rest.Config
-	kubeConfig := genericclioptions.NewConfigFlags(false)
-	kubeConfig.APIServer = &config.Host
-	kubeConfig.BearerToken = &config.BearerToken
-	kubeConfig.CAFile = &config.CAFile
-	kubeConfig.Namespace = &namespace
+	kubeConfig := configFlagsFor(kubeContext, namespace)
 
 	actionConfig := new(action.Configuration)
 	if err := actionConfig.Init(kubeConfig, namespace, "secret"); err != nil {

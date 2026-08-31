@@ -17,7 +17,7 @@ var commonKindToGroup = map[string]string{
 	"gateway": "gateway.networking.k8s.io",
 	"gatewayclass": "gateway.networking.k8s.io",
 	"gitrepository": "source.toolkit.fluxcd.io",
-	"grcproute": "gateway.networking.k8s.io",
+	"grpcroute": "gateway.networking.k8s.io",
 	"helmrelease": "helm.toolkit.fluxcd.io",
 	"helmrepository": "source.toolkit.fluxcd.io",
 	"httproute": "gateway.networking.k8s.io",
@@ -38,7 +38,7 @@ var commonKindToGroup = map[string]string{
 	"secret": "",
 	"service": "",
 	"statefulset": "apps",
-	"storageclass": "",
+	"storageclass": "storage.k8s.io",
 	"tcproute": "gateway.networking.k8s.io",
 	"tlsroute": "gateway.networking.k8s.io",
 }

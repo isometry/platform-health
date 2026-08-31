@@ -20,5 +20,5 @@ func (f *JSONFormatter) Format(status *ph.HealthCheckResponse, cfg Config) ([]by
 		opts.Multiline = true
 		opts.Indent = "  "
 	}
-	return opts.Marshal(status)
+	return opts.Marshal(sanitiseForMarshal(status))
 }

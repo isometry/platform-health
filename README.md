@@ -49,6 +49,8 @@ helm upgrade \
     oci://ghcr.io/isometry/charts/platform-health
 ```
 
+Set `ui.enabled=true` to run the [dashboard](#dashboard) as a sidecar, which is off by default. It binds `0.0.0.0:8090` and adds a second port to the Service; it is unauthenticated.
+
 #### Install via `kubectl`
 
 ```bash
@@ -160,6 +162,37 @@ ph context fluxcd/source-controller
 # View context for ad-hoc provider
 ph context http --url https://api.example.com/health
 ```
+
+### Dashboard
+
+The dashboard is an optional build. The released `ph` binary and the published container image include it; a build from source needs the `ui` tag:
+
+```bash
+go build -tags ui ./cmd/ph
+```
+
+Serve a live dashboard for a running server, over server-sent events:
+
+```bash
+# Dashboard on http://127.0.0.1:8090, against localhost:8080
+ph ui
+
+# Remote server, refreshing every minute, opening a browser
+ph ui prod:8080 --refresh 1m --open
+
+# Serve a saved response instead of connecting to a server
+ph client > snapshot.json
+ph ui --fixture snapshot.json
+```
+
+Two flags differ from their counterparts elsewhere in `ph`:
+
+- `--listen` takes a full `host:port` and defaults to loopback, where `ph server --listen` takes a bare host and binds every interface.
+- `--refresh 0` disables auto-refresh, where `0` means "the default" for flags such as `--parallelism`.
+
+The dashboard is unauthenticated. It refuses a non-loopback `--listen` unless `--allow-remote` is passed, and anyone who can reach the port sees the whole estate.
+
+See [docs/architecture/ui.md](docs/architecture/ui.md) for the design.
 
 ## Configuration
 

@@ -66,6 +66,7 @@ func New() *cobra.Command {
 	cmd.AddCommand(context.New())
 	cmd.AddCommand(migrate.New())
 	cmd.AddCommand(validate.New())
+	registerUI(cmd)
 
 	return cmd
 }

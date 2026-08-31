@@ -13,8 +13,10 @@ builds:
     env:
       - CGO_ENABLED=0
     mod_timestamp: "{{.CommitTimestamp}}"
-    flags:
+    # kos reuses this anchor; the chart's ui sidecar runs "ph ui" from that image.
+    flags: &dashboardFlags
       - -trimpath
+      - -tags=ui
     ldflags:
       - "-s -w -X main.version={{.Version}} -X main.commit={{.ShortCommit}} -X main.date={{.Date}}"
     goos:
@@ -29,10 +31,14 @@ builds:
     id: client
     main: ./cmd/phc
     binary: phc
+    flags:
+      - -trimpath
   - <<: *standardBuild
     id: server
     main: ./cmd/phs
     binary: phs
+    flags:
+      - -trimpath
 
 archives:
   - formats:
@@ -79,8 +85,7 @@ kos:
       - linux/arm64
     env:
       - CGO_ENABLED=0
-    flags:
-      - -trimpath
+    flags: *dashboardFlags
     ldflags:
       - -s -w
     ko_data_creation_time: "{{.CommitTimestamp}}"

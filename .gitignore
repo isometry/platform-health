@@ -3,3 +3,9 @@
 /ph
 /phc
 /phs
+/.superpowers
+/CLAUDE.md
+/PR.md
+
+# Environment-specific, kept local (LAN hosts, private domain)
+/deploy/examples/platform-health.k3k-sandbox.yaml

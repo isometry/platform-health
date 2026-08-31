@@ -1,0 +1,1763 @@
+/* Signal: near black canvas, saturated status colour, a little glow on live
+   state. Light mode is a translation, not an inversion: glow becomes a
+   tinted halo ring and hues darken for contrast on white. */
+
+* {
+  box-sizing: border-box;
+}
+
+/* Light is the bare :root palette. Dark overrides only the changed tokens,
+   first for the OS preference, then again for a manual pin so the pin wins
+   in both directions. */
+:root {
+  --color-bg: #f6f7fa;
+  --color-panel: #ffffff;
+  --color-header-start: #ffffff;
+  --color-header-end: #f6f7fa;
+  --color-border: #e3e5ec;
+  --color-border-secondary: #e8eaf0;
+  --color-text: #22252c;
+  --color-heading: #0d0f14;
+  --color-text-dim: #676d7c;
+  --color-healthy: #0f9d55;
+  --color-unhealthy: #d81b45;
+  --color-accent: #2f7ef7;
+
+  /* Marks, not text: the unknown status dot, the graph's unknown ring and the
+     satellite bar. Held to the 3:1 component floor rather than the 4.5:1 text
+     floor, so raising --color-text-dim for legibility never darkens a
+     divider or shouts an unknown. */
+  --color-mark-dim: #7f8494;
+
+  /* Graph edges carry meaning, so they are held to the 3:1 floor for a
+     non-text UI component against both the canvas and the node fill they
+     pass between, not to the hairline weight of a container border. */
+  --color-graph-edge: #7f8494;
+
+  /* Duration is the last rank of the precedence: it clears the text floor and
+     stays under the unhealthy hue, so no timing label can outshout a status. */
+  --color-graph-duration: #6b7180;
+
+  --color-warn: #b06a00;
+
+  /* An unhealthy node box, pre-composited over the canvas rather than an rgba
+     layer, so an edge passing behind a box still cannot show through it. */
+  --node-bg-unhealthy: #f0cbd6;
+  --node-bg-hover: #e8ebf2;
+  --node-bg-unhealthy-hover: #e6b4c3;
+
+  --glow-healthy: 0 0 0 2.5px rgba(15, 157, 85, .16);
+  --glow-unhealthy: 0 0 0 2.5px rgba(216, 27, 69, .16);
+  --glow-accent: 0 0 0 2.5px rgba(47, 126, 247, .16);
+  --pill-bg-unhealthy: rgba(216, 27, 69, .08);
+  --banner-bg-error: rgba(216, 27, 69, .09);
+  --banner-bg-warn: rgba(176, 106, 0, .1);
+  --banner-bg-info: rgba(47, 126, 247, .08);
+
+  --rail-width: 280px;
+  --header-height: 56px;
+  --dock-height: 220px;
+
+  /* Without this the UA paints its own canvas, scrollbars and form controls
+     light regardless of the tokens above. */
+  color-scheme: light;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --color-bg: #08090c;
+    --color-panel: #0b0d12;
+    --color-header-start: #101219;
+    --color-header-end: #0b0d12;
+    --color-border: #171922;
+    --color-border-secondary: #232735;
+    --color-text: #c8ccd4;
+    --color-heading: #ffffff;
+    --color-text-dim: #7d8494;
+    --color-mark-dim: #5f6672;
+    /* Dark green and dark amber sit under the red, as they already do in
+       light: a passing check must never be louder than a failing one. */
+    --color-healthy: #00964f;
+    --color-unhealthy: #ff2d55;
+    --color-accent: #5aa9ff;
+
+    --color-graph-edge: #626977;
+    --color-graph-duration: #767d8d;
+
+    --color-warn: #bc7500;
+
+    --node-bg-unhealthy: #43121e;
+    --node-bg-hover: #1a1d27;
+    --node-bg-unhealthy-hover: #5c1829;
+
+    --glow-healthy: 0 0 7px #00964f;
+    --glow-unhealthy: 0 0 7px #ff2d55;
+    --glow-accent: 0 0 7px #5aa9ff;
+    --pill-bg-unhealthy: rgba(255, 45, 85, .12);
+    --banner-bg-error: rgba(255, 45, 85, .12);
+    --banner-bg-warn: rgba(188, 117, 0, .12);
+    --banner-bg-info: rgba(90, 169, 255, .1);
+
+    color-scheme: dark;
+  }
+}
+
+:root[data-theme="dark"] {
+  --color-bg: #08090c;
+  --color-panel: #0b0d12;
+  --color-header-start: #101219;
+  --color-header-end: #0b0d12;
+  --color-border: #171922;
+  --color-border-secondary: #232735;
+  --color-text: #c8ccd4;
+  --color-heading: #ffffff;
+  --color-text-dim: #7d8494;
+  --color-mark-dim: #5f6672;
+  --color-healthy: #00964f;
+  --color-unhealthy: #ff2d55;
+  --color-accent: #5aa9ff;
+
+  --color-graph-edge: #626977;
+  --color-graph-duration: #767d8d;
+
+  --color-warn: #bc7500;
+
+  --node-bg-unhealthy: #43121e;
+  --node-bg-hover: #1a1d27;
+  --node-bg-unhealthy-hover: #5c1829;
+
+  --glow-healthy: 0 0 7px #00964f;
+  --glow-unhealthy: 0 0 7px #ff2d55;
+  --glow-accent: 0 0 7px #5aa9ff;
+  --pill-bg-unhealthy: rgba(255, 45, 85, .12);
+  --banner-bg-error: rgba(255, 45, 85, .12);
+  --banner-bg-warn: rgba(188, 117, 0, .12);
+  --banner-bg-info: rgba(90, 169, 255, .1);
+
+  color-scheme: dark;
+}
+
+/* A light pin must also win over a dark OS for the UA-painted surfaces. */
+:root[data-theme="light"] {
+  color-scheme: light;
+}
+
+html, body {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--color-bg);
+  color: var(--color-text);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  font-size: 14px;
+  line-height: 1.4;
+  overflow: hidden;
+}
+
+h1, h2, h3 {
+  color: var(--color-heading);
+  margin: 0;
+}
+
+button {
+  font: inherit;
+  color: inherit;
+}
+
+/* The app grid: header on top, everything else beneath it. */
+.app {
+  display: grid;
+  grid-template-rows: var(--header-height) 1fr;
+  height: 100vh;
+}
+
+.app-header {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 0 20px;
+  background: linear-gradient(180deg, var(--color-header-start), var(--color-header-end));
+  border-bottom: 1px solid var(--color-border);
+}
+
+.brand {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  min-width: 0;
+}
+
+.brand-name {
+  font-weight: 600;
+  color: var(--color-heading);
+  letter-spacing: .01em;
+  white-space: nowrap;
+}
+
+.brand-target {
+  color: var(--color-text-dim);
+  font-variant-numeric: tabular-nums;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.unhealthy-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: var(--pill-bg-unhealthy);
+  color: var(--color-unhealthy);
+  box-shadow: var(--glow-unhealthy);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.unhealthy-pill[hidden] {
+  display: none;
+}
+
+.header-spacer {
+  flex: 1 1 auto;
+}
+
+.theme-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  border: 1px solid var(--color-border);
+  background: var(--color-panel);
+  cursor: pointer;
+  font-size: 15px;
+  line-height: 1;
+}
+
+.theme-toggle:hover {
+  border-color: var(--color-border-secondary);
+}
+
+.last-scan {
+  color: var(--color-text-dim);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* min-width holds the box steady across "Scan now", "Scanning" and "Queued",
+   so the busy state reads as a change of label rather than of layout. */
+.scan-now {
+  min-width: 98px;
+  padding: 6px 14px;
+  border-radius: 8px;
+  border: 1px solid var(--color-border);
+  background: var(--color-panel);
+  cursor: pointer;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.scan-now:hover {
+  border-color: var(--color-accent);
+  color: var(--color-accent);
+}
+
+/* The press itself, which lands before any event can come back from the
+   server and is the only feedback that is never late. */
+.scan-now:active {
+  border-color: var(--color-accent);
+  background: var(--color-bg);
+  color: var(--color-accent);
+}
+
+/* Busy, driven from the model's scan state. No animation: a running scan is
+   already reported as an elapsed count on the liveness line, and a spinner
+   here would be the third thing saying the same thing. The border and the
+   tint carry the state; the label keeps the full text colour, because accent
+   on this tint is 3.51:1 and the label is not a transient hover. */
+.scan-now--busy,
+.scan-now--busy:hover,
+.scan-now--busy:active {
+  border-color: var(--color-accent);
+  background: var(--banner-bg-info);
+  color: var(--color-text);
+  cursor: progress;
+}
+
+/* Graph primary layout: the rail is fixed width, the canvas takes the rest,
+   and the dock runs full width along the bottom. Flex, not grid, so a
+   collapsed rail's reclaimed width is a plain flex consequence for the
+   canvas rather than something later JS has to compute. */
+.shell {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.shell-main {
+  display: flex;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.tree-rail {
+  flex: 0 0 auto;
+  width: var(--rail-width);
+  background: var(--color-panel);
+  border-right: 1px solid var(--color-border);
+  overflow-y: auto;
+  overflow-x: auto;
+  transition: width .18s ease, border-color .18s ease;
+}
+
+/* The toggle sets this on <html> before first paint, from theme.js, the
+   same way the theme itself avoids a post-load snap. */
+:root[data-rail-collapsed="true"] .tree-rail {
+  width: 0;
+  border-right-color: transparent;
+}
+
+/* Dragging suppresses the width transition so the rail tracks the pointer
+   instead of chasing it; the toggle keeps its animation since it never sets
+   this attribute. */
+:root[data-rail-dragging="true"] .tree-rail {
+  transition: none;
+}
+
+:root[data-rail-dragging="true"] {
+  cursor: col-resize;
+}
+
+:root[data-rail-dragging="true"] body {
+  user-select: none;
+}
+
+/* The whole boundary is draggable, not the 56px the pill occupied: a handle
+   the user has to find is not a handle. Zero net flex width via the matched
+   negative margins, stretched to the rail's height, and position:relative
+   lifts it into the positioned paint layer, above both non-positioned
+   siblings, so it stays grabbable over either one. The pill below is the
+   visible cue and keeps its own size. */
+.rail-resize-handle {
+  position: relative;
+  z-index: 1;
+  flex: 0 0 18px;
+  margin-left: -9px;
+  margin-right: -9px;
+  align-self: stretch;
+  cursor: col-resize;
+}
+
+/* The pill itself: a 4x40 rounded bar, drawn smaller than the hit box above
+   so the grab target stays comfortable without the visible mark being big. */
+.rail-resize-handle::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 4px;
+  height: 40px;
+  border-radius: 2px;
+  transform: translate(-50%, -50%);
+  background: transparent;
+  transition: background-color .12s ease, width .12s ease;
+}
+
+/* Visible for the whole rail hover, not just the pill itself, since a
+   quiet mark only the pointer already found is not much of an affordance.
+   Wider and darker than a plain hover state for the same reason: more
+   prominent, not just present. */
+.rail-resize-handle:hover::after,
+.rail-resize-handle:focus-visible::after,
+.tree-rail:hover ~ .rail-resize-handle::after {
+  width: 6px;
+  background: var(--color-text);
+}
+
+:root[data-rail-dragging="true"] .rail-resize-handle::after {
+  width: 6px;
+  background: var(--color-accent);
+  box-shadow: var(--glow-accent);
+}
+
+.rail-resize-handle:focus-visible::after {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+
+/* Collapsed rail: no width to drag from, so the handle is inert rather than
+   sitting uselessly at the canvas edge. */
+:root[data-rail-collapsed="true"] .rail-resize-handle {
+  pointer-events: none;
+  visibility: hidden;
+}
+
+/* overflow is hidden, not auto: the graph owns its own pan and zoom through
+   one transform, so a second, native scroller underneath it would just be a
+   way for the two to disagree about where the content is. */
+.graph-canvas {
+  flex: 1 1 auto;
+  min-width: 0;
+  background: var(--color-bg);
+  overflow: hidden;
+  position: relative;
+}
+
+/* Content sized, never a fixed band: a one line summary costs one line and
+   only a populated, expanded dock reaches --dock-height. :empty still
+   collapses it to nothing when there is no selection, which is what stopped
+   it cropping the rail. */
+.detail-dock {
+  flex: 0 0 auto;
+  display: flex;
+  min-height: 0;
+  max-height: var(--dock-height);
+  background: var(--color-panel);
+  border-top: 1px solid var(--color-border);
+}
+
+.detail-dock:empty {
+  flex-basis: 0;
+  max-height: 0;
+  border-top-color: transparent;
+}
+
+.rail-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  border: 1px solid var(--color-border);
+  background: var(--color-panel);
+  cursor: pointer;
+  font-size: 15px;
+  line-height: 1;
+}
+
+.rail-toggle:hover {
+  border-color: var(--color-border-secondary);
+}
+
+/* Status primitives for tasks 11 to 13: a dot for tree and graph nodes, and
+   a shared glow per status. Shape carries the status alongside hue: only a
+   failure is a filled disc, so the broken rows are findable without telling
+   red from green. Sizes never change, the ring is drawn inside the same 8px
+   box, so no row's columns shift with its status. */
+.status-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--color-mark-dim);
+}
+
+.status-dot--healthy {
+  background: transparent;
+  border: 2px solid var(--color-healthy);
+  box-shadow: var(--glow-healthy);
+}
+
+.status-dot--unhealthy {
+  background: var(--color-unhealthy);
+  box-shadow: var(--glow-unhealthy);
+}
+
+.status-dot--unknown {
+  background: transparent;
+  border: 1px solid var(--color-mark-dim);
+}
+
+/* Rail chrome (task 11): search box, filter chips and the tree itself, all
+   built by app.js since the rail starts empty in the markup. */
+.rail-controls {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.rail-search {
+  width: 100%;
+  padding: 6px 10px;
+  border-radius: 6px;
+  border: 1px solid var(--color-border);
+  background: var(--color-bg);
+  color: var(--color-text);
+  font: inherit;
+}
+
+.rail-search:focus {
+  outline: none;
+  border-color: var(--color-accent);
+  box-shadow: var(--glow-accent);
+}
+
+.rail-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.chip {
+  padding: 3px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--color-border);
+  background: var(--color-panel);
+  color: var(--color-text-dim);
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.6;
+}
+
+.chip:hover {
+  border-color: var(--color-border-secondary);
+  color: var(--color-text);
+}
+
+.chip--active {
+  border-color: var(--color-accent);
+  color: var(--color-accent);
+  box-shadow: var(--glow-accent);
+}
+
+.chip--unhealthy.chip--active {
+  border-color: var(--color-unhealthy);
+  color: var(--color-unhealthy);
+  box-shadow: var(--glow-unhealthy);
+}
+
+/* max-content, not auto: every row is a block filling this box, so making
+   this box as wide as the widest row is what keeps every row, and so every
+   fixed column after the name, the same width and lined up under scroll. */
+.tree-root {
+  padding: 6px 4px 20px;
+  min-width: max-content;
+}
+
+.tree-node[hidden] {
+  display: none;
+}
+
+/* Sticks to the bottom of the visible rail while scrolled, independent of
+   tree-root's own width, so it always reads as a viewport edge rather than
+   a mark on the content. app.js toggles the modifier by comparing scroll
+   position to content height; it never shows once there is nothing below. */
+.rail-scroll-fade {
+  position: sticky;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 28px;
+  margin-top: -28px;
+  background: linear-gradient(to bottom, transparent, var(--color-panel));
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity .15s ease;
+}
+
+.rail-scroll-fade--visible {
+  opacity: 1;
+}
+
+/* The negative margin is what makes the trailing group reachable. A sticky
+   box can never slide outside its containing block, and the containing block
+   here is the row's content box, so a row indented 96px by its ancestors
+   could only pin its columns 96px in. Every row's box therefore starts at
+   the rail's left edge and the toggle carries the indent back inside it. */
+.tree-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 8px;
+  border-radius: 6px;
+  cursor: pointer;
+  margin-left: calc(-1 * var(--tree-indent, 0px));
+}
+
+.tree-row > .tree-toggle {
+  margin-left: var(--tree-indent, 0px);
+}
+
+/* One step per level, matching .tree-children's 5px margin, 1px guide and
+   10px padding. Twelve levels; anything deeper keeps its indent and only
+   loses the pin, which is what every row did before this. */
+.tree-row[data-depth="1"] { --tree-indent: 16px; }
+.tree-row[data-depth="2"] { --tree-indent: 32px; }
+.tree-row[data-depth="3"] { --tree-indent: 48px; }
+.tree-row[data-depth="4"] { --tree-indent: 64px; }
+.tree-row[data-depth="5"] { --tree-indent: 80px; }
+.tree-row[data-depth="6"] { --tree-indent: 96px; }
+.tree-row[data-depth="7"] { --tree-indent: 112px; }
+.tree-row[data-depth="8"] { --tree-indent: 128px; }
+.tree-row[data-depth="9"] { --tree-indent: 144px; }
+.tree-row[data-depth="10"] { --tree-indent: 160px; }
+.tree-row[data-depth="11"] { --tree-indent: 176px; }
+.tree-row[data-depth="12"] { --tree-indent: 192px; }
+
+.tree-row:hover {
+  background: var(--color-bg);
+}
+
+.tree-row--selected {
+  background: var(--color-bg);
+  box-shadow: inset 2px 0 0 var(--color-accent);
+}
+
+.tree-row--satellite {
+  box-shadow: inset 2px 0 0 var(--color-mark-dim);
+}
+
+.tree-row--selected.tree-row--satellite {
+  box-shadow: inset 2px 0 0 var(--color-accent);
+}
+
+/* Keyboard focus, drawn inside the row: the row is as wide as the widest
+   name, so its right edge is off-screen and an outset ring would be too.
+   Inset keeps three sides of it in view at any scroll position. */
+.tree-row:focus-visible {
+  background: var(--color-bg);
+  outline: 2px solid var(--color-accent);
+  outline-offset: -2px;
+}
+
+.tree-toggle {
+  width: 18px;
+  height: 18px;
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  background: transparent;
+  color: var(--color-text);
+  cursor: pointer;
+  font-size: 15px;
+  line-height: 1;
+  padding: 0;
+  border-radius: 4px;
+}
+
+.tree-toggle:hover {
+  background: var(--color-border-secondary);
+}
+
+.tree-toggle--leaf {
+  visibility: hidden;
+  pointer-events: none;
+}
+
+/* No ellipsis, no clipping: a truncated name hides information permanently,
+   and collapsing the rail is the escape hatch for a name that needs more
+   room. Still nowrap, since a wrapped row breaks the column alignment
+   below just as badly as truncation broke it before item 4's fix. Overflow
+   is reachable instead, via tree-rail's horizontal scroll. */
+.tree-name {
+  white-space: nowrap;
+}
+
+/* The name and its collapsed-child badge travel together and take the free
+   space, which is what pushes the trailing group to the row's right edge.
+   No min-width override: the auto minimum is what keeps tree-root sized to
+   the longest name instead of squeezing it. */
+.tree-label {
+  flex: 1 1 auto;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* The two trailing columns, pinned to the visible right edge of the rail.
+   tree-root is max-content wide so every row ends at the widest name, which
+   put these columns hundreds of pixels past a 280px panel. Sticky keeps them
+   in view and lets the names scroll underneath, so the background has to be
+   opaque and has to track whatever the row itself is painting. Every pixel
+   here is a pixel of name, which is why the badge is not in it. */
+.tree-trailing {
+  position: sticky;
+  right: 0;
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 8px 0 6px;
+  background: var(--color-panel);
+  transition: opacity .12s ease;
+}
+
+/* The group holds the right 128px of a 279px rail, so it covers most names.
+   Hovering the name clears it out of the way. Keyed off the label rather than
+   the row, so hovering the group itself keeps the type chip clickable. */
+.tree-label:hover ~ .tree-trailing,
+.tree-row:focus-visible .tree-trailing {
+  opacity: 0;
+}
+
+.tree-row:hover .tree-trailing,
+.tree-row:focus-visible .tree-trailing,
+.tree-row--selected .tree-trailing {
+  background: var(--color-bg);
+}
+
+/* A name passing under the group ends on a fade, not a cut, so a long name
+   reads as scrollable rather than as the truncation this rail refuses. */
+.tree-trailing::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: -14px;
+  width: 14px;
+  background: linear-gradient(to right, transparent, var(--color-panel));
+  pointer-events: none;
+}
+
+.tree-row:hover .tree-trailing::before,
+.tree-row:focus-visible .tree-trailing::before,
+.tree-row--selected .tree-trailing::before {
+  background: linear-gradient(to right, transparent, var(--color-bg));
+}
+
+/* Fixed width so every row's pill starts at the same x regardless of label
+   length: flex 0 0 auto let each row's edge fall wherever its name ended.
+   Centred, since a short uppercase label reads better centred in a fixed
+   column than pinned to one side of leftover space. 64px covers "system",
+   the longest label once "kubernetes" renders as "k8s". */
+.tree-type {
+  flex: 0 0 64px;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: .04em;
+  padding: 1px 8px;
+  text-align: center;
+}
+
+/* Reserved, not removed. The trailing group is right-anchored now, so a row
+   with no type that dropped the column would drag the two columns after it
+   sideways and break the single vertical line the rest of the rows share. */
+.tree-type[hidden] {
+  display: block;
+  visibility: hidden;
+}
+
+/* Same fixed-column fix as .tree-type. Right aligned so the tabular-nums
+   digits actually stack into a column instead of just not-wrapping. */
+.tree-duration {
+  flex: 0 0 44px;
+  color: var(--color-text-dim);
+  font-variant-numeric: tabular-nums;
+  font-size: 11px;
+  text-align: right;
+}
+
+/* Sized by its text and sitting with the name, not reserved as a third
+   column: it is a label on a collapsed container, not a value to compare
+   down the rail, and 46px of reserved width bought nothing while a 46px box
+   was clipping "43 · 3 unhealthy" to an ellipsis. */
+.tree-badge {
+  flex: 0 0 auto;
+  white-space: nowrap;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: var(--color-bg);
+  color: var(--color-text-dim);
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+}
+
+.tree-badge--empty {
+  display: none;
+}
+
+.tree-badge--unhealthy {
+  color: var(--color-unhealthy);
+}
+
+/* 16px a level, not 24. The trailing group takes a fixed slice off the right
+   of a 280px rail, so every pixel of indent is a pixel of name nobody can
+   read without scrolling, and four levels deep that difference is a third of
+   what is left. Keep the three numbers below summing to the step in the
+   --tree-indent table. */
+.tree-children {
+  padding-left: 10px;
+  border-left: 1px solid var(--color-border-secondary);
+  margin-left: 5px;
+}
+
+.tree-children[hidden] {
+  display: none;
+}
+
+/* Graph view (task 12): a left-to-right tidy tree in one SVG, panned and
+   zoomed by a single transform on .graph-viewport. Depth runs along x and
+   siblings stack along y, which turns the estate's widest fan-out into a
+   vertical run rather than a canvas 43 columns across. */
+.graph-svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  cursor: grab;
+  /* The pan is a pointer-capture drag, so the browser must not claim the
+     gesture for its own scrolling first. */
+  touch-action: none;
+}
+
+.graph-svg:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: -2px;
+}
+
+.graph-svg--panning {
+  cursor: grabbing;
+  user-select: none;
+}
+
+/* The stroke lives inside the zoomed group, so without non-scaling-stroke a
+   1.25px line is 0.31px at the 0.25 zoom floor and the renderer fades what
+   is left. This pins the width to screen space at every transform. */
+.graph-edge {
+  fill: none;
+  stroke: var(--color-graph-edge);
+  stroke-width: 1.25px;
+  vector-effect: non-scaling-stroke;
+}
+
+/* Containment, never dependency: the only edges in the model are parent to
+   child, and an unhealthy child tints its own edge so a failing branch reads
+   as one line from the root. No opacity: quieting a failing edge below a
+   passing one inverts the rule that status outranks every other emphasis. */
+.graph-edge--unhealthy {
+  stroke: var(--color-unhealthy);
+}
+
+/* Duration on the hop. A node's duration covers its own subtree, so the cost
+   of a hop is the child's duration. The label sits at the child end of its
+   edge, inside the column gap and clear of every node box. */
+.graph-edge-label {
+  pointer-events: none;
+}
+
+.graph-edge-duration {
+  fill: var(--color-graph-duration);
+  font-size: 8px;
+  font-weight: 500;
+  text-anchor: end;
+  paint-order: stroke;
+  stroke: var(--color-bg);
+  stroke-width: 2.5px;
+  stroke-linejoin: round;
+}
+
+/* Status, then route, then duration. The slowest sibling gets one discrete
+   dot and a firmer label, never stroke width and never a status hue. */
+.graph-edge-marker {
+  fill: var(--color-graph-duration);
+}
+
+/* Weight and the marker, never a brighter fill: "the slow one among the
+   durations" is all this has to say, and the heading colour said it louder
+   than any failing node on the canvas. */
+.graph-edge-label--slowest .graph-edge-duration {
+  font-weight: 600;
+}
+
+/* A failing hop's duration is worth reading: slow means a timeout, fast means
+   a rejection. Off route it stays neutral, where the .8 quieting would put red
+   text under the contrast floor. */
+.graph-edge-label--unhealthy:not(.graph-edge-label--off-path) .graph-edge-duration,
+.graph-edge-label--unhealthy:not(.graph-edge-label--off-path) .graph-edge-marker {
+  fill: var(--color-unhealthy);
+}
+
+.graph-node {
+  cursor: pointer;
+}
+
+.graph-node-box {
+  fill: var(--color-panel);
+  stroke: var(--color-border);
+  stroke-width: 1px;
+  transition: fill .1s ease;
+}
+
+/* Same marking as the rail's inset bar: a satellite is a boundary into
+   another server's tree, not a different kind of component. */
+.graph-node--satellite .graph-node-box {
+  stroke-dasharray: 4 3;
+}
+
+/* The whole box, not a 4px dot: ten failures among 143 nodes have to be
+   findable at the default zoom without hunting. After hover, so a pointer
+   never quiets a failure; before selection, so the accent ring still marks
+   the one node the user picked, which keeps its fill and dot regardless. */
+.graph-node--unhealthy .graph-node-box {
+  fill: var(--node-bg-unhealthy);
+  stroke: var(--color-unhealthy);
+  stroke-width: 1.5px;
+}
+
+.graph-node--selected .graph-node-box {
+  stroke: var(--color-accent);
+  stroke-width: 2px;
+}
+
+/* Shape again: a failure is filled, everything else is a ring, and the ring
+   holds its weight on screen at every zoom. */
+.graph-node-dot {
+  fill: none;
+  stroke: var(--color-mark-dim);
+  stroke-width: 1px;
+  vector-effect: non-scaling-stroke;
+}
+
+.graph-node--healthy .graph-node-dot {
+  stroke: var(--color-healthy);
+  stroke-width: 1.5px;
+}
+
+.graph-node--unhealthy .graph-node-dot {
+  fill: var(--color-unhealthy);
+  stroke: var(--color-unhealthy);
+  filter: drop-shadow(0 0 3px var(--color-unhealthy));
+}
+
+.graph-node-name {
+  fill: var(--color-text);
+  font-size: 11px;
+  font-weight: 500;
+}
+
+.graph-node--selected .graph-node-name {
+  fill: var(--color-heading);
+}
+
+.graph-node-type {
+  fill: var(--color-text-dim);
+  font-size: 9px;
+  font-weight: 500;
+}
+
+.graph-node-badge-box {
+  fill: var(--color-bg);
+}
+
+.graph-node-badge {
+  fill: var(--color-text-dim);
+  font-size: 9px;
+  font-weight: 500;
+  text-anchor: middle;
+}
+
+.graph-node-badge--unhealthy {
+  fill: var(--color-unhealthy);
+}
+
+/* Below the label threshold the text goes but the boxes stay: they are shape,
+   legible at any scale, and they carry the failing fill and stroke. Flagged
+   names stay too, counter scaled to a constant size on screen. Geometry never
+   changes, so crossing the threshold never moves a node. */
+/* Sized for text that is no longer drawn, so it reads as a box that failed to
+   contain its name. One capsule per dot instead: 2 * (GRAPH_PAD + GRAPH_DOT_R). */
+.graph-svg--minimal .graph-node-box {
+  width: 26px;
+}
+
+.graph-svg--minimal .graph-node-type,
+.graph-svg--minimal .graph-node-badge-box,
+.graph-svg--minimal .graph-node-badge,
+.graph-svg--minimal .graph-node-name {
+  display: none;
+}
+
+.graph-svg--minimal .graph-node--flagged .graph-node-name {
+  display: inline;
+  font-size: calc(11px * var(--graph-label-scale, 1));
+  paint-order: stroke;
+  stroke: var(--color-bg);
+  stroke-width: 3px;
+  stroke-linejoin: round;
+}
+
+/* A hop's text shows when its magnitude clears the floor the zoom level sets,
+   so fast hops are hidden while zoomed out and revealed on the way in. Routed
+   and slowest hops are exempt at every rung. */
+.graph-svg[data-duration-floor="1"] .graph-edge-label[data-magnitude="0"] .graph-edge-duration,
+.graph-svg[data-duration-floor="2"] .graph-edge-label[data-magnitude="0"] .graph-edge-duration,
+.graph-svg[data-duration-floor="2"] .graph-edge-label[data-magnitude="1"] .graph-edge-duration {
+  display: none;
+}
+
+.graph-svg .graph-edge-label--slowest .graph-edge-duration,
+.graph-svg .graph-edge-label--on-path .graph-edge-duration {
+  display: inline;
+}
+
+/* Minimal mode is the top rung: only the exempt hops keep their text, counter
+   scaled to a constant size on screen as the flagged node names are. */
+.graph-svg--minimal .graph-edge-duration,
+.graph-svg--minimal .graph-edge-marker {
+  display: none;
+}
+
+.graph-svg--minimal .graph-edge-label--slowest .graph-edge-duration,
+.graph-svg--minimal .graph-edge-label--on-path .graph-edge-duration {
+  display: inline;
+  font-size: calc(8px * var(--graph-label-scale, 1));
+}
+
+.graph-svg--minimal .graph-edge-label--slowest .graph-edge-marker {
+  display: inline;
+  r: calc(2.5px * var(--graph-label-scale, 1));
+}
+
+.graph-controls {
+  position: absolute;
+  right: 16px;
+  bottom: 16px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px;
+  border-radius: 10px;
+  border: 1px solid var(--color-border);
+  background: var(--color-panel);
+}
+
+.graph-control {
+  min-width: 28px;
+  height: 24px;
+  padding: 0 8px;
+  border-radius: 6px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--color-text-dim);
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1;
+}
+
+.graph-control:hover {
+  border-color: var(--color-border-secondary);
+  color: var(--color-text);
+}
+
+/* Pressed reads as a filled pill, the same language the theme toggle uses for
+   a state rather than an action. */
+.graph-control--follow[aria-pressed="true"] {
+  background: var(--color-accent);
+  border-color: var(--color-accent);
+  color: #ffffff;
+}
+
+.graph-control--readout {
+  min-width: 46px;
+  font-variant-numeric: tabular-nums;
+}
+
+.graph-empty {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  margin: 0;
+  color: var(--color-text-dim);
+  pointer-events: none;
+}
+
+/* Placeholders for the first scan, on both surfaces. Static, not shimmering:
+   the banner's elapsed count is what says the scan is still running, and a
+   wave here would be decoration that reduced motion then has to undo. */
+.rail-skeleton {
+  padding: 6px 4px;
+}
+
+.rail-skeleton[hidden],
+.graph-skeleton[hidden] {
+  display: none;
+}
+
+.rail-skeleton-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 26px;
+}
+
+.rail-skeleton-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--color-border-secondary);
+  flex: 0 0 auto;
+}
+
+.rail-skeleton-bar {
+  height: 8px;
+  border-radius: 4px;
+  background: var(--color-border-secondary);
+}
+
+.dock-crumb {
+  border: none;
+  background: none;
+  padding: 0;
+  font: inherit;
+  color: var(--color-accent);
+  cursor: pointer;
+}
+
+.dock-crumb:hover {
+  text-decoration: underline;
+}
+
+.graph-skeleton {
+  transform: translate(64px, 64px);
+}
+
+.graph-skeleton-node {
+  fill: var(--color-border-secondary);
+}
+
+.graph-skeleton-edge {
+  fill: none;
+  stroke: var(--color-border);
+  stroke-width: 1.25px;
+}
+
+.graph-empty[hidden] {
+  display: none;
+}
+
+/* The canvas is deliberately larger than the window and owns its own pan, so
+   there is no scrollbar to say how much is left. Same fade, same rule as the
+   rail's: shown only while laid-out content sits below the visible box, gone
+   once the last row is in view. Behind the controls, so it never dims them. */
+.graph-scroll-fade {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 28px;
+  background: linear-gradient(to bottom, transparent, var(--color-bg));
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity .15s ease;
+}
+
+.graph-scroll-fade--visible {
+  opacity: 1;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .graph-scroll-fade,
+  .rail-scroll-fade,
+  .dock-fade,
+  .tree-trailing,
+  .graph-node-box {
+    transition: none;
+  }
+}
+
+/* Selection route: the chain from the root down to the selected node, on
+   both surfaces. The selected node keeps its accent ring, the chain is a
+   supporting emphasis, and everything off the route is quietened rather
+   than the route being shouted. Status colour outranks all of it: an
+   off-route dot keeps its full paint, and so does an unhealthy name. */
+.graph-node--on-path .graph-node-box {
+  stroke: var(--color-accent);
+  stroke-opacity: .45;
+}
+
+/* The route takes the weight, status keeps the colour, on the boxes exactly
+   as on the edges below. */
+.graph-node--on-path.graph-node--unhealthy .graph-node-box {
+  stroke: var(--color-unhealthy);
+  stroke-opacity: 1;
+}
+
+.graph-node--selected .graph-node-box {
+  stroke-opacity: 1;
+}
+
+/* Selection is the user's own pointer, not an emphasis competing with status:
+   the one node they picked keeps its accent ring, and the failure is still
+   carried by the box fill and the dot. */
+.graph-node--selected.graph-node--unhealthy .graph-node-box {
+  stroke: var(--color-accent);
+}
+
+.graph-node--on-path .graph-node-name {
+  fill: var(--color-heading);
+}
+
+.graph-node--off-path .graph-node-box {
+  opacity: .45;
+}
+
+.graph-node--off-path .graph-node-name,
+.graph-node--off-path .graph-node-type,
+.graph-node--off-path .graph-node-badge {
+  opacity: .5;
+}
+
+/* An unhealthy node off the route is still an alert, so its name stays at
+   full strength even while the rest of the box recedes, and so do the two
+   marks that carry the failure: the box's own paint and the badge's count. */
+.graph-node--off-path.graph-node--flagged .graph-node-name {
+  opacity: 1;
+}
+
+.graph-node--off-path.graph-node--unhealthy .graph-node-box {
+  opacity: .8;
+}
+
+.graph-node--off-path .graph-node-badge--unhealthy {
+  opacity: 1;
+}
+
+/* Last word on fill, after the route rules: hover moves the fill and never
+   the stroke, so status keeps its stroke and a failing node still answers the
+   pointer. Placed here because the off-path rules match at equal specificity
+   and would otherwise win on order. */
+.graph-node:hover .graph-node-box {
+  fill: var(--node-bg-hover);
+}
+
+.graph-node--unhealthy:hover .graph-node-box {
+  fill: var(--node-bg-unhealthy-hover);
+}
+
+.graph-edge--on-path {
+  stroke: var(--color-accent);
+  stroke-width: 2px;
+  opacity: 1;
+}
+
+.graph-edge--off-path {
+  opacity: .35;
+}
+
+/* Quieted, but never below the 3:1 floor a failing edge has to hold: off the
+   route it recedes against the on-route red, not out of sight. */
+.graph-edge--off-path.graph-edge--unhealthy {
+  opacity: .8;
+}
+
+/* Quieted, but never below the 3:1 floor, exactly as an unhealthy edge is.
+   At .4 the demoted duration token landed at 1.67:1, ink that costs pixels
+   and cannot be read, and the slowest-hop marker is most needed when nothing
+   is selected. Still well under the on-route label, and under status in both
+   themes: off-route duration 3.15 light and 3.45 dark, against on-route 4.56
+   and 4.82 and unhealthy 4.71 and 5.46. */
+.graph-edge-label--off-path {
+  opacity: .8;
+}
+
+.tree-row--on-path .tree-name {
+  color: var(--color-heading);
+}
+
+/* The route takes the weight, status keeps the colour: an unhealthy edge on
+   the route stays red and simply gets the thicker stroke. */
+.graph-edge--on-path.graph-edge--unhealthy {
+  stroke: var(--color-unhealthy);
+}
+
+/* Minimal mode has no box, so the accent ring has nothing to draw on. The
+   selection keeps its accent by taking it in the label instead, which is the
+   one mark a flagged node still has at this zoom. */
+.graph-svg--minimal .graph-node--selected .graph-node-name {
+  fill: var(--color-accent);
+}
+
+/* Fullscreen paints its own backdrop, black by default, which would fight
+   the light theme. Each spelling is its own rule on purpose: one selector
+   list holding a prefix a browser does not know would invalidate the whole
+   rule, including the spelling it does know. */
+.graph-canvas:fullscreen {
+  background: var(--color-bg);
+}
+
+.graph-canvas:-webkit-full-screen {
+  background: var(--color-bg);
+}
+
+.graph-canvas::backdrop {
+  background: var(--color-bg);
+}
+
+.graph-canvas::-webkit-backdrop {
+  background: var(--color-bg);
+}
+
+/* The corner arrows are lighter strokes than the text controls beside them,
+   so they need a little more size to read at the same weight. */
+.graph-control--fullscreen {
+  font-size: 15px;
+}
+
+/* Banners (task 13): every degraded state, above the rail and the canvas
+   rather than tucked into either. Fail-fast leads the list, because a
+   partial estate shown as complete is the worst thing this UI can do. */
+.banners {
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.banners[hidden] {
+  display: none;
+}
+
+.banner {
+  display: flex;
+  align-items: flex-start;
+  flex-wrap: wrap;
+  gap: 10px;
+  padding: 8px 20px;
+}
+
+.banner-mark {
+  flex: 0 0 auto;
+  line-height: 1.4;
+  font-size: 11px;
+}
+
+.banner-text {
+  flex: 1 1 320px;
+  min-width: 0;
+}
+
+.banner-title {
+  color: var(--color-heading);
+  margin-right: 6px;
+}
+
+.banner-body {
+  color: var(--color-text);
+}
+
+.banner-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.banner-actions[hidden] {
+  display: none;
+}
+
+.banner-action {
+  padding: 2px 10px;
+  border-radius: 999px;
+  border: 1px solid currentColor;
+  background: transparent;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.banner--error {
+  background: var(--banner-bg-error);
+  color: var(--color-unhealthy);
+}
+
+.banner--warn {
+  background: var(--banner-bg-warn);
+  color: var(--color-warn);
+}
+
+.banner--info {
+  background: var(--banner-bg-info);
+  color: var(--color-accent);
+}
+
+/* The dock's own box. .detail-dock stays empty when nothing is selected, so
+   everything below hangs off one wrapper that is detached whole. */
+.dock-inner {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  width: 100%;
+}
+
+/* Wraps rather than truncates, like every other surface here: a long name
+   costs a second line, never an ellipsis. */
+.dock-summary {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  padding: 7px 14px;
+}
+
+.dock-toggle {
+  width: 16px;
+  height: 16px;
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  background: transparent;
+  color: var(--color-text-dim);
+  cursor: pointer;
+  font-size: 10px;
+  padding: 0;
+}
+
+.dock-toggle[hidden] {
+  display: none;
+}
+
+.dock-name {
+  font-weight: 600;
+  color: var(--color-heading);
+}
+
+.dock-type {
+  flex: 0 0 auto;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: .04em;
+  padding: 1px 8px;
+  cursor: default;
+}
+
+.dock-type[hidden] {
+  display: none;
+}
+
+.dock-status {
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: .04em;
+}
+
+.dock-status--healthy {
+  color: var(--color-healthy);
+}
+
+.dock-status--unhealthy {
+  color: var(--color-unhealthy);
+}
+
+.dock-status--unknown {
+  color: var(--color-text-dim);
+}
+
+.dock-duration,
+.dock-meta {
+  color: var(--color-text-dim);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+.dock-spacer {
+  flex: 1 1 auto;
+}
+
+.dock-close {
+  width: 24px;
+  height: 24px;
+  flex: 0 0 auto;
+  border-radius: 6px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--color-text-dim);
+  cursor: pointer;
+  line-height: 1;
+}
+
+.dock-close:hover {
+  border-color: var(--color-border-secondary);
+  color: var(--color-text);
+}
+
+.dock-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 2px 14px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.dock-body[hidden] {
+  display: none;
+}
+
+.dock-fields {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.dock-fields[hidden],
+.dock-groups[hidden],
+.dock-section[hidden] {
+  display: none;
+}
+
+.dock-field {
+  display: flex;
+  gap: 10px;
+  align-items: baseline;
+}
+
+/* Fixed label column so values line up, with the value free to wrap. */
+.dock-field-label {
+  flex: 0 0 150px;
+  color: var(--color-text-dim);
+  font-size: 12px;
+}
+
+.dock-field-value {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.dock-tone--ok {
+  color: var(--color-healthy);
+}
+
+.dock-tone--warn {
+  color: var(--color-warn);
+}
+
+.dock-tone--error {
+  color: var(--color-unhealthy);
+}
+
+.dock-section-label,
+.dock-group-label {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: .05em;
+  color: var(--color-text-dim);
+  margin: 0 0 3px;
+}
+
+.dock-lines {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.dock-line {
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.dock-cards {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: flex-start;
+}
+
+/* A grid, so the fields and the lists sit side by side wherever the window
+   allows it. The dock is short, and a single column turned one certificate
+   into three screens of scrolling. */
+.dock-card {
+  flex: 1 1 340px;
+  min-width: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 4px 24px;
+  align-content: start;
+  padding: 8px 12px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--color-border);
+  background: var(--color-bg);
+}
+
+.dock-card-head {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+
+.dock-card-title {
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: .05em;
+}
+
+/* Shown only for a type this file has no renderer for, so an unfamiliar
+   detail reads as unfamiliar rather than as a broken one. */
+.dock-card-tag {
+  font-size: 10px;
+  padding: 0 6px;
+  border-radius: 999px;
+  border: 1px solid var(--color-border-secondary);
+  color: var(--color-text-dim);
+}
+
+.dock-card-tag[hidden] {
+  display: none;
+}
+
+.dock-groups {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+/* The dock is short and scrolls, so it has to say so. The fade alone was
+   the design that produced the complaint, hence the badge beside it. */
+.dock-fade {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 26px;
+  background: linear-gradient(to bottom, transparent, var(--color-panel));
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity .15s ease;
+}
+
+.dock-fade--visible {
+  opacity: 1;
+}
+
+.dock-more {
+  position: absolute;
+  right: 16px;
+  bottom: 5px;
+  padding: 0 8px;
+  border-radius: 999px;
+  border: 1px solid var(--color-accent);
+  background: var(--color-panel);
+  color: var(--color-accent);
+  font-size: 11px;
+  font-weight: 500;
+  pointer-events: none;
+}
+
+.dock-more[hidden] {
+  display: none;
+}
+
+/* Header popovers: the unhealthy pill and the liveness readout. Fixed
+   positioning, placed from app.js against the anchor's rect. */
+.has-popover {
+  cursor: pointer;
+}
+
+.has-popover:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+
+.last-scan.has-popover:hover {
+  color: var(--color-text);
+}
+
+.popover {
+  position: fixed;
+  z-index: 20;
+  min-width: 240px;
+  max-width: min(520px, calc(100vw - 16px));
+  overflow-y: auto;
+  padding: 6px;
+  border-radius: 10px;
+  border: 1px solid var(--color-border);
+  background: var(--color-panel);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, .28);
+}
+
+.popover[hidden] {
+  display: none;
+}
+
+.popover-list {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.popover-entry {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  width: 100%;
+  padding: 4px 8px;
+  border-radius: 6px;
+  border: 1px solid transparent;
+  background: transparent;
+  cursor: pointer;
+  text-align: left;
+}
+
+.popover-entry:hover {
+  background: var(--color-bg);
+}
+
+.popover-entry:disabled {
+  cursor: default;
+  opacity: .55;
+}
+
+.popover-entry .status-dot {
+  flex: 0 0 auto;
+  align-self: center;
+}
+
+/* No ellipsis here either: a name the popover cannot fit wraps. */
+.popover-entry-name {
+  font-weight: 500;
+  color: var(--color-heading);
+  overflow-wrap: anywhere;
+}
+
+.popover-entry-trail {
+  flex: 1 1 auto;
+  color: var(--color-text-dim);
+  font-size: 12px;
+  text-align: right;
+  overflow-wrap: anywhere;
+}
+
+.popover-entry-trail[hidden] {
+  display: none;
+}
+
+.popover-empty {
+  margin: 0;
+  padding: 6px 8px;
+  color: var(--color-text-dim);
+}
+
+.popover-empty[hidden] {
+  display: none;
+}
