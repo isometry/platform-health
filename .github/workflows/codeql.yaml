@@ -39,10 +39,9 @@ jobs:
 
       - name: Build
         run: |
-          go build ./cmd/ph
+          go build -tags ui ./cmd/ph
           go build ./cmd/phc
           go build ./cmd/phs
-          go build ./cmd/phui
 
       - name: Perform CodeQL Analysis
         uses: github/codeql-action/analyze@v4

@@ -4,7 +4,8 @@
 /phc
 /phs
 /.superpowers
+/CLAUDE.md
+/PR.md
 
 # Environment-specific, kept local (LAN hosts, private domain)
 /deploy/examples/platform-health.k3k-sandbox.yaml
-/docs/superpowers/specs/2026-08-26-sandbox-server-config.md

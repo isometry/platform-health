@@ -49,7 +49,7 @@ helm upgrade \
     oci://ghcr.io/isometry/charts/platform-health
 ```
 
-Set `ui.enabled=true` to run the [dashboard](#dashboard) as a sidecar, which is off by default. It binds `0.0.0.0:8090` and adds a second port to the Service; it is unauthenticated, so restrict access to it.
+Set `ui.enabled=true` to run the [dashboard](#dashboard) as a sidecar, which is off by default. It binds `0.0.0.0:8090` and adds a second port to the Service; it is unauthenticated.
 
 #### Install via `kubectl`
 
@@ -165,6 +165,12 @@ ph context http --url https://api.example.com/health
 
 ### Dashboard
 
+The dashboard is an optional build. The released `ph` binary and the published container image include it; a build from source needs the `ui` tag:
+
+```bash
+go build -tags ui ./cmd/ph
+```
+
 Serve a live dashboard for a running server, over server-sent events:
 
 ```bash
@@ -185,6 +191,8 @@ Two flags differ from their counterparts elsewhere in `ph`:
 - `--refresh 0` disables auto-refresh, where `0` means "the default" for flags such as `--parallelism`.
 
 The dashboard is unauthenticated. It refuses a non-loopback `--listen` unless `--allow-remote` is passed, and anyone who can reach the port sees the whole estate.
+
+See [docs/architecture/ui.md](docs/architecture/ui.md) for the design.
 
 ## Configuration
 

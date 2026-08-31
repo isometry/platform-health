@@ -1,3 +1,5 @@
+//go:build ui
+
 // Package ui serves a live platform-health dashboard: a gRPC client that polls
 // the server's unary Check RPC and fans results out to browsers over SSE.
 //
