@@ -16,7 +16,7 @@ go test -tags ui ./...       # runs pkg/ui's tests as well
 
 The tag keeps the embedded assets, the HTTP server and the SSE machinery out of a build that only needs to probe components. Releases go the other way: `.goreleaser.yml` gives the `unified` build and the `kos` image a shared `&dashboardFlags` anchor carrying `-tags=ui`, while the `phc` and `phs` builds override `flags` with `-trimpath` alone. CI compiles and tests both ways.
 
-The Helm chart runs the dashboard as a sidecar when `ui.enabled` is set, using the same image with `ui --listen=0.0.0.0:8090 --allow-remote --server=127.0.0.1 --port=8080`. Enabling it also names the Service's ports, since a Service with more than one port cannot leave them unnamed.
+The Helm chart runs the dashboard as a sidecar when `ui.enabled` is set, using the same image with `ui --listen=0.0.0.0:<ui.port> --allow-remote --server=127.0.0.1 --port=<containerPort>`, plus anything in `ui.extraArgs`. Enabling it also names the Service's ports, since a Service with more than one port cannot leave them unnamed.
 
 ## Package layout
 

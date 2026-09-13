@@ -49,7 +49,7 @@ helm upgrade \
     oci://ghcr.io/isometry/charts/platform-health
 ```
 
-Set `ui.enabled=true` to run the [dashboard](#dashboard) as a sidecar, which is off by default. It binds `0.0.0.0:8090` and adds a second port to the Service; it is unauthenticated.
+Set `ui.enabled=true` to run the [dashboard](#dashboard) as a sidecar, which is off by default. It binds `0.0.0.0` on `ui.port` (default `8090`), scans the server on `containerPort`, and adds a second port to the Service; it is unauthenticated.
 
 #### Install via `kubectl`
 
