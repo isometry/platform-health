@@ -9,6 +9,7 @@ import (
 	"encoding/hex"
 	"io"
 	"slices"
+	"strconv"
 	"strings"
 
 	"google.golang.org/protobuf/proto"
@@ -25,26 +26,43 @@ type Transition struct {
 	To   string `json:"to"`
 }
 
-// RootPath is the Transitions key for the root, which has no name. Escaping
-// below only replaces bytes, never removes them, so a real PathKey output is
-// never empty and a "/" separator never appears next to an empty segment.
-// A real path is therefore never exactly "/", which is why it is safe here.
+// RootPath is the Transitions key for the root, which has no name. A segment
+// is never empty (see unnamedSegment) and never contains a bare "/", so no
+// real path is exactly "/".
 const RootPath = "/"
 
-// PathKey joins a parent path and a component name, escaping only % and /, in
-// that order. The browser recomputes these keys with the identical two
-// replacements, so the scheme is deliberately minimal: it covers the separator
-// and its own escape character and nothing else. Do not widen it, and do not
+// unnamedSegment keys a non-root node with an empty name. Escaping rewrites
+// every "%" as "%25", so no escaped name is ever a bare "%".
+const unnamedSegment = "%"
+
+// PathKey joins a parent path and a component name, escaping only %, / and #,
+// in that order. The browser recomputes these keys with the identical three
+// replacements, so the scheme is deliberately minimal: the separator, the
+// ordinal marker and the escape character itself. Do not widen it, and do not
 // reach for url.PathEscape or encodeURIComponent, which escape different sets
 // and would make server and client disagree for names like "ssh@localhost",
 // with no error on either side.
 func PathKey(parent, name string) string {
 	escaped := strings.ReplaceAll(name, "%", "%25")
 	escaped = strings.ReplaceAll(escaped, "/", "%2F")
+	escaped = strings.ReplaceAll(escaped, "#", "%23")
+	if escaped == "" {
+		escaped = unnamedSegment
+	}
 	if parent == "" {
 		return escaped
 	}
 	return parent + "/" + escaped
+}
+
+// ordinalKey appends "#n" for the second and later siblings sharing a name,
+// counted in canonical sibling order. "#" never occurs in an escaped name, so
+// "db#2" cannot collide with a real name.
+func ordinalKey(key string, n int) string {
+	if n <= 1 {
+		return key
+	}
+	return key + "#" + strconv.Itoa(n)
 }
 
 // Canonicalise returns a deep copy, unmutated, with children sorted by (name, type),
@@ -190,8 +208,8 @@ func writeString(w io.Writer, s string) {
 // A path in only one tree gets an empty From or To; the root is reported under RootPath.
 func Transitions(prev, next *ph.HealthCheckResponse) []Transition {
 	before, after := map[string]string{}, map[string]string{}
-	collectStatuses(before, "", prev)
-	collectStatuses(after, "", next)
+	collectStatuses(before, prev)
+	collectStatuses(after, next)
 
 	var out []Transition
 	for path, to := range after {
@@ -210,19 +228,20 @@ func Transitions(prev, next *ph.HealthCheckResponse) []Transition {
 	return out
 }
 
-func collectStatuses(m map[string]string, parent string, n *ph.HealthCheckResponse) {
-	if n == nil {
+func collectStatuses(m map[string]string, root *ph.HealthCheckResponse) {
+	if root == nil {
 		return
 	}
-	path := parent
-	switch {
-	case n.GetName() != "":
-		path = PathKey(parent, n.GetName())
-		m[path] = n.GetStatus().String()
-	case parent == "":
-		m[RootPath] = n.GetStatus().String()
-	}
+	m[RootPath] = root.GetStatus().String()
+	collectChildren(m, "", root)
+}
+
+func collectChildren(m map[string]string, parent string, n *ph.HealthCheckResponse) {
+	seen := map[string]int{}
 	for _, c := range n.GetComponents() {
-		collectStatuses(m, path, c)
+		seen[c.GetName()]++
+		path := ordinalKey(PathKey(parent, c.GetName()), seen[c.GetName()])
+		m[path] = c.GetStatus().String()
+		collectChildren(m, path, c)
 	}
 }

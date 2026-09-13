@@ -26,39 +26,47 @@
   // reconciler diff. No DOM access below this section.
   // ---------------------------------------------------------------------
 
-  // Exactly two replacements, percent first, then slash: this must match the
-  // server's PathKey byte for byte or transitions silently fail to match.
+  // Exactly three replacements, percent, slash, then hash: this must match
+  // the server's PathKey byte for byte or transitions silently fail to match.
+  // An empty name becomes "%", which no escaped name can be.
   function pathKey(parent, name) {
-    var escaped = name.replace(/%/g, '%25').replace(/\//g, '%2F');
+    var escaped = name.replace(/%/g, '%25').replace(/\//g, '%2F').replace(/#/g, '%23');
+    if (escaped === '') escaped = '%';
     return parent === '' ? escaped : parent + '/' + escaped;
   }
 
   // Walks the tree ourselves rather than via any flatten helper, so
-  // satellite nodes and every Components entry stay in the index.
-  function visitNode(node, parentActualPath, index) {
+  // satellite nodes and every Components entry stay in the index. The second
+  // and later siblings sharing a name get "#2", "#3" and so on, counted in
+  // the server's canonical sibling order, which is the order the payload
+  // arrives in.
+  function visitNode(node, parentActualPath, index, ordinal) {
     var path;
-    if (node && node.name) {
-      var pkParent = (parentActualPath === null || parentActualPath === ROOT_PATH) ? '' : parentActualPath;
-      path = pathKey(pkParent, node.name);
-    } else if (parentActualPath === null) {
+    if (parentActualPath === null) {
       path = ROOT_PATH;
     } else {
-      path = parentActualPath;
+      var pkParent = parentActualPath === ROOT_PATH ? '' : parentActualPath;
+      path = pathKey(pkParent, (node && node.name) || '');
+      if (ordinal > 1) path += '#' + ordinal;
     }
 
     var entry = { path: path, parentPath: parentActualPath, node: node || {}, childPaths: [] };
     index.set(path, entry);
 
     var children = (node && node.components) || [];
+    var seen = new Map();
     for (var i = 0; i < children.length; i++) {
-      entry.childPaths.push(visitNode(children[i], path, index));
+      var name = (children[i] && children[i].name) || '';
+      var n = (seen.get(name) || 0) + 1;
+      seen.set(name, n);
+      entry.childPaths.push(visitNode(children[i], path, index, n));
     }
     return path;
   }
 
   function buildIndex(root) {
     var index = new Map();
-    visitNode(root, null, index);
+    visitNode(root, null, index, 1);
     return index;
   }
 
@@ -411,13 +419,18 @@
     };
   }
 
+  // A key segment back to the name it was built from: the ordinal suffix is
+  // dropped and the escapes are undone, %25 last so "%2523" decodes correctly.
+  function segmentName(part) {
+    return part.replace(/#\d+$/, '')
+      .replace(/%2F/g, '/').replace(/%23/g, '#').replace(/%25/g, '%');
+  }
+
   // The path key is the ancestry, so the readable trail comes straight out of
   // it. Escaped separators are put back, since these are names, not keys.
   function pathNames(path) {
     if (!path || path === ROOT_PATH) return [];
-    return path.split('/').map(function (part) {
-      return part.replace(/%2F/g, '/').replace(/%25/g, '%');
-    });
+    return path.split('/').map(segmentName);
   }
 
   // Cumulative path keys with their readable names, so each crumb can select
@@ -430,7 +443,7 @@
     var acc = '';
     for (var i = 0; i < parts.length; i++) {
       acc = acc ? acc + '/' + parts[i] : parts[i];
-      out.push({ key: acc, name: parts[i].replace(/%2F/g, '/').replace(/%25/g, '%') });
+      out.push({ key: acc, name: segmentName(parts[i]) });
     }
     return out;
   }

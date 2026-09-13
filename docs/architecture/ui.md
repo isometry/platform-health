@@ -122,7 +122,7 @@ protojson resolves `Any` through the global registry and aborts the whole messag
 
 ### Transitions include the root
 
-`Transitions` diffs per-path statuses between the previous and current canonical trees. The root is the one node the server leaves unnamed, and dropping it would discard "the estate as a whole just went unhealthy", so it is reported under the reserved key `/`. `PathKey` escapes only `%` and `/`, in that order, and the browser recomputes keys with the identical two replacements; widening the scheme on either side would silently desynchronise them for a name like `ssh@localhost`.
+`Transitions` diffs per-path statuses between the previous and current canonical trees. The root is the one node the server leaves unnamed, and dropping it would discard "the estate as a whole just went unhealthy", so it is reported under the reserved key `/`. `PathKey` escapes only `%`, `/` and `#`, in that order, keys an unnamed non-root node as `%`, and the browser recomputes keys with the identical replacements; widening the scheme on either side would silently desynchronise them for a name like `ssh@localhost`. The second and later siblings sharing a name are suffixed `#2`, `#3` and so on in canonical order. Canonical order ties on content digest, so twins whose non-status content changes can swap ordinals and misattribute a transition between them; unique names upstream are the real fix.
 
 ### Shutdown order
 

@@ -225,6 +225,10 @@ func TestPathKey(t *testing.T) {
 		// these, so they also guard against a reversion to it specifically.
 		{"comma passes through", "", "a,b", "a,b"},
 		{"space passes through", "", "a b", "a b"},
+		{"hash is escaped", "", "a#2", "a%232"},
+		{"empty name is the placeholder", "", "", "%"},
+		{"empty name under parent", "p", "", "p/%"},
+		{"literal percent is not the placeholder", "", "%", "%25"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -236,7 +240,7 @@ func TestPathKey(t *testing.T) {
 func TestRootPathCannotCollide(t *testing.T) {
 	// Spread of adversarial names, including the old NUL based sentinel this
 	// scheme replaced, none of which may ever produce the root sentinel itself.
-	names := []string{"/", "\x00root", "", "%", "//", "a/", "/a"}
+	names := []string{"/", "\x00root", "", "%", "#", "//", "a/", "/a"}
 	for _, n := range names {
 		assert.NotEqual(t, ui.RootPath, ui.PathKey("", n), "name %q must not produce the root sentinel", n)
 		assert.NotEqual(t, ui.RootPath, ui.PathKey("parent", n), "name %q under a parent must not produce the root sentinel", n)
@@ -268,6 +272,87 @@ func TestTransitionsReportsDisappearance(t *testing.T) {
 	got := ui.Transitions(ui.Canonicalise(prev), ui.Canonicalise(next))
 
 	assert.Contains(t, got, ui.Transition{Path: "db", From: "HEALTHY", To: ""})
+}
+
+func transitionPaths(list []ui.Transition) []string {
+	paths := make([]string, len(list))
+	for i, tr := range list {
+		paths[i] = tr.Path
+	}
+	return paths
+}
+
+func TestTransitionsSameNameSiblings(t *testing.T) {
+	// The tree TestHashTieDeterministic builds: two "db" tcp siblings.
+	prev := node("", "", ph.Status_HEALTHY,
+		node("db", "tcp", ph.Status_HEALTHY),
+		node("db", "tcp", ph.Status_HEALTHY),
+	)
+	next := node("", "", ph.Status_UNHEALTHY,
+		node("db", "tcp", ph.Status_HEALTHY),
+		node("db", "tcp", ph.Status_UNHEALTHY),
+	)
+
+	got := ui.Transitions(ui.Canonicalise(prev), ui.Canonicalise(next))
+
+	var flips []ui.Transition
+	for _, tr := range got {
+		if tr.Path == ui.RootPath {
+			continue
+		}
+		assert.NotEmpty(t, tr.From, "both twins exist in both trees, so no appearance: %+v", tr)
+		assert.NotEmpty(t, tr.To, "both twins exist in both trees, so no disappearance: %+v", tr)
+		flips = append(flips, tr)
+	}
+	require.Len(t, flips, 1)
+	assert.Contains(t, []string{"db", "db#2"}, flips[0].Path)
+	assert.Equal(t, "HEALTHY", flips[0].From)
+	assert.Equal(t, "UNHEALTHY", flips[0].To)
+}
+
+func TestTransitionsSameNameSiblingAppears(t *testing.T) {
+	prev := node("", "", ph.Status_HEALTHY, node("db", "tcp", ph.Status_HEALTHY))
+	next := node("", "", ph.Status_HEALTHY,
+		node("db", "tcp", ph.Status_HEALTHY),
+		node("db", "tcp", ph.Status_HEALTHY),
+	)
+
+	got := ui.Transitions(ui.Canonicalise(prev), ui.Canonicalise(next))
+
+	assert.Equal(t, []ui.Transition{{Path: "db#2", From: "", To: "HEALTHY"}}, got)
+}
+
+func TestTransitionsLiteralHashNameDoesNotCollideWithOrdinal(t *testing.T) {
+	next := node("", "", ph.Status_HEALTHY,
+		node("db", "tcp", ph.Status_HEALTHY),
+		node("db", "tcp", ph.Status_HEALTHY),
+		node("db#2", "tcp", ph.Status_HEALTHY),
+	)
+
+	got := ui.Transitions(ui.Canonicalise(node("", "", ph.Status_HEALTHY)), ui.Canonicalise(next))
+
+	assert.Equal(t, []string{"db", "db#2", "db%232"}, transitionPaths(got))
+}
+
+func TestTransitionsUnnamedChild(t *testing.T) {
+	prev := node("", "", ph.Status_HEALTHY,
+		node("sat", "satellite", ph.Status_HEALTHY,
+			node("", "tcp", ph.Status_HEALTHY),
+			node("", "tcp", ph.Status_HEALTHY),
+		),
+	)
+	next := node("", "", ph.Status_HEALTHY,
+		node("sat", "satellite", ph.Status_HEALTHY,
+			node("", "tcp", ph.Status_HEALTHY),
+			node("", "tcp", ph.Status_UNHEALTHY),
+		),
+	)
+
+	got := ui.Transitions(ui.Canonicalise(prev), ui.Canonicalise(next))
+
+	require.Len(t, got, 1)
+	assert.Contains(t, []string{"sat/%", "sat/%#2"}, got[0].Path)
+	assert.Equal(t, "UNHEALTHY", got[0].To)
 }
 
 func TestTransitionsSortedByPath(t *testing.T) {
