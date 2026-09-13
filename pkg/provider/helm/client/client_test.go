@@ -126,3 +126,26 @@ func TestConfigFlagsFor_ResolvesNamedContextBearerToken(t *testing.T) {
 	assert.Equal(t, "target-context-token", restConfig.BearerToken)
 	assert.NotEqual(t, "current-context-token", restConfig.BearerToken)
 }
+
+// TestRESTClientGetterFor_UsesSharedKubeConfig asserts that helm receives the
+// same rest.Config the kubernetes provider resolves, including its rate limits.
+func TestRESTClientGetterFor_UsesSharedKubeConfig(t *testing.T) {
+	t.Setenv("KUBERNETES_SERVICE_HOST", "")
+	t.Setenv("KUBERNETES_SERVICE_PORT", "")
+	t.Setenv("KUBECONFIG", writeFixtureKubeconfig(t))
+
+	getter, err := restClientGetterFor("target-cert", "default")
+	require.NoError(t, err)
+
+	restConfig, err := getter.ToRESTConfig()
+	require.NoError(t, err)
+
+	assert.Equal(t, "https://target-cert.example.com:6443", restConfig.Host)
+	assert.Equal(t, []byte("fake-cert-data"), restConfig.CertData)
+	assert.Equal(t, float32(50), restConfig.QPS)
+	assert.Equal(t, 100, restConfig.Burst)
+
+	ns, _, err := getter.ToRawKubeConfigLoader().Namespace()
+	require.NoError(t, err)
+	assert.Equal(t, "default", ns)
+}
