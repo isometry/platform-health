@@ -1026,6 +1026,7 @@
     connection: null,
     refreshMs: 0,
     scanState: 'idle',
+    scanningSeq: null,
     queuedFollowUp: false,
     // Server-reported start of the running scan, which is what makes the
     // elapsed readout the scan's own age rather than the age of a click.
@@ -3187,6 +3188,15 @@
     model.index = newIndex;
     model.scanID = payload.scanID;
     model.seq = payload.seq;
+    // A snapshot at or past the scan this tab was told is running proves that
+    // scan finished while the stream was down; the scan frame that said so
+    // was lost with the stream, so the snapshot is the completion signal.
+    if (model.scanState === 'scanning' && model.scanningSeq !== null &&
+        typeof payload.seq === 'number' && payload.seq >= model.scanningSeq) {
+      model.scanState = 'idle';
+      model.queuedFollowUp = false;
+      model.scanStartedAt = null;
+    }
     model.observedAt = payload.observedAt;
     model.transitions = payload.transitions || [];
     model.isFirstSnapshot = isFirst;
@@ -3256,6 +3266,7 @@
 
   function handleScanning(payload) {
     model.scanState = 'scanning';
+    model.scanningSeq = (payload && typeof payload.seq === 'number') ? payload.seq : null;
     model.queuedFollowUp = Boolean(payload && payload.queuedFollowUp);
     // A replayed scanning frame can be seconds old, so the elapsed readout
     // starts from the server's startedAt, not from now.

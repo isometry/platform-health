@@ -139,7 +139,7 @@ Six named event types on one stream. Named events mean `onmessage` never fires, 
 | Event | Payload | When |
 |---|---|---|
 | `snapshot` | protojson tree, `scanID`, `seq`, `observedAt`, `transitions[]` | on change, and on subscribe |
-| `scan` | `scanID`, `seq`, `reason`, `observedAt`, `durationMs`, `changed` | after every completed scan |
+| `scan` | `scanID`, `seq`, `reason`, `observedAt`, `durationMs`, `changed` | after every completed scan, and on subscribe |
 | `scanning` | `scanID`, `seq`, `reason`, `startedAt`, `queuedFollowUp` | scan started |
 | `scan-error` | gRPC code and message | scan failed |
 | `connection` | channel state, severity, target, refresh interval | on a state change |
@@ -174,9 +174,9 @@ Responses carry `Content-Type: text/event-stream`, `Cache-Control: no-cache, no-
 
 **The hub never writes bytes.** Each subscriber holds a mutex-guarded pending snapshot, a bounded drop-oldest ring of 64 transient events, and a capacity-1 doorbell. The pending snapshot is replaced rather than queued, since snapshots are full state and dropping an intermediate is correct. The handler goroutine is the sole writer for its subscriber, because `http.ResponseWriter` is not safe for concurrent use. Lock order is scanner then subscriber; only the hub closes a subscriber, and the handler reads the doorbell two-valued, since a closed channel is permanently ready and a bare receive would spin.
 
-Every write is preceded by `SetWriteDeadline` through `http.NewResponseController`. Without it, a backgrounded tab stops reading, the kernel send buffer fills, and the handler parks in `write(2)` indefinitely while `r.Context()` stays live because the connection is still open. That goroutine also blocks shutdown. The handler writes and flushes its headers and the `retry:` line before subscribing, because `Subscribe` blocks until the loop reaches its select, which during a scan can be a full timeout.
+Every write is preceded by `SetWriteDeadline` through `http.NewResponseController`. Without it, a backgrounded tab stops reading, the kernel send buffer fills, and the handler parks in `write(2)` indefinitely while `r.Context()` stays live because the connection is still open. That goroutine also blocks shutdown. The handler writes and flushes its headers and the `retry:` line before subscribing, so the browser sees an open stream straight away. The check itself runs on its own goroutine and reports back through a channel case in the loop's select, so `Subscribe` and `Unsubscribe` only wait for the loop to reach its select; while a scan is in flight the trigger and timer cases are disabled, which is what keeps one scan running and at most one queued.
 
-On subscribe the scanner replays the connection frame, the last snapshot, the current error and any scan in progress. A tab that connects after a failed first scan must not see an unexplained blank page.
+On subscribe the scanner replays the connection frame, the last snapshot, the `scan` frame that produced it, the current error and any scan in progress, in that order. The replayed `scan` frame is how a tab that reconnects after a scan finished learns it is no longer scanning; its `changed` is relative to the server's previous scan, not to what the tab holds. A tab that connects after a failed first scan must not see an unexplained blank page.
 
 ## The browser
 
@@ -252,4 +252,4 @@ Scanning is manual by default: the first subscriber to connect triggers one, and
 
 ## Testing
 
-`pkg/ui` tests the pure functions that fail silently in production: canonicalisation and hashing (child order and duration must not change the hash, status and details must), path keying and root-path collision, transitions, marshal sanitising, and SSE line prefixing. The scanner's lifecycle, the hub's concurrency and all browser code are untested here, matching the repository's practice of testing a command package's transforms rather than its runtime wiring.
+`pkg/ui` tests the pure functions that fail silently in production: canonicalisation and hashing (child order and duration must not change the hash, status and details must), path keying and root-path collision, transitions, and SSE line prefixing. The scanner loop is tested through a real HTTP server with a check that can be parked: subscribing and unsubscribing during a scan, queueing and coalescing triggers, the timer staying quiet during a scan, replay contents after success and failure, and shutdown with a scan in flight. The browser's pure functions (path keys, the index walk, status coercion) run under node from `testdata/app_test.mjs`; the DOM code is untested.

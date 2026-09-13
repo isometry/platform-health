@@ -65,10 +65,8 @@ func (s *Scanner) sseHandler() http.HandlerFunc {
 			return
 		}
 
-		// Headers and retry must be flushed before Subscribe: register is
-		// unbuffered and runScan runs inline in the scanner's select, so
-		// Subscribe can block for a full scan timeout (30s default). Without
-		// this ordering, a browser opening a tab mid-scan sees a hung request.
+		// Headers and the retry line go out before Subscribe so the browser
+		// sees an open stream even if the loop is momentarily busy.
 		sub := s.Subscribe()
 		defer s.Unsubscribe(sub)
 
