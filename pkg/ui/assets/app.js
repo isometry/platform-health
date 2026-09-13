@@ -1680,17 +1680,9 @@
   // so this never has to reposition anything by hand.
   // ---------------------------------------------------------------------
 
-  // These four constants and clampRailWidth are duplicated in theme.js, which
-  // restores the width pre-paint and cannot import from here. Keep both in sync.
-  var RAIL_WIDTH_KEY = 'ph-ui-rail-width';
-  var RAIL_WIDTH_DEFAULT = 280;
-  var RAIL_WIDTH_MIN = 200;
-  var RAIL_WIDTH_MAX_RATIO = 0.45;
-
-  function clampRailWidth(width) {
-    var max = window.innerWidth * RAIL_WIDTH_MAX_RATIO;
-    return Math.min(Math.max(width, RAIL_WIDTH_MIN), max);
-  }
+  // The rail width policy (storage key, default, bounds, clamp) is owned by
+  // theme.js, which restores the width before first paint and runs first.
+  var rail = window.phRail;
 
   function readStoredFollow() {
     try {
@@ -1711,7 +1703,7 @@
 
   function writeStoredRailWidth(width) {
     try {
-      window.localStorage.setItem(RAIL_WIDTH_KEY, String(Math.round(width)));
+      window.localStorage.setItem(rail.key, String(Math.round(width)));
     } catch (e) {
       // Blocked site data: same fallback as theme.js, the width just won't
       // survive a reload.
@@ -1721,7 +1713,7 @@
   function currentRailWidth(root) {
     var raw = getComputedStyle(root).getPropertyValue('--rail-width');
     var value = parseFloat(raw);
-    return Number.isFinite(value) ? value : RAIL_WIDTH_DEFAULT;
+    return Number.isFinite(value) ? value : rail.defaultWidth;
   }
 
   function isRailCollapsed(root) {
@@ -1735,12 +1727,12 @@
 
     function updateAria(width) {
       handle.setAttribute('aria-valuenow', String(Math.round(width)));
-      handle.setAttribute('aria-valuemin', String(RAIL_WIDTH_MIN));
-      handle.setAttribute('aria-valuemax', String(Math.round(window.innerWidth * RAIL_WIDTH_MAX_RATIO)));
+      handle.setAttribute('aria-valuemin', String(rail.min));
+      handle.setAttribute('aria-valuemax', String(Math.round(window.innerWidth * rail.maxRatio)));
     }
 
     function applyWidth(width) {
-      var clamped = clampRailWidth(width);
+      var clamped = rail.clamp(width);
       root.style.setProperty('--rail-width', clamped + 'px');
       updateAria(clamped);
       return clamped;
@@ -1786,7 +1778,7 @@
 
     handle.addEventListener('dblclick', function () {
       if (isRailCollapsed(root)) return;
-      writeStoredRailWidth(applyWidth(RAIL_WIDTH_DEFAULT));
+      writeStoredRailWidth(applyWidth(rail.defaultWidth));
     });
 
     handle.addEventListener('keydown', function (e) {
@@ -1798,9 +1790,9 @@
       } else if (e.key === 'ArrowRight') {
         width = applyWidth(width + step);
       } else if (e.key === 'Home') {
-        width = applyWidth(RAIL_WIDTH_MIN);
+        width = applyWidth(rail.min);
       } else if (e.key === 'End') {
-        width = applyWidth(window.innerWidth * RAIL_WIDTH_MAX_RATIO);
+        width = applyWidth(window.innerWidth * rail.maxRatio);
       } else {
         return;
       }

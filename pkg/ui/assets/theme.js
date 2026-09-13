@@ -92,26 +92,28 @@
 
   // Same flash concern as the theme and the collapse state: restore the
   // dragged width before first paint, or the rail visibly snaps to it once
-  // app.js's storage read runs later.
-  // These four constants and clampRailWidth are duplicated in app.js, which
-  // owns the live drag behaviour. Keep both in sync.
-  var RAIL_WIDTH_KEY = 'ph-ui-rail-width';
-  var RAIL_WIDTH_DEFAULT = 280;
-  var RAIL_WIDTH_MIN = 200;
-  var RAIL_WIDTH_MAX_RATIO = 0.45;
-
-  function clampRailWidth(width) {
-    var max = window.innerWidth * RAIL_WIDTH_MAX_RATIO;
-    return Math.min(Math.max(width, RAIL_WIDTH_MIN), max);
-  }
+  // app.js's storage read runs later. The width policy lives here, since
+  // this script runs first, and is published for app.js, which owns the
+  // live drag. app.css carries the same default for a page without script.
+  var phRail = {
+    key: 'ph-ui-rail-width',
+    defaultWidth: 280,
+    min: 200,
+    maxRatio: 0.45,
+    clamp: function (width) {
+      var max = window.innerWidth * phRail.maxRatio;
+      return Math.min(Math.max(width, phRail.min), max);
+    }
+  };
+  window.phRail = phRail;
 
   function readRailWidth() {
     try {
-      var raw = window.localStorage.getItem(RAIL_WIDTH_KEY);
+      var raw = window.localStorage.getItem(phRail.key);
       var value = raw === null ? NaN : parseFloat(raw);
-      return Number.isFinite(value) ? clampRailWidth(value) : RAIL_WIDTH_DEFAULT;
+      return Number.isFinite(value) ? phRail.clamp(value) : phRail.defaultWidth;
     } catch (e) {
-      return RAIL_WIDTH_DEFAULT;
+      return phRail.defaultWidth;
     }
   }
 

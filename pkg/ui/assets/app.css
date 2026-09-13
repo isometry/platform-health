@@ -54,7 +54,7 @@
   --banner-bg-warn: rgba(176, 106, 0, .1);
   --banner-bg-info: rgba(47, 126, 247, .08);
 
-  --rail-width: 280px;
+  --rail-width: 280px; /* no-script fallback; theme.js sets the live value */
   --header-height: 56px;
   --dock-height: 220px;
 
