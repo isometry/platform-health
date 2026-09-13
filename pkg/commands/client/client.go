@@ -60,7 +60,7 @@ func query(cmd *cobra.Command, _ []string) (err error) {
 	conn, err := client.Dial(client.DialConfig{
 		Host:     targetHost,
 		Port:     targetPort,
-		TLS:      v.GetBool("tls"),
+		TLS:      client.TLSModeFromFlag(v.GetBool("tls")),
 		Insecure: v.GetBool("insecure"),
 	})
 	if err != nil {

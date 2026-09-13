@@ -16,7 +16,7 @@ The gRPC Provider is configured through the platform-health server's configurati
   - `host` (required): The hostname or IP address of the gRPC service to monitor.
   - `port` (default: `8080`): The port number of the gRPC service to monitor.
   - `service` (default: `""`): The service on the target gRPC service to monitor.
-  - `tls` (default: `false`, unless `port` is `443`): Enable TLS for the gRPC dialer.
+  - `tls` (optional): Enable TLS for the gRPC dialer. When omitted, TLS is implied by `port` `443` or `8443`; set `false` explicitly to force plaintext on those ports.
   - `insecure` (default: `false`): Disable certificate validation when TLS is enabled.
 
 ## Examples
@@ -33,4 +33,4 @@ components:
       service: "foo"
 ```
 
-In this example, the gRPC Provider will establish a connection to `grpc.example.com` on port 443 (which automatically enables TLS mode), returning "healthy" only if the "foo" service reports "SERVING".
+In this example, the gRPC Provider will establish a connection to `grpc.example.com` on port 443 (which implies TLS unless `tls: false` is set), returning "healthy" only if the "foo" service reports "SERVING".

@@ -111,7 +111,7 @@ func serve(cmd *cobra.Command, _ []string) error {
 		Dial: client.DialConfig{
 			Host:     v.GetString("server"),
 			Port:     v.GetInt("port"),
-			TLS:      v.GetBool("tls"),
+			TLS:      client.TLSModeFromFlag(v.GetBool("tls")),
 			Insecure: v.GetBool("insecure"),
 		},
 		Timeout: v.GetDuration("timeout"),

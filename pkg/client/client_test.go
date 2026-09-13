@@ -15,11 +15,14 @@ func TestDialConfigUseTLS(t *testing.T) {
 		expected bool
 	}{
 		{"plain port", client.DialConfig{Host: "localhost", Port: 8080}, false},
-		{"explicit tls", client.DialConfig{Host: "localhost", Port: 8080, TLS: true}, true},
+		{"explicit tls", client.DialConfig{Host: "localhost", Port: 8080, TLS: client.TLSOn}, true},
 		{"implied by 443", client.DialConfig{Host: "example.com", Port: 443}, true},
 		{"implied by 8443", client.DialConfig{Host: "example.com", Port: 8443}, true},
 		{"insecure does not imply tls", client.DialConfig{Host: "localhost", Port: 8080, Insecure: true}, false},
-		{"explicit tls on implied port", client.DialConfig{Host: "example.com", Port: 443, TLS: true}, true},
+		{"explicit tls on implied port", client.DialConfig{Host: "example.com", Port: 443, TLS: client.TLSOn}, true},
+		{"explicit off on 443", client.DialConfig{Host: "example.com", Port: 443, TLS: client.TLSOff}, false},
+		{"explicit off on 8443", client.DialConfig{Host: "example.com", Port: 8443, TLS: client.TLSOff}, false},
+		{"explicit off on plain port", client.DialConfig{Host: "localhost", Port: 8080, TLS: client.TLSOff}, false},
 	}
 
 	for _, tt := range tests {
@@ -27,6 +30,18 @@ func TestDialConfigUseTLS(t *testing.T) {
 			assert.Equal(t, tt.expected, tt.config.UseTLS())
 		})
 	}
+}
+
+func TestTLSModeFromPtr(t *testing.T) {
+	on, off := true, false
+	assert.Equal(t, client.TLSAuto, client.TLSModeFromPtr(nil))
+	assert.Equal(t, client.TLSOn, client.TLSModeFromPtr(&on))
+	assert.Equal(t, client.TLSOff, client.TLSModeFromPtr(&off))
+}
+
+func TestTLSModeFromFlag(t *testing.T) {
+	assert.Equal(t, client.TLSOn, client.TLSModeFromFlag(true))
+	assert.Equal(t, client.TLSAuto, client.TLSModeFromFlag(false))
 }
 
 func TestDialConfigAddress(t *testing.T) {
