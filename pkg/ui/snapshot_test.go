@@ -3,6 +3,7 @@
 package ui_test
 
 import (
+	"os"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -310,4 +311,15 @@ func TestSanitisedUnknownDetailHashStable(t *testing.T) {
 	// Sanitising must not mutate the tree Hash and Transitions rely on.
 	_, stillUnresolved := first.Details[0].UnmarshalNew()
 	assert.Error(t, stillUnresolved)
+}
+
+// TestHashGolden pins the digest of the checked-in fixture so a change to
+// the hashing scheme is a deliberate edit of this literal.
+func TestHashGolden(t *testing.T) {
+	data, err := os.ReadFile("testdata/fixture.json")
+	require.NoError(t, err)
+	var resp ph.HealthCheckResponse
+	require.NoError(t, protojson.Unmarshal(data, &resp))
+
+	assert.Equal(t, "5c75008ef6075e4216da33214aaad9cb1a26b809733dfe8b76838c3bd0b8e4e3", ui.Hash(ui.Canonicalise(&resp)))
 }
