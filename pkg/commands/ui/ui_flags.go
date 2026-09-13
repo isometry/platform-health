@@ -47,7 +47,7 @@ var uiFlags = cliflags.Merge(
 		"allow-remote": {
 			Kind:         provider.FlagKindBool,
 			DefaultValue: false,
-			Usage:        "permit a non-loopback --listen address; the dashboard is unauthenticated, so anyone who can reach it sees the whole estate",
+			Usage:        "permit a non-loopback --listen address, which also accepts any Host header; the dashboard is unauthenticated, so anyone who can reach it sees the whole estate",
 		},
 	},
 )

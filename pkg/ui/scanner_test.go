@@ -123,7 +123,7 @@ func newTestServer(t *testing.T, cfg ui.ScannerConfig, check func(context.Contex
 	s := ui.NewTestScanner(ctx, cfg, check)
 	go s.Run()
 
-	srv := httptest.NewServer(s.Mux("127.0.0.1:8090", ui.Assets()))
+	srv := httptest.NewServer(s.Mux(tcpAddr(t, "127.0.0.1:8090"), ui.Assets()))
 	ts := &testServer{t: t, scanner: s, srv: srv, cancel: cancel}
 	t.Cleanup(func() {
 		cancel()
