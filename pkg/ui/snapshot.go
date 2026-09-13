@@ -58,35 +58,6 @@ func Canonicalise(resp *ph.HealthCheckResponse) *ph.HealthCheckResponse {
 	return out
 }
 
-// SanitiseForMarshal returns a deep copy with every detail protojson cannot
-// resolve replaced by a stand-in that marshals. protojson resolves Any
-// through the global type registry and aborts marshalling the whole message
-// on the first miss, so one child with an unregistered detail type would
-// otherwise blank the entire snapshot, healthy siblings included.
-//
-// The input is never mutated. It is typically the canonicalised tree, which
-// the scanner also uses for Hash and Transitions; those already tolerate an
-// unresolvable detail (writeDetail falls back to the raw type URL and bytes,
-// and Transitions never looks at details at all), so only the copy destined
-// for the wire needs this pass.
-func SanitiseForMarshal(resp *ph.HealthCheckResponse) *ph.HealthCheckResponse {
-	if resp == nil {
-		return nil
-	}
-	out := proto.Clone(resp).(*ph.HealthCheckResponse)
-	sanitiseTree(out)
-	return out
-}
-
-func sanitiseTree(n *ph.HealthCheckResponse) {
-	for i, d := range n.GetDetails() {
-		n.Details[i] = details.SanitiseAny(d)
-	}
-	for _, c := range n.GetComponents() {
-		sanitiseTree(c)
-	}
-}
-
 func sortTree(n *ph.HealthCheckResponse) {
 	for _, c := range n.Components {
 		sortTree(c)

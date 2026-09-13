@@ -289,56 +289,7 @@ func TestTransitionsSortedByPath(t *testing.T) {
 	assert.Equal(t, []string{"uniform", "victor", "whiskey", "xray", "yankee", "zulu"}, paths)
 }
 
-func TestSanitiseForMarshalSurvivesUnknownDetail(t *testing.T) {
-	// protojson resolves Any through the global registry and aborts marshalling
-	// the whole message on the first miss. A remote satellite on a newer build
-	// can hand us a detail type we have never registered, so one bad child must
-	// not blank the healthy sibling or the root.
-	tree := node("", "", ph.Status_UNHEALTHY,
-		node("healthy-sibling", "tcp", ph.Status_HEALTHY),
-		node("future", "satellite", ph.Status_UNHEALTHY),
-	)
-	tree.Components[1].Details = []*anypb.Any{mustUnknownAny(t)}
-
-	canon := ui.Canonicalise(tree)
-
-	_, errBefore := marshalOpts.Marshal(canon)
-	require.Error(t, errBefore, "an unresolvable Any must still fail a direct marshal, or this test proves nothing")
-
-	out, err := marshalOpts.Marshal(ui.SanitiseForMarshal(canon))
-	require.NoError(t, err)
-	assert.NotEmpty(t, out)
-	assert.Contains(t, string(out), "healthy-sibling")
-	assert.Contains(t, string(out), "future")
-}
-
-func TestSanitiseForMarshalKeepsTypeURLVisible(t *testing.T) {
-	tree := node("future", "satellite", ph.Status_UNHEALTHY)
-	tree.Details = []*anypb.Any{mustUnknownAny(t)}
-
-	out, err := marshalOpts.Marshal(ui.SanitiseForMarshal(ui.Canonicalise(tree)))
-	require.NoError(t, err)
-	assert.Contains(t, string(out), unknownTypeURL)
-}
-
-func TestSanitiseForMarshalKnownDetailsByteIdentical(t *testing.T) {
-	// Known types must pass through untouched: SanitiseForMarshal must not
-	// change a single byte of what the scanner produces today.
-	a := node("x", "tls", ph.Status_HEALTHY)
-	a.Details = []*anypb.Any{mustAny(t, &details.Detail_TLS{CommonName: "example.com"})}
-	b := node("", "", ph.Status_HEALTHY, a, node("clean", "tcp", ph.Status_HEALTHY))
-
-	canon := ui.Canonicalise(b)
-
-	before, err := marshalOpts.Marshal(canon)
-	require.NoError(t, err)
-	after, err := marshalOpts.Marshal(ui.SanitiseForMarshal(canon))
-	require.NoError(t, err)
-
-	assert.Equal(t, before, after)
-}
-
-func TestSanitiseForMarshalUnknownDetailDeterministic(t *testing.T) {
+func TestSanitisedUnknownDetailHashStable(t *testing.T) {
 	// Two scans carrying the same unknown detail must produce identical bytes,
 	// or the hash flaps and the UI reports change on every poll.
 	build := func() *ph.HealthCheckResponse {
@@ -348,15 +299,15 @@ func TestSanitiseForMarshalUnknownDetailDeterministic(t *testing.T) {
 	}
 	first, second := build(), build()
 
-	outFirst, err := marshalOpts.Marshal(ui.SanitiseForMarshal(first))
+	outFirst, err := marshalOpts.Marshal(details.SanitiseResponse(first))
 	require.NoError(t, err)
-	outSecond, err := marshalOpts.Marshal(ui.SanitiseForMarshal(second))
+	outSecond, err := marshalOpts.Marshal(details.SanitiseResponse(second))
 	require.NoError(t, err)
 
 	assert.Equal(t, outFirst, outSecond)
 	assert.Equal(t, ui.Hash(first), ui.Hash(second))
 
-	// SanitiseForMarshal must not mutate the tree Hash and Transitions rely on.
+	// Sanitising must not mutate the tree Hash and Transitions rely on.
 	_, stillUnresolved := first.Details[0].UnmarshalNew()
 	assert.Error(t, stillUnresolved)
 }

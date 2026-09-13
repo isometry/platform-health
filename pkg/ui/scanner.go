@@ -38,7 +38,7 @@ import (
 	// a type is unregistered, and that error kills marshalling of the entire
 	// response, not just the detail. Without this every scan fails the moment
 	// any provider sets detail: true.
-	_ "github.com/isometry/platform-health/pkg/platform_health/details"
+	"github.com/isometry/platform-health/pkg/platform_health/details"
 )
 
 // TriggerState reports what a Trigger call did, so the UI can say "scanning,
@@ -455,7 +455,7 @@ func (s *Scanner) runScan(reason string) {
 	payload, err := protojson.MarshalOptions{
 		Multiline:         false,
 		EmitDefaultValues: true,
-	}.Marshal(SanitiseForMarshal(canon))
+	}.Marshal(details.SanitiseResponse(canon))
 	if err != nil {
 		s.failScan(scanID, seq, fmt.Errorf("marshal snapshot: %w", err))
 		return
