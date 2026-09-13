@@ -408,3 +408,31 @@ func TestHashGolden(t *testing.T) {
 
 	assert.Equal(t, "5c75008ef6075e4216da33214aaad9cb1a26b809733dfe8b76838c3bd0b8e4e3", ui.Hash(ui.Canonicalise(&resp)))
 }
+
+func TestCanonicaliseAndHashMatchesHash(t *testing.T) {
+	// Shuffled, three levels deep, with duplicate names and a detail, so a
+	// single-pass digest has every shape to get wrong.
+	leafA := node("db", "tcp", ph.Status_HEALTHY)
+	leafA.Details = []*anypb.Any{mustAny(t, &details.Detail_TLS{CommonName: "a"})}
+	tree := node("", "", ph.Status_UNHEALTHY,
+		node("zulu", "system", ph.Status_UNHEALTHY,
+			node("db", "tcp", ph.Status_UNHEALTHY),
+			leafA,
+			node("api", "http", ph.Status_HEALTHY, node("deep", "tcp", ph.Status_HEALTHY)),
+		),
+		node("alpha", "tcp", ph.Status_HEALTHY),
+		node("alpha", "http", ph.Status_HEALTHY),
+	)
+
+	canon, hash := ui.CanonicaliseAndHash(tree)
+
+	assert.Equal(t, ui.Hash(canon), hash)
+	assert.Equal(t, ui.Hash(ui.Canonicalise(tree)), hash)
+	assert.True(t, proto.Equal(ui.Canonicalise(tree), canon))
+}
+
+func TestCanonicaliseAndHashNil(t *testing.T) {
+	canon, hash := ui.CanonicaliseAndHash(nil)
+	assert.Nil(t, canon)
+	assert.Equal(t, ui.Hash(nil), hash)
+}

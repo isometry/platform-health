@@ -68,25 +68,31 @@ func ordinalKey(key string, n int) string {
 // Canonicalise returns a deep copy, unmutated, with children sorted by (name, type),
 // tied on each child's own content digest so identical siblings don't depend on arrival order.
 func Canonicalise(resp *ph.HealthCheckResponse) *ph.HealthCheckResponse {
-	if resp == nil {
-		return nil
-	}
-	out := proto.Clone(resp).(*ph.HealthCheckResponse)
-	sortTree(out)
-	return out
+	canon, _ := CanonicaliseAndHash(resp)
+	return canon
 }
 
-func sortTree(n *ph.HealthCheckResponse) {
-	for _, c := range n.Components {
-		sortTree(c)
+// CanonicaliseAndHash is Canonicalise plus Hash of the result, digesting each
+// subtree once: the digest sortTree computes for its tie-break is the same one
+// Hash would recompute.
+func CanonicaliseAndHash(resp *ph.HealthCheckResponse) (*ph.HealthCheckResponse, string) {
+	if resp == nil {
+		return nil, Hash(nil)
 	}
+	out := proto.Clone(resp).(*ph.HealthCheckResponse)
+	return out, hex.EncodeToString(sortTree(out))
+}
+
+// sortTree sorts n's children recursively and returns n's digest, computing
+// each subtree's digest exactly once, bottom-up.
+func sortTree(n *ph.HealthCheckResponse) []byte {
 	type child struct {
 		node   *ph.HealthCheckResponse
 		digest []byte
 	}
 	children := make([]child, len(n.Components))
 	for i, c := range n.Components {
-		children[i] = child{c, nodeDigest(c)}
+		children[i] = child{c, sortTree(c)}
 	}
 	slices.SortFunc(children, func(a, b child) int {
 		if c := strings.Compare(a.node.GetName(), b.node.GetName()); c != 0 {
@@ -100,6 +106,7 @@ func sortTree(n *ph.HealthCheckResponse) {
 	for i, c := range children {
 		n.Components[i] = c.node
 	}
+	return digestNode(n, func(i int) []byte { return children[i].digest })
 }
 
 // Hash digests a canonicalised tree, excluding duration (it jitters every scan)
@@ -109,8 +116,15 @@ func Hash(resp *ph.HealthCheckResponse) string {
 }
 
 // nodeDigest hashes a node's content plus its children's digests, length-prefixing
-// every field so concatenation can't collide. Also used by sortTree as a sibling tiebreaker.
+// every field so concatenation can't collide.
 func nodeDigest(n *ph.HealthCheckResponse) []byte {
+	return digestNode(n, func(i int) []byte { return nodeDigest(n.Components[i]) })
+}
+
+// digestNode is nodeDigest with the children's digests supplied by childDigest,
+// so sortTree can reuse the ones it already holds. Children are digested in
+// their current (sorted) order.
+func digestNode(n *ph.HealthCheckResponse, childDigest func(i int) []byte) []byte {
 	h := sha256.New()
 	if n == nil {
 		return h.Sum(nil)
@@ -136,8 +150,8 @@ func nodeDigest(n *ph.HealthCheckResponse) []byte {
 
 	children := n.GetComponents()
 	writeUint64(h, uint64(len(children)))
-	for _, c := range children {
-		h.Write(nodeDigest(c))
+	for i := range children {
+		h.Write(childDigest(i))
 	}
 	return h.Sum(nil)
 }

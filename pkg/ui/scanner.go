@@ -442,8 +442,7 @@ func (s *Scanner) runScan(reason string) {
 		return
 	}
 
-	canon := Canonicalise(resp)
-	hash := Hash(canon)
+	canon, hash := CanonicaliseAndHash(resp)
 	transitions := Transitions(s.store.canon, canon)
 
 	// Marshal ONCE, here, and store only bytes. Multiline would corrupt the
