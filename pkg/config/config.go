@@ -192,10 +192,7 @@ func (r *LoadResult) update(strict bool) error {
 
 	components, ok := processed["components"].(map[string]any)
 	if !ok {
-		if r.v.ConfigFileUsed() != "" { // config file present but missing components is the pre-migrate format
-			return fmt.Errorf("config must have a 'components' key containing all component definitions")
-		}
-		components = map[string]any{}
+		return fmt.Errorf("config must have a 'components' key containing all component definitions")
 	}
 
 	abstract := abstractConfig(components)

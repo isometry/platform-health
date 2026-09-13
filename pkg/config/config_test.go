@@ -337,10 +337,9 @@ func TestUnknownSpecKeysFixtures(t *testing.T) {
 	}
 }
 
-// TestComponentsKeyRequirement covers the distinction between an absent config
-// (start clean with zero components) and a config file that was found but has
-// no usable 'components' key, whether empty or in the pre-migrate format,
-// which must still error.
+// TestComponentsKeyRequirement covers the three ways a load can end up with no
+// 'components' key: no file found, an empty file, and a file in the pre-migrate
+// format. All must error rather than start an empty estate.
 func TestComponentsKeyRequirement(t *testing.T) {
 	testdataPath := getTestdataPath()
 
@@ -353,7 +352,7 @@ func TestComponentsKeyRequirement(t *testing.T) {
 		{
 			name:            "No config file at all",
 			configFile:      "does_not_exist",
-			expectErr:       false,
+			expectErr:       true,
 			expectInstances: 0,
 		},
 		{
