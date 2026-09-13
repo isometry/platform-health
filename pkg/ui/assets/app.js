@@ -7,6 +7,20 @@
   var COLLAPSE_THRESHOLD = 25;
   var EVENT_NAMES = ['snapshot', 'scan', 'scanning', 'scan-error', 'connection', 'shutdown'];
 
+  // Under node there is no document: export the pure functions for the unit
+  // tests in testdata/app_test.mjs and skip the DOM wiring below.
+  if (typeof document === 'undefined' && typeof module === 'object') {
+    module.exports = {
+      pathKey: pathKey,
+      buildIndex: buildIndex,
+      effectiveStatus: effectiveStatus,
+      statusClass: statusClass,
+      pathNames: pathNames,
+      pathCrumbs: pathCrumbs
+    };
+    return;
+  }
+
   // ---------------------------------------------------------------------
   // Pure functions: path keying, the tree walk, duration parsing and the
   // reconciler diff. No DOM access below this section.
@@ -60,8 +74,11 @@
     return { added: added, removed: removed };
   }
 
+  // protojson writes an enum value this build does not know as a bare number,
+  // so the status is coerced to a string here, the one place every read passes.
   function effectiveStatus(node) {
-    return (node && node.status) || 'UNKNOWN';
+    var status = node && node.status;
+    return status ? String(status) : 'UNKNOWN';
   }
 
   function statusClass(status) {
