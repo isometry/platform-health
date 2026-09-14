@@ -29,7 +29,9 @@ type snapshotEvent struct {
 }
 
 // scanEvent is the liveness signal emitted after every completed scan, changed
-// or not. It is what makes suppressing unchanged snapshots safe.
+// or not. It is what makes suppressing unchanged snapshots safe. The last one
+// is replayed on subscribe, where changed is still relative to the server's
+// previous scan, not to whatever the subscriber holds.
 type scanEvent struct {
 	ScanID     string    `json:"scanID"`
 	Seq        uint64    `json:"seq"`

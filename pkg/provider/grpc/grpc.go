@@ -24,7 +24,7 @@ type Component struct {
 	Host     string `mapstructure:"host"`
 	Port     int    `mapstructure:"port" default:"8080"`
 	Service  string `mapstructure:"service"`
-	TLS      bool   `mapstructure:"tls" default:"false"`
+	TLS      *bool  `mapstructure:"tls"`
 	Insecure bool   `mapstructure:"insecure" default:"false"`
 }
 
@@ -69,7 +69,7 @@ func (c *Component) GetHealth(ctx context.Context) *ph.HealthCheckResponse {
 	conn, err := client.Dial(client.DialConfig{
 		Host:     c.Host,
 		Port:     c.Port,
-		TLS:      c.TLS,
+		TLS:      client.TLSModeFromPtr(c.TLS),
 		Insecure: c.Insecure,
 	})
 	if err != nil {

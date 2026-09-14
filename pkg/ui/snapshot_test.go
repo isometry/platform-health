@@ -3,6 +3,7 @@
 package ui_test
 
 import (
+	"os"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -224,6 +225,10 @@ func TestPathKey(t *testing.T) {
 		// these, so they also guard against a reversion to it specifically.
 		{"comma passes through", "", "a,b", "a,b"},
 		{"space passes through", "", "a b", "a b"},
+		{"hash is escaped", "", "a#2", "a%232"},
+		{"empty name is the placeholder", "", "", "%"},
+		{"empty name under parent", "p", "", "p/%"},
+		{"literal percent is not the placeholder", "", "%", "%25"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -235,7 +240,7 @@ func TestPathKey(t *testing.T) {
 func TestRootPathCannotCollide(t *testing.T) {
 	// Spread of adversarial names, including the old NUL based sentinel this
 	// scheme replaced, none of which may ever produce the root sentinel itself.
-	names := []string{"/", "\x00root", "", "%", "//", "a/", "/a"}
+	names := []string{"/", "\x00root", "", "%", "#", "//", "a/", "/a"}
 	for _, n := range names {
 		assert.NotEqual(t, ui.RootPath, ui.PathKey("", n), "name %q must not produce the root sentinel", n)
 		assert.NotEqual(t, ui.RootPath, ui.PathKey("parent", n), "name %q under a parent must not produce the root sentinel", n)
@@ -269,6 +274,87 @@ func TestTransitionsReportsDisappearance(t *testing.T) {
 	assert.Contains(t, got, ui.Transition{Path: "db", From: "HEALTHY", To: ""})
 }
 
+func transitionPaths(list []ui.Transition) []string {
+	paths := make([]string, len(list))
+	for i, tr := range list {
+		paths[i] = tr.Path
+	}
+	return paths
+}
+
+func TestTransitionsSameNameSiblings(t *testing.T) {
+	// The tree TestHashTieDeterministic builds: two "db" tcp siblings.
+	prev := node("", "", ph.Status_HEALTHY,
+		node("db", "tcp", ph.Status_HEALTHY),
+		node("db", "tcp", ph.Status_HEALTHY),
+	)
+	next := node("", "", ph.Status_UNHEALTHY,
+		node("db", "tcp", ph.Status_HEALTHY),
+		node("db", "tcp", ph.Status_UNHEALTHY),
+	)
+
+	got := ui.Transitions(ui.Canonicalise(prev), ui.Canonicalise(next))
+
+	var flips []ui.Transition
+	for _, tr := range got {
+		if tr.Path == ui.RootPath {
+			continue
+		}
+		assert.NotEmpty(t, tr.From, "both twins exist in both trees, so no appearance: %+v", tr)
+		assert.NotEmpty(t, tr.To, "both twins exist in both trees, so no disappearance: %+v", tr)
+		flips = append(flips, tr)
+	}
+	require.Len(t, flips, 1)
+	assert.Contains(t, []string{"db", "db#2"}, flips[0].Path)
+	assert.Equal(t, "HEALTHY", flips[0].From)
+	assert.Equal(t, "UNHEALTHY", flips[0].To)
+}
+
+func TestTransitionsSameNameSiblingAppears(t *testing.T) {
+	prev := node("", "", ph.Status_HEALTHY, node("db", "tcp", ph.Status_HEALTHY))
+	next := node("", "", ph.Status_HEALTHY,
+		node("db", "tcp", ph.Status_HEALTHY),
+		node("db", "tcp", ph.Status_HEALTHY),
+	)
+
+	got := ui.Transitions(ui.Canonicalise(prev), ui.Canonicalise(next))
+
+	assert.Equal(t, []ui.Transition{{Path: "db#2", From: "", To: "HEALTHY"}}, got)
+}
+
+func TestTransitionsLiteralHashNameDoesNotCollideWithOrdinal(t *testing.T) {
+	next := node("", "", ph.Status_HEALTHY,
+		node("db", "tcp", ph.Status_HEALTHY),
+		node("db", "tcp", ph.Status_HEALTHY),
+		node("db#2", "tcp", ph.Status_HEALTHY),
+	)
+
+	got := ui.Transitions(ui.Canonicalise(node("", "", ph.Status_HEALTHY)), ui.Canonicalise(next))
+
+	assert.Equal(t, []string{"db", "db#2", "db%232"}, transitionPaths(got))
+}
+
+func TestTransitionsUnnamedChild(t *testing.T) {
+	prev := node("", "", ph.Status_HEALTHY,
+		node("sat", "satellite", ph.Status_HEALTHY,
+			node("", "tcp", ph.Status_HEALTHY),
+			node("", "tcp", ph.Status_HEALTHY),
+		),
+	)
+	next := node("", "", ph.Status_HEALTHY,
+		node("sat", "satellite", ph.Status_HEALTHY,
+			node("", "tcp", ph.Status_HEALTHY),
+			node("", "tcp", ph.Status_UNHEALTHY),
+		),
+	)
+
+	got := ui.Transitions(ui.Canonicalise(prev), ui.Canonicalise(next))
+
+	require.Len(t, got, 1)
+	assert.Contains(t, []string{"sat/%", "sat/%#2"}, got[0].Path)
+	assert.Equal(t, "UNHEALTHY", got[0].To)
+}
+
 func TestTransitionsSortedByPath(t *testing.T) {
 	// Six names, so map iteration landing on sorted order by chance is
 	// negligible (1/720): a real ordering bug reproduces reliably.
@@ -289,56 +375,7 @@ func TestTransitionsSortedByPath(t *testing.T) {
 	assert.Equal(t, []string{"uniform", "victor", "whiskey", "xray", "yankee", "zulu"}, paths)
 }
 
-func TestSanitiseForMarshalSurvivesUnknownDetail(t *testing.T) {
-	// protojson resolves Any through the global registry and aborts marshalling
-	// the whole message on the first miss. A remote satellite on a newer build
-	// can hand us a detail type we have never registered, so one bad child must
-	// not blank the healthy sibling or the root.
-	tree := node("", "", ph.Status_UNHEALTHY,
-		node("healthy-sibling", "tcp", ph.Status_HEALTHY),
-		node("future", "satellite", ph.Status_UNHEALTHY),
-	)
-	tree.Components[1].Details = []*anypb.Any{mustUnknownAny(t)}
-
-	canon := ui.Canonicalise(tree)
-
-	_, errBefore := marshalOpts.Marshal(canon)
-	require.Error(t, errBefore, "an unresolvable Any must still fail a direct marshal, or this test proves nothing")
-
-	out, err := marshalOpts.Marshal(ui.SanitiseForMarshal(canon))
-	require.NoError(t, err)
-	assert.NotEmpty(t, out)
-	assert.Contains(t, string(out), "healthy-sibling")
-	assert.Contains(t, string(out), "future")
-}
-
-func TestSanitiseForMarshalKeepsTypeURLVisible(t *testing.T) {
-	tree := node("future", "satellite", ph.Status_UNHEALTHY)
-	tree.Details = []*anypb.Any{mustUnknownAny(t)}
-
-	out, err := marshalOpts.Marshal(ui.SanitiseForMarshal(ui.Canonicalise(tree)))
-	require.NoError(t, err)
-	assert.Contains(t, string(out), unknownTypeURL)
-}
-
-func TestSanitiseForMarshalKnownDetailsByteIdentical(t *testing.T) {
-	// Known types must pass through untouched: SanitiseForMarshal must not
-	// change a single byte of what the scanner produces today.
-	a := node("x", "tls", ph.Status_HEALTHY)
-	a.Details = []*anypb.Any{mustAny(t, &details.Detail_TLS{CommonName: "example.com"})}
-	b := node("", "", ph.Status_HEALTHY, a, node("clean", "tcp", ph.Status_HEALTHY))
-
-	canon := ui.Canonicalise(b)
-
-	before, err := marshalOpts.Marshal(canon)
-	require.NoError(t, err)
-	after, err := marshalOpts.Marshal(ui.SanitiseForMarshal(canon))
-	require.NoError(t, err)
-
-	assert.Equal(t, before, after)
-}
-
-func TestSanitiseForMarshalUnknownDetailDeterministic(t *testing.T) {
+func TestSanitisedUnknownDetailHashStable(t *testing.T) {
 	// Two scans carrying the same unknown detail must produce identical bytes,
 	// or the hash flaps and the UI reports change on every poll.
 	build := func() *ph.HealthCheckResponse {
@@ -348,15 +385,54 @@ func TestSanitiseForMarshalUnknownDetailDeterministic(t *testing.T) {
 	}
 	first, second := build(), build()
 
-	outFirst, err := marshalOpts.Marshal(ui.SanitiseForMarshal(first))
+	outFirst, err := marshalOpts.Marshal(details.SanitiseResponse(first))
 	require.NoError(t, err)
-	outSecond, err := marshalOpts.Marshal(ui.SanitiseForMarshal(second))
+	outSecond, err := marshalOpts.Marshal(details.SanitiseResponse(second))
 	require.NoError(t, err)
 
 	assert.Equal(t, outFirst, outSecond)
 	assert.Equal(t, ui.Hash(first), ui.Hash(second))
 
-	// SanitiseForMarshal must not mutate the tree Hash and Transitions rely on.
+	// Sanitising must not mutate the tree Hash and Transitions rely on.
 	_, stillUnresolved := first.Details[0].UnmarshalNew()
 	assert.Error(t, stillUnresolved)
+}
+
+// TestHashGolden pins the digest of the checked-in fixture so a change to
+// the hashing scheme is a deliberate edit of this literal.
+func TestHashGolden(t *testing.T) {
+	data, err := os.ReadFile("testdata/fixture.json")
+	require.NoError(t, err)
+	var resp ph.HealthCheckResponse
+	require.NoError(t, protojson.Unmarshal(data, &resp))
+
+	assert.Equal(t, "5c75008ef6075e4216da33214aaad9cb1a26b809733dfe8b76838c3bd0b8e4e3", ui.Hash(ui.Canonicalise(&resp)))
+}
+
+func TestCanonicaliseAndHashMatchesHash(t *testing.T) {
+	// Shuffled, three levels deep, with duplicate names and a detail, so a
+	// single-pass digest has every shape to get wrong.
+	leafA := node("db", "tcp", ph.Status_HEALTHY)
+	leafA.Details = []*anypb.Any{mustAny(t, &details.Detail_TLS{CommonName: "a"})}
+	tree := node("", "", ph.Status_UNHEALTHY,
+		node("zulu", "system", ph.Status_UNHEALTHY,
+			node("db", "tcp", ph.Status_UNHEALTHY),
+			leafA,
+			node("api", "http", ph.Status_HEALTHY, node("deep", "tcp", ph.Status_HEALTHY)),
+		),
+		node("alpha", "tcp", ph.Status_HEALTHY),
+		node("alpha", "http", ph.Status_HEALTHY),
+	)
+
+	canon, hash := ui.CanonicaliseAndHash(tree)
+
+	assert.Equal(t, ui.Hash(canon), hash)
+	assert.Equal(t, ui.Hash(ui.Canonicalise(tree)), hash)
+	assert.True(t, proto.Equal(ui.Canonicalise(tree), canon))
+}
+
+func TestCanonicaliseAndHashNil(t *testing.T) {
+	canon, hash := ui.CanonicaliseAndHash(nil)
+	assert.Nil(t, canon)
+	assert.Equal(t, ui.Hash(nil), hash)
 }

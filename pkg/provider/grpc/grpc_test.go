@@ -12,7 +12,9 @@ import (
 	"google.golang.org/grpc/health/grpc_health_v1"
 	"google.golang.org/grpc/resolver"
 
+	"github.com/isometry/platform-health/pkg/client"
 	ph "github.com/isometry/platform-health/pkg/platform_health"
+	"github.com/isometry/platform-health/pkg/provider"
 	grpcProvider "github.com/isometry/platform-health/pkg/provider/grpc"
 )
 
@@ -97,6 +99,60 @@ func TestGetHealth(t *testing.T) {
 			require.NoError(t, tt.grpc.Setup())
 			service := tt.grpc.GetHealth(t.Context())
 			assert.Equal(t, tt.expected, service.Status)
+		})
+	}
+}
+
+// TestTLSSpecDecodesTriState checks that an omitted tls key stays unset while
+// an explicit false is preserved, since only an explicit false can force
+// plaintext on a port that otherwise implies TLS.
+func TestTLSSpecDecodesTriState(t *testing.T) {
+	unset, err := provider.NewInstance("grpc", provider.WithSpec(map[string]any{"host": "h"}))
+	require.NoError(t, err)
+	assert.Nil(t, unset.(*grpcProvider.Component).TLS)
+
+	off, err := provider.NewInstance("grpc", provider.WithSpec(map[string]any{"host": "h", "tls": false}))
+	require.NoError(t, err)
+	require.NotNil(t, off.(*grpcProvider.Component).TLS)
+	assert.False(t, *off.(*grpcProvider.Component).TLS)
+}
+
+// TestTLSOverrideOnImpliedPort runs a plaintext health server on a port the
+// dial helper treats as TLS-implied, so only an explicit tls: false can reach it.
+func TestTLSOverrideOnImpliedPort(t *testing.T) {
+	resolver.SetDefaultScheme("passthrough")
+
+	listener, err := net.Listen("tcp", "localhost:0")
+	require.NoError(t, err)
+	listenPort := listener.Addr().(*net.TCPAddr).Port
+
+	server := grpc.NewServer()
+	grpc_health_v1.RegisterHealthServer(server, health.NewServer())
+	go func() { _ = server.Serve(listener) }()
+	t.Cleanup(func() {
+		server.Stop()
+		_ = listener.Close()
+	})
+
+	saved := client.TLSPorts
+	client.TLSPorts = []int{listenPort}
+	t.Cleanup(func() { client.TLSPorts = saved })
+
+	off := false
+	tests := []struct {
+		name     string
+		tls      *bool
+		expected ph.Status
+	}{
+		{"unset implies tls and fails against plaintext", nil, ph.Status_UNHEALTHY},
+		{"explicit false forces plaintext", &off, ph.Status_HEALTHY},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			c := &grpcProvider.Component{Host: "localhost", Port: listenPort, TLS: tt.tls}
+			c.SetName("test")
+			require.NoError(t, c.Setup())
+			assert.Equal(t, tt.expected, c.GetHealth(t.Context()).Status)
 		})
 	}
 }

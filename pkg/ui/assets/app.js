@@ -7,44 +7,66 @@
   var COLLAPSE_THRESHOLD = 25;
   var EVENT_NAMES = ['snapshot', 'scan', 'scanning', 'scan-error', 'connection', 'shutdown'];
 
+  // Under node there is no document: export the pure functions for the unit
+  // tests in testdata/app_test.mjs and skip the DOM wiring below.
+  if (typeof document === 'undefined' && typeof module === 'object') {
+    module.exports = {
+      pathKey: pathKey,
+      buildIndex: buildIndex,
+      effectiveStatus: effectiveStatus,
+      statusClass: statusClass,
+      pathNames: pathNames,
+      pathCrumbs: pathCrumbs
+    };
+    return;
+  }
+
   // ---------------------------------------------------------------------
   // Pure functions: path keying, the tree walk, duration parsing and the
   // reconciler diff. No DOM access below this section.
   // ---------------------------------------------------------------------
 
-  // Exactly two replacements, percent first, then slash: this must match the
-  // server's PathKey byte for byte or transitions silently fail to match.
+  // Exactly three replacements, percent, slash, then hash: this must match
+  // the server's PathKey byte for byte or transitions silently fail to match.
+  // An empty name becomes "%", which no escaped name can be.
   function pathKey(parent, name) {
-    var escaped = name.replace(/%/g, '%25').replace(/\//g, '%2F');
+    var escaped = name.replace(/%/g, '%25').replace(/\//g, '%2F').replace(/#/g, '%23');
+    if (escaped === '') escaped = '%';
     return parent === '' ? escaped : parent + '/' + escaped;
   }
 
   // Walks the tree ourselves rather than via any flatten helper, so
-  // satellite nodes and every Components entry stay in the index.
-  function visitNode(node, parentActualPath, index) {
+  // satellite nodes and every Components entry stay in the index. The second
+  // and later siblings sharing a name get "#2", "#3" and so on, counted in
+  // the server's canonical sibling order, which is the order the payload
+  // arrives in.
+  function visitNode(node, parentActualPath, index, ordinal) {
     var path;
-    if (node && node.name) {
-      var pkParent = (parentActualPath === null || parentActualPath === ROOT_PATH) ? '' : parentActualPath;
-      path = pathKey(pkParent, node.name);
-    } else if (parentActualPath === null) {
+    if (parentActualPath === null) {
       path = ROOT_PATH;
     } else {
-      path = parentActualPath;
+      var pkParent = parentActualPath === ROOT_PATH ? '' : parentActualPath;
+      path = pathKey(pkParent, (node && node.name) || '');
+      if (ordinal > 1) path += '#' + ordinal;
     }
 
     var entry = { path: path, parentPath: parentActualPath, node: node || {}, childPaths: [] };
     index.set(path, entry);
 
     var children = (node && node.components) || [];
+    var seen = new Map();
     for (var i = 0; i < children.length; i++) {
-      entry.childPaths.push(visitNode(children[i], path, index));
+      var name = (children[i] && children[i].name) || '';
+      var n = (seen.get(name) || 0) + 1;
+      seen.set(name, n);
+      entry.childPaths.push(visitNode(children[i], path, index, n));
     }
     return path;
   }
 
   function buildIndex(root) {
     var index = new Map();
-    visitNode(root, null, index);
+    visitNode(root, null, index, 1);
     return index;
   }
 
@@ -60,8 +82,11 @@
     return { added: added, removed: removed };
   }
 
+  // protojson writes an enum value this build does not know as a bare number,
+  // so the status is coerced to a string here, the one place every read passes.
   function effectiveStatus(node) {
-    return (node && node.status) || 'UNKNOWN';
+    var status = node && node.status;
+    return status ? String(status) : 'UNKNOWN';
   }
 
   function statusClass(status) {
@@ -394,13 +419,18 @@
     };
   }
 
+  // A key segment back to the name it was built from: the ordinal suffix is
+  // dropped and the escapes are undone, %25 last so "%2523" decodes correctly.
+  function segmentName(part) {
+    return part.replace(/#\d+$/, '')
+      .replace(/%2F/g, '/').replace(/%23/g, '#').replace(/%25/g, '%');
+  }
+
   // The path key is the ancestry, so the readable trail comes straight out of
   // it. Escaped separators are put back, since these are names, not keys.
   function pathNames(path) {
     if (!path || path === ROOT_PATH) return [];
-    return path.split('/').map(function (part) {
-      return part.replace(/%2F/g, '/').replace(/%25/g, '%');
-    });
+    return path.split('/').map(segmentName);
   }
 
   // Cumulative path keys with their readable names, so each crumb can select
@@ -413,7 +443,7 @@
     var acc = '';
     for (var i = 0; i < parts.length; i++) {
       acc = acc ? acc + '/' + parts[i] : parts[i];
-      out.push({ key: acc, name: parts[i].replace(/%2F/g, '/').replace(/%25/g, '%') });
+      out.push({ key: acc, name: segmentName(parts[i]) });
     }
     return out;
   }
@@ -996,6 +1026,7 @@
     connection: null,
     refreshMs: 0,
     scanState: 'idle',
+    scanningSeq: null,
     queuedFollowUp: false,
     // Server-reported start of the running scan, which is what makes the
     // elapsed readout the scan's own age rather than the age of a click.
@@ -1649,17 +1680,9 @@
   // so this never has to reposition anything by hand.
   // ---------------------------------------------------------------------
 
-  // These four constants and clampRailWidth are duplicated in theme.js, which
-  // restores the width pre-paint and cannot import from here. Keep both in sync.
-  var RAIL_WIDTH_KEY = 'ph-ui-rail-width';
-  var RAIL_WIDTH_DEFAULT = 280;
-  var RAIL_WIDTH_MIN = 200;
-  var RAIL_WIDTH_MAX_RATIO = 0.45;
-
-  function clampRailWidth(width) {
-    var max = window.innerWidth * RAIL_WIDTH_MAX_RATIO;
-    return Math.min(Math.max(width, RAIL_WIDTH_MIN), max);
-  }
+  // The rail width policy (storage key, default, bounds, clamp) is owned by
+  // theme.js, which restores the width before first paint and runs first.
+  var rail = window.phRail;
 
   function readStoredFollow() {
     try {
@@ -1680,7 +1703,7 @@
 
   function writeStoredRailWidth(width) {
     try {
-      window.localStorage.setItem(RAIL_WIDTH_KEY, String(Math.round(width)));
+      window.localStorage.setItem(rail.key, String(Math.round(width)));
     } catch (e) {
       // Blocked site data: same fallback as theme.js, the width just won't
       // survive a reload.
@@ -1690,7 +1713,7 @@
   function currentRailWidth(root) {
     var raw = getComputedStyle(root).getPropertyValue('--rail-width');
     var value = parseFloat(raw);
-    return Number.isFinite(value) ? value : RAIL_WIDTH_DEFAULT;
+    return Number.isFinite(value) ? value : rail.defaultWidth;
   }
 
   function isRailCollapsed(root) {
@@ -1704,12 +1727,12 @@
 
     function updateAria(width) {
       handle.setAttribute('aria-valuenow', String(Math.round(width)));
-      handle.setAttribute('aria-valuemin', String(RAIL_WIDTH_MIN));
-      handle.setAttribute('aria-valuemax', String(Math.round(window.innerWidth * RAIL_WIDTH_MAX_RATIO)));
+      handle.setAttribute('aria-valuemin', String(rail.min));
+      handle.setAttribute('aria-valuemax', String(Math.round(window.innerWidth * rail.maxRatio)));
     }
 
     function applyWidth(width) {
-      var clamped = clampRailWidth(width);
+      var clamped = rail.clamp(width);
       root.style.setProperty('--rail-width', clamped + 'px');
       updateAria(clamped);
       return clamped;
@@ -1755,7 +1778,7 @@
 
     handle.addEventListener('dblclick', function () {
       if (isRailCollapsed(root)) return;
-      writeStoredRailWidth(applyWidth(RAIL_WIDTH_DEFAULT));
+      writeStoredRailWidth(applyWidth(rail.defaultWidth));
     });
 
     handle.addEventListener('keydown', function (e) {
@@ -1767,9 +1790,9 @@
       } else if (e.key === 'ArrowRight') {
         width = applyWidth(width + step);
       } else if (e.key === 'Home') {
-        width = applyWidth(RAIL_WIDTH_MIN);
+        width = applyWidth(rail.min);
       } else if (e.key === 'End') {
-        width = applyWidth(window.innerWidth * RAIL_WIDTH_MAX_RATIO);
+        width = applyWidth(window.innerWidth * rail.maxRatio);
       } else {
         return;
       }
@@ -3157,6 +3180,15 @@
     model.index = newIndex;
     model.scanID = payload.scanID;
     model.seq = payload.seq;
+    // A snapshot at or past the scan this tab was told is running proves that
+    // scan finished while the stream was down; the scan frame that said so
+    // was lost with the stream, so the snapshot is the completion signal.
+    if (model.scanState === 'scanning' && model.scanningSeq !== null &&
+        typeof payload.seq === 'number' && payload.seq >= model.scanningSeq) {
+      model.scanState = 'idle';
+      model.queuedFollowUp = false;
+      model.scanStartedAt = null;
+    }
     model.observedAt = payload.observedAt;
     model.transitions = payload.transitions || [];
     model.isFirstSnapshot = isFirst;
@@ -3226,6 +3258,7 @@
 
   function handleScanning(payload) {
     model.scanState = 'scanning';
+    model.scanningSeq = (payload && typeof payload.seq === 'number') ? payload.seq : null;
     model.queuedFollowUp = Boolean(payload && payload.queuedFollowUp);
     // A replayed scanning frame can be seconds old, so the elapsed readout
     // starts from the server's startedAt, not from now.

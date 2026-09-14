@@ -9,6 +9,7 @@ import (
 	"encoding/hex"
 	"io"
 	"slices"
+	"strconv"
 	"strings"
 
 	"google.golang.org/protobuf/proto"
@@ -25,79 +26,73 @@ type Transition struct {
 	To   string `json:"to"`
 }
 
-// RootPath is the Transitions key for the root, which has no name. Escaping
-// below only replaces bytes, never removes them, so a real PathKey output is
-// never empty and a "/" separator never appears next to an empty segment.
-// A real path is therefore never exactly "/", which is why it is safe here.
+// RootPath is the Transitions key for the root, which has no name. A segment
+// is never empty (see unnamedSegment) and never contains a bare "/", so no
+// real path is exactly "/".
 const RootPath = "/"
 
-// PathKey joins a parent path and a component name, escaping only % and /, in
-// that order. The browser recomputes these keys with the identical two
-// replacements, so the scheme is deliberately minimal: it covers the separator
-// and its own escape character and nothing else. Do not widen it, and do not
+// unnamedSegment keys a non-root node with an empty name. Escaping rewrites
+// every "%" as "%25", so no escaped name is ever a bare "%".
+const unnamedSegment = "%"
+
+// PathKey joins a parent path and a component name, escaping only %, / and #,
+// in that order. The browser recomputes these keys with the identical three
+// replacements, so the scheme is deliberately minimal: the separator, the
+// ordinal marker and the escape character itself. Do not widen it, and do not
 // reach for url.PathEscape or encodeURIComponent, which escape different sets
 // and would make server and client disagree for names like "ssh@localhost",
 // with no error on either side.
 func PathKey(parent, name string) string {
 	escaped := strings.ReplaceAll(name, "%", "%25")
 	escaped = strings.ReplaceAll(escaped, "/", "%2F")
+	escaped = strings.ReplaceAll(escaped, "#", "%23")
+	if escaped == "" {
+		escaped = unnamedSegment
+	}
 	if parent == "" {
 		return escaped
 	}
 	return parent + "/" + escaped
 }
 
+// ordinalKey appends "#n" for the second and later siblings sharing a name,
+// counted in canonical sibling order. "#" never occurs in an escaped name, so
+// "db#2" cannot collide with a real name.
+func ordinalKey(key string, n int) string {
+	if n <= 1 {
+		return key
+	}
+	return key + "#" + strconv.Itoa(n)
+}
+
 // Canonicalise returns a deep copy, unmutated, with children sorted by (name, type),
 // tied on each child's own content digest so identical siblings don't depend on arrival order.
 func Canonicalise(resp *ph.HealthCheckResponse) *ph.HealthCheckResponse {
+	canon, _ := CanonicaliseAndHash(resp)
+	return canon
+}
+
+// CanonicaliseAndHash is Canonicalise plus Hash of the result, digesting each
+// subtree once: the digest sortTree computes for its tie-break is the same one
+// Hash would recompute.
+func CanonicaliseAndHash(resp *ph.HealthCheckResponse) (*ph.HealthCheckResponse, string) {
 	if resp == nil {
-		return nil
+		return nil, Hash(nil)
 	}
 	out := proto.Clone(resp).(*ph.HealthCheckResponse)
-	sortTree(out)
-	return out
+	return out, hex.EncodeToString(sortTree(out))
 }
 
-// SanitiseForMarshal returns a deep copy with every detail protojson cannot
-// resolve replaced by a stand-in that marshals. protojson resolves Any
-// through the global type registry and aborts marshalling the whole message
-// on the first miss, so one child with an unregistered detail type would
-// otherwise blank the entire snapshot, healthy siblings included.
-//
-// The input is never mutated. It is typically the canonicalised tree, which
-// the scanner also uses for Hash and Transitions; those already tolerate an
-// unresolvable detail (writeDetail falls back to the raw type URL and bytes,
-// and Transitions never looks at details at all), so only the copy destined
-// for the wire needs this pass.
-func SanitiseForMarshal(resp *ph.HealthCheckResponse) *ph.HealthCheckResponse {
-	if resp == nil {
-		return nil
-	}
-	out := proto.Clone(resp).(*ph.HealthCheckResponse)
-	sanitiseTree(out)
-	return out
-}
-
-func sanitiseTree(n *ph.HealthCheckResponse) {
-	for i, d := range n.GetDetails() {
-		n.Details[i] = details.SanitiseAny(d)
-	}
-	for _, c := range n.GetComponents() {
-		sanitiseTree(c)
-	}
-}
-
-func sortTree(n *ph.HealthCheckResponse) {
-	for _, c := range n.Components {
-		sortTree(c)
-	}
+// sortTree sorts n's children recursively and returns n's digest, computing
+// each subtree's digest exactly once, bottom-up.
+func sortTree(n *ph.HealthCheckResponse) []byte {
 	type child struct {
 		node   *ph.HealthCheckResponse
 		digest []byte
 	}
 	children := make([]child, len(n.Components))
 	for i, c := range n.Components {
-		children[i] = child{c, nodeDigest(c)}
+		children[i] = child{c, sortTree(c)}
 	}
 	slices.SortFunc(children, func(a, b child) int {
 		if c := strings.Compare(a.node.GetName(), b.node.GetName()); c != 0 {
@@ -111,6 +106,7 @@ func sortTree(n *ph.HealthCheckResponse) {
 	for i, c := range children {
 		n.Components[i] = c.node
 	}
+	return digestNode(n, func(i int) []byte { return children[i].digest })
 }
 
 // Hash digests a canonicalised tree, excluding duration (it jitters every scan)
@@ -120,8 +116,15 @@ func Hash(resp *ph.HealthCheckResponse) string {
 }
 
 // nodeDigest hashes a node's content plus its children's digests, length-prefixing
-// every field so concatenation can't collide. Also used by sortTree as a sibling tiebreaker.
+// every field so concatenation can't collide.
 func nodeDigest(n *ph.HealthCheckResponse) []byte {
+	return digestNode(n, func(i int) []byte { return nodeDigest(n.Components[i]) })
+}
+
+// digestNode is nodeDigest with the children's digests supplied by childDigest,
+// so sortTree can reuse the ones it already holds. Children are digested in
+// their current (sorted) order.
+func digestNode(n *ph.HealthCheckResponse, childDigest func(i int) []byte) []byte {
 	h := sha256.New()
 	if n == nil {
 		return h.Sum(nil)
@@ -147,8 +150,8 @@ func nodeDigest(n *ph.HealthCheckResponse) []byte {
 
 	children := n.GetComponents()
 	writeUint64(h, uint64(len(children)))
-	for _, c := range children {
-		h.Write(nodeDigest(c))
+	for i := range children {
+		h.Write(childDigest(i))
 	}
 	return h.Sum(nil)
 }
@@ -219,8 +222,8 @@ func writeString(w io.Writer, s string) {
 // A path in only one tree gets an empty From or To; the root is reported under RootPath.
 func Transitions(prev, next *ph.HealthCheckResponse) []Transition {
 	before, after := map[string]string{}, map[string]string{}
-	collectStatuses(before, "", prev)
-	collectStatuses(after, "", next)
+	collectStatuses(before, prev)
+	collectStatuses(after, next)
 
 	var out []Transition
 	for path, to := range after {
@@ -239,19 +242,20 @@ func Transitions(prev, next *ph.HealthCheckResponse) []Transition {
 	return out
 }
 
-func collectStatuses(m map[string]string, parent string, n *ph.HealthCheckResponse) {
-	if n == nil {
+func collectStatuses(m map[string]string, root *ph.HealthCheckResponse) {
+	if root == nil {
 		return
 	}
-	path := parent
-	switch {
-	case n.GetName() != "":
-		path = PathKey(parent, n.GetName())
-		m[path] = n.GetStatus().String()
-	case parent == "":
-		m[RootPath] = n.GetStatus().String()
-	}
+	m[RootPath] = root.GetStatus().String()
+	collectChildren(m, "", root)
+}
+
+func collectChildren(m map[string]string, parent string, n *ph.HealthCheckResponse) {
+	seen := map[string]int{}
 	for _, c := range n.GetComponents() {
-		collectStatuses(m, path, c)
+		seen[c.GetName()]++
+		path := ordinalKey(PathKey(parent, c.GetName()), seen[c.GetName()])
+		m[path] = c.GetStatus().String()
+		collectChildren(m, path, c)
 	}
 }

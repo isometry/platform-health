@@ -38,7 +38,7 @@ import (
 	// a type is unregistered, and that error kills marshalling of the entire
 	// response, not just the detail. Without this every scan fails the moment
 	// any provider sets detail: true.
-	_ "github.com/isometry/platform-health/pkg/platform_health/details"
+	"github.com/isometry/platform-health/pkg/platform_health/details"
 )
 
 // TriggerState reports what a Trigger call did, so the UI can say "scanning,
@@ -49,14 +49,6 @@ const (
 	TriggerStarted   TriggerState = "started"
 	TriggerQueued    TriggerState = "queued"
 	TriggerCoalesced TriggerState = "coalesced"
-)
-
-// ScanState is the scanner's current activity, replayed to new subscribers.
-type ScanState string
-
-const (
-	ScanIdle    ScanState = "idle"
-	ScanRunning ScanState = "scanning"
 )
 
 const (
@@ -80,32 +72,26 @@ type ScannerConfig struct {
 // internal/output mutates its argument and Flatten aliases its slices, so a
 // live message must never escape. Replay frames are kept encoded.
 type store struct {
-	payload     []byte
-	canon       *ph.HealthCheckResponse
-	hash        string
-	scanID      string
-	seq         uint64
-	observedAt  time.Time
-	transitions []Transition
-	lastError   string
-	scanState   ScanState
+	payload []byte
+	canon   *ph.HealthCheckResponse
+	hash    string
 
 	snapshotFrame *frame
+	scanFrame     *frame
 	errorFrame    *frame
 	scanningFrame *frame
 	connFrame     *frame
 }
 
-// StoreState is a consistent read of the store for HTTP handlers.
-type StoreState struct {
-	Snapshot    []byte
-	Hash        string
-	ScanID      string
-	Seq         uint64
-	ObservedAt  time.Time
-	Transitions []Transition
-	LastError   string
-	ScanState   ScanState
+// scanResult carries one scan's outcome from the check goroutine back into
+// the loop.
+type scanResult struct {
+	scanID  string
+	seq     uint64
+	reason  string
+	started time.Time
+	resp    *ph.HealthCheckResponse
+	err     error
 }
 
 // Scanner owns the gRPC connection, the refresh timer and the subscriber
@@ -124,6 +110,9 @@ type Scanner struct {
 	register   chan *Subscriber
 	unregister chan *Subscriber
 	connState  chan connectivity.State
+	// scanDone has capacity one and at most one scan is in flight, so the
+	// check goroutine never blocks on it, even after Run has returned.
+	scanDone chan scanResult
 
 	// shutdown is closed by Release to let SSE handlers return; done is closed
 	// by Run when the loop exits.
@@ -219,10 +208,10 @@ func newScanner(rootCtx context.Context, cfg ScannerConfig, target string) *Scan
 		register:   make(chan *Subscriber),
 		unregister: make(chan *Subscriber),
 		connState:  make(chan connectivity.State, 1),
+		scanDone:   make(chan scanResult, 1),
 		shutdown:   make(chan struct{}),
 		done:       make(chan struct{}),
 		subs:       make(map[*Subscriber]struct{}),
-		store:      store{scanState: ScanIdle},
 	}
 }
 
@@ -276,10 +265,8 @@ func (s *Scanner) Trigger(reason string) TriggerState {
 }
 
 // Subscribe registers a new SSE subscriber and replays current state to it.
-//
-// It blocks until the loop reaches its select, which during a scan means up to
-// one full scan timeout. Handlers must write and flush their SSE headers first,
-// or a browser sees a hung request.
+// It blocks only until the loop reaches its select; a scan in flight runs on
+// its own goroutine and does not hold the loop.
 func (s *Scanner) Subscribe() *Subscriber {
 	sub := newSubscriber()
 	select {
@@ -305,24 +292,6 @@ func (s *Scanner) Unsubscribe(sub *Subscriber) {
 // events: a dialled address, or "fixture:<path>" in fixture mode.
 func (s *Scanner) Target() string {
 	return s.target
-}
-
-// State returns a consistent read of the store. The returned slices are
-// immutable and must not be modified.
-func (s *Scanner) State() StoreState {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-
-	return StoreState{
-		Snapshot:    s.store.payload,
-		Hash:        s.store.hash,
-		ScanID:      s.store.scanID,
-		Seq:         s.store.seq,
-		ObservedAt:  s.store.observedAt,
-		Transitions: s.store.transitions,
-		LastError:   s.store.lastError,
-		ScanState:   s.store.scanState,
-	}
 }
 
 // Run is the scan loop. It returns when rootCtx is done.
@@ -352,13 +321,36 @@ func (s *Scanner) Run() {
 	defer timer.Stop()
 
 	for {
+		// While a scan is in flight the trigger and timer cases are disabled
+		// by nil-ing their channels, so neither can start a second scan. A
+		// trigger sent meanwhile waits in its buffer and is taken up as soon
+		// as the scan completes, which is the "one running, one queued"
+		// contract Trigger reports.
+		var (
+			trigger <-chan string
+			tick    <-chan time.Time
+		)
+		if !s.scanning.Load() {
+			trigger, tick = s.trigger, timer.C
+		}
+
 		select {
 		case <-s.rootCtx.Done():
+			// The scan context derives from rootCtx, so the check returns
+			// promptly; wait for it so Done means no scan goroutine is alive.
+			if s.scanning.Load() {
+				<-s.scanDone
+			}
 			return
 
 		case sub := <-s.register:
 			s.subs[sub] = struct{}{}
 			s.replayTo(sub)
+			if s.scanning.Load() {
+				// The running scan will land a snapshot; the timer is armed
+				// from its completion.
+				break
+			}
 			if len(s.subs) == 1 {
 				s.armTimer(timer)
 			}
@@ -376,18 +368,22 @@ func (s *Scanner) Run() {
 			// provider.Check mid-probe on the server, leaving half-open
 			// connections against production endpoints on every closed tab.
 
-		case reason := <-s.trigger:
-			s.runScan(reason)
-			// Reset from COMPLETION, never a fixed ticker: a ticker period
-			// shorter than a slow scan leaves the next tick already pending.
-			s.armTimer(timer)
+		case reason := <-trigger:
+			s.startScan(reason)
 
-		case <-timer.C:
+		case <-tick:
 			// Re-check: Stop does not drain an already-delivered tick. The
 			// floor also bounds auto-triggered scans when --refresh is short.
 			if len(s.subs) > 0 && time.Since(s.lastAttempt) >= s.floor() {
-				s.runScan("refresh")
+				s.startScan("refresh")
+			} else {
+				s.armTimer(timer)
 			}
+
+		case res := <-s.scanDone:
+			s.finishScan(res)
+			// Reset from COMPLETION, never a fixed ticker: a ticker period
+			// shorter than a slow scan leaves the next tick already pending.
 			s.armTimer(timer)
 
 		case state := <-s.connState:
@@ -396,26 +392,17 @@ func (s *Scanner) Run() {
 	}
 }
 
-// runScan performs one scan and broadcasts its outcome.
-func (s *Scanner) runScan(reason string) {
-	var (
-		scanID string
-		seq    uint64
-	)
-	// Registered first so it covers every statement below, uuid included: one
-	// bad response must not kill polling for every viewer.
-	defer func() {
-		if r := recover(); r != nil {
-			s.failScan(scanID, seq, fmt.Errorf("panic during %s scan: %v", reason, r))
-		}
-	}()
-
-	seq = s.seq.Add(1)
-	scanID = uuid.Must(uuid.NewV7()).String()
+// startScan allocates the scan's identity, announces it and launches the
+// check on its own goroutine. The loop stays free to serve subscribers; the
+// result comes back through scanDone.
+func (s *Scanner) startScan(reason string) {
+	seq := s.seq.Add(1)
+	scanID, err := newScanID()
+	if err != nil {
+		s.failScan("", seq, err)
+		return
+	}
 	started := time.Now()
-
-	s.scanning.Store(true)
-	defer s.scanning.Store(false)
 
 	scanningFrame, err := encodeEvent(eventScanning, scanningEvent{
 		ScanID:         scanID,
@@ -429,21 +416,51 @@ func (s *Scanner) runScan(reason string) {
 		return
 	}
 	s.beginScan(scanningFrame)
-	defer s.endScan()
 	s.broadcast(scanningFrame)
+	s.lastAttempt = started
+	s.scanning.Store(true)
 
 	ctx, cancel := context.WithTimeout(s.rootCtx, s.cfg.Timeout)
-	defer cancel()
+	go func() {
+		defer cancel()
+		res := scanResult{scanID: scanID, seq: seq, reason: reason, started: started}
+		defer func() {
+			if r := recover(); r != nil {
+				res.err = fmt.Errorf("panic during %s scan: %v", reason, r)
+			}
+			s.scanDone <- res
+		}()
+		res.resp, res.err = s.check(ctx)
+	}()
+}
 
-	s.lastAttempt = started
-	resp, err := s.check(ctx)
+// newScanID returns a time-ordered UUIDv7 without the panic uuid.Must carries.
+func newScanID() (string, error) {
+	id, err := uuid.NewV7()
 	if err != nil {
-		s.failScan(scanID, seq, fmt.Errorf("%s scan: %w", reason, err))
+		return "", fmt.Errorf("scan id: %w", err)
+	}
+	return id.String(), nil
+}
+
+// finishScan takes a completed scan back on the loop goroutine: it
+// canonicalises, diffs, marshals once, stores the bytes and broadcasts.
+func (s *Scanner) finishScan(res scanResult) {
+	defer s.scanning.Store(false)
+	defer s.endScan()
+	// One bad response must not kill polling for every viewer.
+	defer func() {
+		if r := recover(); r != nil {
+			s.failScan(res.scanID, res.seq, fmt.Errorf("panic during %s scan: %v", res.reason, r))
+		}
+	}()
+
+	if res.err != nil {
+		s.failScan(res.scanID, res.seq, fmt.Errorf("%s scan: %w", res.reason, res.err))
 		return
 	}
 
-	canon := Canonicalise(resp)
-	hash := Hash(canon)
+	canon, hash := CanonicaliseAndHash(res.resp)
 	transitions := Transitions(s.store.canon, canon)
 
 	// Marshal ONCE, here, and store only bytes. Multiline would corrupt the
@@ -455,9 +472,9 @@ func (s *Scanner) runScan(reason string) {
 	payload, err := protojson.MarshalOptions{
 		Multiline:         false,
 		EmitDefaultValues: true,
-	}.Marshal(SanitiseForMarshal(canon))
+	}.Marshal(details.SanitiseResponse(canon))
 	if err != nil {
-		s.failScan(scanID, seq, fmt.Errorf("marshal snapshot: %w", err))
+		s.failScan(res.scanID, res.seq, fmt.Errorf("marshal snapshot: %w", err))
 		return
 	}
 
@@ -466,26 +483,26 @@ func (s *Scanner) runScan(reason string) {
 
 	snapshotFrame, err := encodeEvent(eventSnapshot, snapshotEvent{
 		Snapshot:    payload,
-		ScanID:      scanID,
-		Seq:         seq,
+		ScanID:      res.scanID,
+		Seq:         res.seq,
 		ObservedAt:  observedAt,
 		Transitions: transitions,
 	})
 	if err != nil {
-		s.failScan(scanID, seq, err)
+		s.failScan(res.scanID, res.seq, err)
 		return
 	}
 
 	scanFrame, err := encodeEvent(eventScan, scanEvent{
-		ScanID:     scanID,
-		Seq:        seq,
-		Reason:     reason,
+		ScanID:     res.scanID,
+		Seq:        res.seq,
+		Reason:     res.reason,
 		ObservedAt: observedAt,
-		DurationMs: observedAt.Sub(started).Milliseconds(),
+		DurationMs: observedAt.Sub(res.started).Milliseconds(),
 		Changed:    changed,
 	})
 	if err != nil {
-		s.failScan(scanID, seq, err)
+		s.failScan(res.scanID, res.seq, err)
 		return
 	}
 
@@ -493,13 +510,9 @@ func (s *Scanner) runScan(reason string) {
 	s.store.payload = payload
 	s.store.canon = canon
 	s.store.hash = hash
-	s.store.scanID = scanID
-	s.store.seq = seq
-	s.store.observedAt = observedAt
-	s.store.transitions = transitions
-	s.store.lastError = ""
 	s.store.errorFrame = nil
 	s.store.snapshotFrame = &snapshotFrame
+	s.store.scanFrame = &scanFrame
 	s.mu.Unlock()
 
 	// Liveness on EVERY scan, changed or not: this is what makes suppressing
@@ -525,7 +538,6 @@ func (s *Scanner) failScan(scanID string, seq uint64, err error) {
 	}
 
 	s.mu.Lock()
-	s.store.lastError = err.Error()
 	s.store.errorFrame = &f
 	s.mu.Unlock()
 
@@ -536,14 +548,12 @@ func (s *Scanner) beginScan(f frame) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.store.scanningFrame = &f
-	s.store.scanState = ScanRunning
 }
 
 func (s *Scanner) endScan() {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.store.scanningFrame = nil
-	s.store.scanState = ScanIdle
 }
 
 func (s *Scanner) haveSnapshot() bool {
@@ -559,14 +569,18 @@ func (s *Scanner) broadcast(f frame) {
 	}
 }
 
-// replayTo sends a new subscriber the full current state: connection, snapshot,
-// current error and scan-in-progress. A tab connecting after a failed first
-// scan must not see an unexplained blank page.
+// replayTo sends a new subscriber the full current state: connection, last
+// snapshot, the scan that produced it, current error and scan-in-progress.
+// The scan frame tells a reconnecting tab that the scan it saw start has
+// finished; the error follows it chronologically, and the scanning frame is
+// last because it is the newest. A tab connecting after a failed first scan
+// must not see an unexplained blank page.
 func (s *Scanner) replayTo(sub *Subscriber) {
 	s.mu.RLock()
 	replay := []*frame{
 		s.store.connFrame,
 		s.store.snapshotFrame,
+		s.store.scanFrame,
 		s.store.errorFrame,
 		s.store.scanningFrame,
 	}

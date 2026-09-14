@@ -16,7 +16,7 @@ go test -tags ui ./...       # runs pkg/ui's tests as well
 
 The tag keeps the embedded assets, the HTTP server and the SSE machinery out of a build that only needs to probe components. Releases go the other way: `.goreleaser.yml` gives the `unified` build and the `kos` image a shared `&dashboardFlags` anchor carrying `-tags=ui`, while the `phc` and `phs` builds override `flags` with `-trimpath` alone. CI compiles and tests both ways.
 
-The Helm chart runs the dashboard as a sidecar when `ui.enabled` is set, using the same image with `ui --listen=0.0.0.0:8090 --allow-remote --server=127.0.0.1 --port=8080`. Enabling it also names the Service's ports, since a Service with more than one port cannot leave them unnamed.
+The Helm chart runs the dashboard as a sidecar when `ui.enabled` is set, using the same image with `ui --listen=0.0.0.0:<ui.port> --allow-remote --server=127.0.0.1 --port=<containerPort>`, plus anything in `ui.extraArgs`. The non-loopback bind is what lets the kubelet's HTTP probes, which arrive with the pod IP as `Host`, reach the sidecar. Enabling it also names the Service's ports, since a Service with more than one port cannot leave them unnamed.
 
 ## Package layout
 
@@ -74,7 +74,7 @@ The dashboard has no authentication. Loopback binding is the default, and `--all
 - **DNS rebinding.** An attacker's page rebinds to `127.0.0.1`, becomes same-origin, opens the `EventSource`, and reads the whole snapshot: internal hostnames, namespaces and resource names, Vault addresses, TLS SANs, satellite topology.
 - **CSRF.** A cross-origin `<form method=POST action="http://127.0.0.1:8090/api/scan">` is a simple request, so it is never preflighted. CORS would block reading the response, not sending the request, and every scan re-probes the whole estate.
 
-`guard` in [`pkg/ui/http.go`](../../pkg/ui/http.go) wraps every route, and `Mux` is the only constructor, so an unguarded handler cannot be assembled by accident. It rejects any `Host` outside the listen address and its loopback spellings, rejects a POST whose `Sec-Fetch-Site` is not `same-origin` (falling back to a matching `Origin` for browsers that omit it), and sets `Content-Security-Policy: default-src 'none'; script-src 'self'; style-src 'self'; connect-src 'self'` plus `X-Content-Type-Options: nosniff` on every response.
+`guard` in [`pkg/ui/http.go`](../../pkg/ui/http.go) wraps every route, and `Mux` is the only constructor, so an unguarded handler cannot be assembled by accident. `Mux` takes the bound listener address rather than the `--listen` string, so an ephemeral `:0` bind guards its real port. For a loopback bind it rejects any `Host` outside that address, its loopback spellings and, on port 80, their port-less forms. For a non-loopback bind, which `--allow-remote` has already authorised, there is no enumerable set of valid Hosts (a kubelet probe sends the pod IP, a viewer sends whatever name routes to the pod), so the Host check is skipped and DNS-rebinding defence falls to the network. In both modes it rejects a POST whose `Sec-Fetch-Site` is not `same-origin` (falling back, for browsers that omit it, to an `Origin` that names the request's own `Host`), and sets `Content-Security-Policy: default-src 'none'; script-src 'self'; style-src 'self'; connect-src 'self'` plus `X-Content-Type-Options: nosniff` on every response.
 
 Component `messages` carry remote error text: failed dials, HTTP bodies, Kubernetes API errors. The browser code builds every node with `createElement` and `textContent` and never assigns `innerHTML`.
 
@@ -122,7 +122,7 @@ protojson resolves `Any` through the global registry and aborts the whole messag
 
 ### Transitions include the root
 
-`Transitions` diffs per-path statuses between the previous and current canonical trees. The root is the one node the server leaves unnamed, and dropping it would discard "the estate as a whole just went unhealthy", so it is reported under the reserved key `/`. `PathKey` escapes only `%` and `/`, in that order, and the browser recomputes keys with the identical two replacements; widening the scheme on either side would silently desynchronise them for a name like `ssh@localhost`.
+`Transitions` diffs per-path statuses between the previous and current canonical trees. The root is the one node the server leaves unnamed, and dropping it would discard "the estate as a whole just went unhealthy", so it is reported under the reserved key `/`. `PathKey` escapes only `%`, `/` and `#`, in that order, keys an unnamed non-root node as `%`, and the browser recomputes keys with the identical replacements; widening the scheme on either side would silently desynchronise them for a name like `ssh@localhost`. The second and later siblings sharing a name are suffixed `#2`, `#3` and so on in canonical order. Canonical order ties on content digest, so twins whose non-status content changes can swap ordinals and misattribute a transition between them; unique names upstream are the real fix.
 
 ### Shutdown order
 
@@ -139,7 +139,7 @@ Six named event types on one stream. Named events mean `onmessage` never fires, 
 | Event | Payload | When |
 |---|---|---|
 | `snapshot` | protojson tree, `scanID`, `seq`, `observedAt`, `transitions[]` | on change, and on subscribe |
-| `scan` | `scanID`, `seq`, `reason`, `observedAt`, `durationMs`, `changed` | after every completed scan |
+| `scan` | `scanID`, `seq`, `reason`, `observedAt`, `durationMs`, `changed` | after every completed scan, and on subscribe |
 | `scanning` | `scanID`, `seq`, `reason`, `startedAt`, `queuedFollowUp` | scan started |
 | `scan-error` | gRPC code and message | scan failed |
 | `connection` | channel state, severity, target, refresh interval | on a state change |
@@ -174,9 +174,9 @@ Responses carry `Content-Type: text/event-stream`, `Cache-Control: no-cache, no-
 
 **The hub never writes bytes.** Each subscriber holds a mutex-guarded pending snapshot, a bounded drop-oldest ring of 64 transient events, and a capacity-1 doorbell. The pending snapshot is replaced rather than queued, since snapshots are full state and dropping an intermediate is correct. The handler goroutine is the sole writer for its subscriber, because `http.ResponseWriter` is not safe for concurrent use. Lock order is scanner then subscriber; only the hub closes a subscriber, and the handler reads the doorbell two-valued, since a closed channel is permanently ready and a bare receive would spin.
 
-Every write is preceded by `SetWriteDeadline` through `http.NewResponseController`. Without it, a backgrounded tab stops reading, the kernel send buffer fills, and the handler parks in `write(2)` indefinitely while `r.Context()` stays live because the connection is still open. That goroutine also blocks shutdown. The handler writes and flushes its headers and the `retry:` line before subscribing, because `Subscribe` blocks until the loop reaches its select, which during a scan can be a full timeout.
+Every write is preceded by `SetWriteDeadline` through `http.NewResponseController`. Without it, a backgrounded tab stops reading, the kernel send buffer fills, and the handler parks in `write(2)` indefinitely while `r.Context()` stays live because the connection is still open. That goroutine also blocks shutdown. The handler writes and flushes its headers and the `retry:` line before subscribing, so the browser sees an open stream straight away. The check itself runs on its own goroutine and reports back through a channel case in the loop's select, so `Subscribe` and `Unsubscribe` only wait for the loop to reach its select; while a scan is in flight the trigger and timer cases are disabled, which is what keeps one scan running and at most one queued.
 
-On subscribe the scanner replays the connection frame, the last snapshot, the current error and any scan in progress. A tab that connects after a failed first scan must not see an unexplained blank page.
+On subscribe the scanner replays the connection frame, the last snapshot, the `scan` frame that produced it, the current error and any scan in progress, in that order. The replayed `scan` frame is how a tab that reconnects after a scan finished learns it is no longer scanning; its `changed` is relative to the server's previous scan, not to what the tab holds. A tab that connects after a failed first scan must not see an unexplained blank page.
 
 ## The browser
 
@@ -252,4 +252,4 @@ Scanning is manual by default: the first subscriber to connect triggers one, and
 
 ## Testing
 
-`pkg/ui` tests the pure functions that fail silently in production: canonicalisation and hashing (child order and duration must not change the hash, status and details must), path keying and root-path collision, transitions, marshal sanitising, and SSE line prefixing. The scanner's lifecycle, the hub's concurrency and all browser code are untested here, matching the repository's practice of testing a command package's transforms rather than its runtime wiring.
+`pkg/ui` tests the pure functions that fail silently in production: canonicalisation and hashing (child order and duration must not change the hash, status and details must), path keying and root-path collision, transitions, and SSE line prefixing. The scanner loop is tested through a real HTTP server with a check that can be parked: subscribing and unsubscribing during a scan, queueing and coalescing triggers, the timer staying quiet during a scan, replay contents after success and failure, and shutdown with a scan in flight. The browser's pure functions (path keys, the index walk, status coercion) run under node from `testdata/app_test.mjs`; the DOM code is untested.

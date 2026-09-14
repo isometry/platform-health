@@ -93,16 +93,15 @@ service:
   annotations: {}
 
 # Dashboard sidecar :: custom configuration
+#
+# The sidecar listens on `ui.port` and scans the server container on
+# `containerPort`. If `containerPort` is changed, `serverArgs` must pass the
+# matching `--port` so the server actually listens there.
 ui:
   enabled: false
   port: 8090
-  # Arguments to pass to the dashboard sidecar
-  args:
-    - ui
-    - --listen=0.0.0.0:8090
-    - --allow-remote
-    - --server=127.0.0.1
-    - --port=8080
+  # Extra arguments appended to the generated `ui` command line
+  extraArgs: []
   resources: {}
 
 ingress:

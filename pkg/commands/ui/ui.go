@@ -111,7 +111,7 @@ func serve(cmd *cobra.Command, _ []string) error {
 		Dial: client.DialConfig{
 			Host:     v.GetString("server"),
 			Port:     v.GetInt("port"),
-			TLS:      v.GetBool("tls"),
+			TLS:      client.TLSModeFromFlag(v.GetBool("tls")),
 			Insecure: v.GetBool("insecure"),
 		},
 		Timeout: v.GetDuration("timeout"),
@@ -142,8 +142,12 @@ func serve(cmd *cobra.Command, _ []string) error {
 		return err
 	}
 
+	// The bound address, not the flag: an ephemeral :0 bind only knows its
+	// port here.
+	bound := listener.Addr().String()
+
 	srv := &http.Server{
-		Handler:           scanner.Mux(listen, ui.Assets()),
+		Handler:           scanner.Mux(listener.Addr(), ui.Assets()),
 		ReadHeaderTimeout: 10 * time.Second,
 	}
 
@@ -152,15 +156,15 @@ func serve(cmd *cobra.Command, _ []string) error {
 	serveErr := make(chan error, 1)
 	go func() { serveErr <- srv.Serve(listener) }()
 
-	log.Info("dashboard listening", slog.String("listen", listen), slog.String("target", scanner.Target()))
-	fmt.Fprintf(cmd.OutOrStdout(), "platform-health dashboard: http://%s\n", listen)
+	log.Info("dashboard listening", slog.String("listen", bound), slog.String("target", scanner.Target()))
+	fmt.Fprintf(cmd.OutOrStdout(), "platform-health dashboard: http://%s\n", bound)
 
 	if v.GetBool("open") {
 		switch {
 		case !isLoopback(listen):
 			fmt.Fprintf(cmd.ErrOrStderr(), "warning: --open ignored because --listen %s is not loopback; open the dashboard from the machine you want to view it on\n", listen)
 		default:
-			if err := openBrowser("http://" + listen); err != nil {
+			if err := openBrowser("http://" + bound); err != nil {
 				log.Warn("failed to open browser", slog.Any("error", err))
 			}
 		}

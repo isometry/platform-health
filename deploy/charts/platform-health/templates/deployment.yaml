@@ -85,7 +85,14 @@ spec:
           ports:
             - containerPort: {{ .Values.ui.port }}
           args:
-            {{- toYaml .Values.ui.args | nindent 12 }}
+            - ui
+            - --listen=0.0.0.0:{{ .Values.ui.port }}
+            - --allow-remote
+            - --server=127.0.0.1
+            - --port={{ .Values.containerPort }}
+            {{- with .Values.ui.extraArgs }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
           {{- with .Values.containerSecurityContext }}
           securityContext:
             {{- toYaml . | nindent 12 }}

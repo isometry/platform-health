@@ -10,6 +10,7 @@ import (
 	"helm.sh/helm/v4/pkg/release/common"
 	release "helm.sh/helm/v4/pkg/release/v1"
 	"k8s.io/cli-runtime/pkg/genericclioptions"
+	"k8s.io/client-go/rest"
 
 	k8sclient "github.com/isometry/platform-health/pkg/provider/kubernetes/client"
 )
@@ -30,12 +31,9 @@ type HelmClientFactory interface {
 // DefaultHelmFactory creates real helm clients using kubernetes config
 type DefaultHelmFactory struct{}
 
-// configFlagsFor builds the ConfigFlags used to resolve the given context.
-// Setting Context lets ConfigFlags perform its own full credential
-// resolution, so client-certificate and inline-CA data are picked up in
-// full. Hand-copying APIServer, BearerToken and CAFile only forwards a
-// token or file path, so a client-cert kubeconfig would have no usable
-// credential and silently fall back to the current context.
+// configFlagsFor builds the ConfigFlags helm uses for context and namespace
+// resolution. Context is set rather than individual credential fields so
+// inline client-certificate and CA data resolve in full.
 func configFlagsFor(kubeContext, namespace string) *genericclioptions.ConfigFlags {
 	kubeConfig := genericclioptions.NewConfigFlags(false)
 	if kubeContext != "" {
@@ -45,14 +43,24 @@ func configFlagsFor(kubeContext, namespace string) *genericclioptions.ConfigFlag
 	return kubeConfig
 }
 
-func (f *DefaultHelmFactory) GetStatusRunner(kubeContext, namespace string, log *slog.Logger) (StatusRunner, error) {
-	// Validate early: this also produces the correct error when a context
-	// override is requested while running in-cluster.
-	if _, err := k8sclient.GetKubeConfig(kubeContext); err != nil {
+// restClientGetterFor resolves the rest.Config through the kubernetes
+// provider's GetKubeConfig, so helm talks to the same cluster with the same
+// rate limits, and hands it to cli-runtime in place of its own resolution.
+func restClientGetterFor(kubeContext, namespace string) (*genericclioptions.ConfigFlags, error) {
+	cfg, err := k8sclient.GetKubeConfig(kubeContext)
+	if err != nil {
 		return nil, err
 	}
+	return configFlagsFor(kubeContext, namespace).WithWrapConfigFn(func(*rest.Config) *rest.Config {
+		return rest.CopyConfig(cfg)
+	}), nil
+}
 
-	kubeConfig := configFlagsFor(kubeContext, namespace)
+func (f *DefaultHelmFactory) GetStatusRunner(kubeContext, namespace string, log *slog.Logger) (StatusRunner, error) {
+	kubeConfig, err := restClientGetterFor(kubeContext, namespace)
+	if err != nil {
+		return nil, err
+	}
 
 	actionConfig := new(action.Configuration)
 	if err := actionConfig.Init(kubeConfig, namespace, "secret"); err != nil {

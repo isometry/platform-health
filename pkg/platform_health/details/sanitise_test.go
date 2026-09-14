@@ -8,6 +8,8 @@ import (
 	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/anypb"
+
+	ph "github.com/isometry/platform-health/pkg/platform_health"
 )
 
 // unknownTypeURL names a detail type this binary has never registered, the
@@ -90,4 +92,62 @@ func mustAny(t *testing.T, msg proto.Message) *anypb.Any {
 	a, err := anypb.New(msg)
 	require.NoError(t, err)
 	return a
+}
+
+func unknownDetailTree(t *testing.T) *ph.HealthCheckResponse {
+	t.Helper()
+	return &ph.HealthCheckResponse{
+		Type:   "system",
+		Status: ph.Status_UNHEALTHY,
+		Components: []*ph.HealthCheckResponse{
+			{Name: "healthy-sibling", Type: "tcp", Status: ph.Status_HEALTHY},
+			{Name: "future", Type: "satellite", Status: ph.Status_UNHEALTHY, Details: []*anypb.Any{mustUnknownAny(t)}},
+		},
+	}
+}
+
+func TestSanitiseResponseSurvivesUnknownDetail(t *testing.T) {
+	tree := unknownDetailTree(t)
+
+	_, errBefore := protojson.Marshal(tree)
+	require.Error(t, errBefore, "an unresolvable Any must fail a direct marshal, or this test proves nothing")
+
+	out, err := protojson.Marshal(SanitiseResponse(tree))
+	require.NoError(t, err)
+	assert.Contains(t, string(out), "healthy-sibling")
+	assert.Contains(t, string(out), "future")
+	assert.Contains(t, string(out), unknownTypeURL)
+}
+
+func TestSanitiseResponseDoesNotMutateInput(t *testing.T) {
+	tree := unknownDetailTree(t)
+	before := proto.Clone(tree)
+
+	_ = SanitiseResponse(tree)
+
+	assert.True(t, proto.Equal(before, tree))
+	_, stillUnresolved := tree.Components[1].Details[0].UnmarshalNew()
+	assert.Error(t, stillUnresolved)
+}
+
+func TestSanitiseResponseKnownDetailsByteIdentical(t *testing.T) {
+	tree := &ph.HealthCheckResponse{
+		Type:   "system",
+		Status: ph.Status_HEALTHY,
+		Components: []*ph.HealthCheckResponse{
+			{Name: "x", Type: "tls", Status: ph.Status_HEALTHY, Details: []*anypb.Any{mustAny(t, &Detail_TLS{CommonName: "example.com"})}},
+			{Name: "clean", Type: "tcp", Status: ph.Status_HEALTHY},
+		},
+	}
+
+	before, err := protojson.Marshal(tree)
+	require.NoError(t, err)
+	after, err := protojson.Marshal(SanitiseResponse(tree))
+	require.NoError(t, err)
+
+	assert.Equal(t, before, after)
+}
+
+func TestSanitiseResponseNil(t *testing.T) {
+	assert.Nil(t, SanitiseResponse(nil))
 }
