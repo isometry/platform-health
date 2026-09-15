@@ -10,6 +10,7 @@ import (
 	"helm.sh/helm/v4/pkg/release/common"
 	release "helm.sh/helm/v4/pkg/release/v1"
 	"k8s.io/cli-runtime/pkg/genericclioptions"
+	"k8s.io/client-go/rest"
 
 	k8sclient "github.com/isometry/platform-health/pkg/provider/kubernetes/client"
 )
@@ -30,18 +31,36 @@ type HelmClientFactory interface {
 // DefaultHelmFactory creates real helm clients using kubernetes config
 type DefaultHelmFactory struct{}
 
-func (f *DefaultHelmFactory) GetStatusRunner(kubeContext, namespace string, log *slog.Logger) (StatusRunner, error) {
-	config, err := k8sclient.GetKubeConfig(kubeContext)
+// configFlagsFor builds the ConfigFlags helm uses for context and namespace
+// resolution. Context is set rather than individual credential fields so
+// inline client-certificate and CA data resolve in full.
+func configFlagsFor(kubeContext, namespace string) *genericclioptions.ConfigFlags {
+	kubeConfig := genericclioptions.NewConfigFlags(false)
+	if kubeContext != "" {
+		kubeConfig.Context = &kubeContext
+	}
+	kubeConfig.Namespace = &namespace
+	return kubeConfig
+}
+
+// restClientGetterFor resolves the rest.Config through the kubernetes
+// provider's GetKubeConfig, so helm talks to the same cluster with the same
+// rate limits, and hands it to cli-runtime in place of its own resolution.
+func restClientGetterFor(kubeContext, namespace string) (*genericclioptions.ConfigFlags, error) {
+	cfg, err := k8sclient.GetKubeConfig(kubeContext)
 	if err != nil {
 		return nil, err
 	}
+	return configFlagsFor(kubeContext, namespace).WithWrapConfigFn(func(*rest.Config) *rest.Config {
+		return rest.CopyConfig(cfg)
+	}), nil
+}
 
-	// Create ConfigFlags from rest.Config
-	kubeConfig := genericclioptions.NewConfigFlags(false)
-	kubeConfig.APIServer = &config.Host
-	kubeConfig.BearerToken = &config.BearerToken
-	kubeConfig.CAFile = &config.CAFile
-	kubeConfig.Namespace = &namespace
+func (f *DefaultHelmFactory) GetStatusRunner(kubeContext, namespace string, log *slog.Logger) (StatusRunner, error) {
+	kubeConfig, err := restClientGetterFor(kubeContext, namespace)
+	if err != nil {
+		return nil, err
+	}
 
 	actionConfig := new(action.Configuration)
 	if err := actionConfig.Init(kubeConfig, namespace, "secret"); err != nil {

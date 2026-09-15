@@ -92,6 +92,18 @@ service:
   extraLabels: {}
   annotations: {}
 
+# Dashboard sidecar :: custom configuration
+#
+# The sidecar listens on `ui.port` and scans the server container on
+# `containerPort`. If `containerPort` is changed, `serverArgs` must pass the
+# matching `--port` so the server actually listens there.
+ui:
+  enabled: false
+  port: 8090
+  # Extra arguments appended to the generated `ui` command line
+  extraArgs: []
+  resources: {}
+
 ingress:
   enabled: false
   className: "" # e.g. nginx

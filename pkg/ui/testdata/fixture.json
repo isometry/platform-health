@@ -1,0 +1,608 @@
+{
+  "type": "",
+  "name": "",
+  "status": "UNHEALTHY",
+  "messages": [],
+  "details": [],
+  "components": [
+    {
+      "type": "tcp",
+      "name": "beacon-primary",
+      "status": "HEALTHY",
+      "messages": [],
+      "details": [],
+      "components": [],
+      "duration": "0.000412873s",
+      "failFastTriggered": false
+    },
+    {
+      "type": "http",
+      "name": "beacon-secondary",
+      "status": "UNHEALTHY",
+      "messages": [
+        "GET http://svc-secondary.internal.test/healthz: context deadline exceeded"
+      ],
+      "details": [],
+      "components": [],
+      "duration": "0.030004112s",
+      "failFastTriggered": false
+    },
+    {
+      "type": "system",
+      "name": "relay-outer",
+      "status": "UNHEALTHY",
+      "messages": [],
+      "details": [],
+      "components": [
+        {
+          "type": "system",
+          "name": "relay-middle",
+          "status": "UNHEALTHY",
+          "messages": [],
+          "details": [],
+          "components": [
+            {
+              "type": "grpc",
+              "name": "relay-inner",
+              "serverId": "relay-inner-01",
+              "status": "UNHEALTHY",
+              "messages": [
+                "rpc error: code = Unavailable desc = relay-inner unreachable"
+              ],
+              "details": [],
+              "components": [],
+              "duration": "0.039987541s",
+              "failFastTriggered": false
+            }
+          ],
+          "duration": "0.040118442s",
+          "failFastTriggered": false
+        }
+      ],
+      "duration": "0.041220098s",
+      "failFastTriggered": false
+    },
+    {
+      "type": "system",
+      "name": "shard-pool",
+      "status": "HEALTHY",
+      "messages": [],
+      "details": [],
+      "components": [
+        {
+          "type": "tcp",
+          "name": "shard-01",
+          "status": "HEALTHY",
+          "messages": [],
+          "details": [],
+          "components": [],
+          "duration": "0.000201s",
+          "failFastTriggered": false
+        },
+        {
+          "type": "tcp",
+          "name": "shard-02",
+          "status": "HEALTHY",
+          "messages": [],
+          "details": [],
+          "components": [],
+          "duration": "0.000202s",
+          "failFastTriggered": false
+        },
+        {
+          "type": "tcp",
+          "name": "shard-03",
+          "status": "HEALTHY",
+          "messages": [],
+          "details": [],
+          "components": [],
+          "duration": "0.000203s",
+          "failFastTriggered": false
+        },
+        {
+          "type": "tcp",
+          "name": "shard-04",
+          "status": "HEALTHY",
+          "messages": [],
+          "details": [],
+          "components": [],
+          "duration": "0.000204s",
+          "failFastTriggered": false
+        },
+        {
+          "type": "tcp",
+          "name": "shard-05",
+          "status": "HEALTHY",
+          "messages": [],
+          "details": [],
+          "components": [],
+          "duration": "0.000205s",
+          "failFastTriggered": false
+        },
+        {
+          "type": "tcp",
+          "name": "shard-06",
+          "status": "HEALTHY",
+          "messages": [],
+          "details": [],
+          "components": [],
+          "duration": "0.000206s",
+          "failFastTriggered": false
+        },
+        {
+          "type": "tcp",
+          "name": "shard-07",
+          "status": "HEALTHY",
+          "messages": [],
+          "details": [],
+          "components": [],
+          "duration": "0.000207s",
+          "failFastTriggered": false
+        },
+        {
+          "type": "tcp",
+          "name": "shard-08",
+          "status": "HEALTHY",
+          "messages": [],
+          "details": [],
+          "components": [],
+          "duration": "0.000208s",
+          "failFastTriggered": false
+        },
+        {
+          "type": "tcp",
+          "name": "shard-09",
+          "status": "HEALTHY",
+          "messages": [],
+          "details": [],
+          "components": [],
+          "duration": "0.000209s",
+          "failFastTriggered": false
+        },
+        {
+          "type": "tcp",
+          "name": "shard-10",
+          "status": "HEALTHY",
+          "messages": [],
+          "details": [],
+          "components": [],
+          "duration": "0.000210s",
+          "failFastTriggered": false
+        },
+        {
+          "type": "tcp",
+          "name": "shard-11",
+          "status": "HEALTHY",
+          "messages": [],
+          "details": [],
+          "components": [],
+          "duration": "0.000211s",
+          "failFastTriggered": false
+        },
+        {
+          "type": "tcp",
+          "name": "shard-12",
+          "status": "HEALTHY",
+          "messages": [],
+          "details": [],
+          "components": [],
+          "duration": "0.000212s",
+          "failFastTriggered": false
+        },
+        {
+          "type": "tcp",
+          "name": "shard-13",
+          "status": "HEALTHY",
+          "messages": [],
+          "details": [],
+          "components": [],
+          "duration": "0.000213s",
+          "failFastTriggered": false
+        },
+        {
+          "type": "tcp",
+          "name": "shard-14",
+          "status": "HEALTHY",
+          "messages": [],
+          "details": [],
+          "components": [],
+          "duration": "0.000214s",
+          "failFastTriggered": false
+        },
+        {
+          "type": "tcp",
+          "name": "shard-15",
+          "status": "HEALTHY",
+          "messages": [],
+          "details": [],
+          "components": [],
+          "duration": "0.000215s",
+          "failFastTriggered": false
+        },
+        {
+          "type": "tcp",
+          "name": "shard-16",
+          "status": "HEALTHY",
+          "messages": [],
+          "details": [],
+          "components": [],
+          "duration": "0.000216s",
+          "failFastTriggered": false
+        },
+        {
+          "type": "tcp",
+          "name": "shard-17",
+          "status": "HEALTHY",
+          "messages": [],
+          "details": [],
+          "components": [],
+          "duration": "0.000217s",
+          "failFastTriggered": false
+        },
+        {
+          "type": "tcp",
+          "name": "shard-18",
+          "status": "HEALTHY",
+          "messages": [],
+          "details": [],
+          "components": [],
+          "duration": "0.000218s",
+          "failFastTriggered": false
+        },
+        {
+          "type": "tcp",
+          "name": "shard-19",
+          "status": "HEALTHY",
+          "messages": [],
+          "details": [],
+          "components": [],
+          "duration": "0.000219s",
+          "failFastTriggered": false
+        },
+        {
+          "type": "tcp",
+          "name": "shard-20",
+          "status": "HEALTHY",
+          "messages": [],
+          "details": [],
+          "components": [],
+          "duration": "0.000220s",
+          "failFastTriggered": false
+        },
+        {
+          "type": "tcp",
+          "name": "shard-21",
+          "status": "HEALTHY",
+          "messages": [],
+          "details": [],
+          "components": [],
+          "duration": "0.000221s",
+          "failFastTriggered": false
+        },
+        {
+          "type": "tcp",
+          "name": "shard-22",
+          "status": "HEALTHY",
+          "messages": [],
+          "details": [],
+          "components": [],
+          "duration": "0.000222s",
+          "failFastTriggered": false
+        },
+        {
+          "type": "tcp",
+          "name": "shard-23",
+          "status": "HEALTHY",
+          "messages": [],
+          "details": [],
+          "components": [],
+          "duration": "0.000223s",
+          "failFastTriggered": false
+        },
+        {
+          "type": "tcp",
+          "name": "shard-24",
+          "status": "HEALTHY",
+          "messages": [],
+          "details": [],
+          "components": [],
+          "duration": "0.000224s",
+          "failFastTriggered": false
+        },
+        {
+          "type": "tcp",
+          "name": "shard-25",
+          "status": "HEALTHY",
+          "messages": [],
+          "details": [],
+          "components": [],
+          "duration": "0.000225s",
+          "failFastTriggered": false
+        },
+        {
+          "type": "tcp",
+          "name": "shard-26",
+          "status": "HEALTHY",
+          "messages": [],
+          "details": [],
+          "components": [],
+          "duration": "0.000226s",
+          "failFastTriggered": false
+        },
+        {
+          "type": "tcp",
+          "name": "shard-27",
+          "status": "HEALTHY",
+          "messages": [],
+          "details": [],
+          "components": [],
+          "duration": "0.000227s",
+          "failFastTriggered": false
+        },
+        {
+          "type": "tcp",
+          "name": "shard-28",
+          "status": "HEALTHY",
+          "messages": [],
+          "details": [],
+          "components": [],
+          "duration": "0.000228s",
+          "failFastTriggered": false
+        },
+        {
+          "type": "tcp",
+          "name": "shard-29",
+          "status": "HEALTHY",
+          "messages": [],
+          "details": [],
+          "components": [],
+          "duration": "0.000229s",
+          "failFastTriggered": false
+        },
+        {
+          "type": "tcp",
+          "name": "shard-30",
+          "status": "HEALTHY",
+          "messages": [],
+          "details": [],
+          "components": [],
+          "duration": "0.000230s",
+          "failFastTriggered": false
+        }
+      ],
+      "duration": "0.009873001s",
+      "failFastTriggered": false
+    },
+    {
+      "type": "system",
+      "name": "ingest-pipeline",
+      "status": "UNHEALTHY",
+      "messages": [],
+      "details": [],
+      "components": [
+        {
+          "type": "tcp",
+          "name": "ingest-stage-one",
+          "status": "UNHEALTHY",
+          "messages": [
+            "dial tcp: connection refused"
+          ],
+          "details": [],
+          "components": [],
+          "duration": "0.001987341s",
+          "failFastTriggered": false
+        }
+      ],
+      "duration": "0.002001873s",
+      "failFastTriggered": true
+    },
+    {
+      "type": "system",
+      "name": "edge-fleet",
+      "status": "UNHEALTHY",
+      "messages": [],
+      "details": [],
+      "components": [
+        {
+          "type": "http",
+          "name": "edge-gateway",
+          "status": "UNHEALTHY",
+          "messages": [
+            "GET https://edge.internal.test/healthz: 503 Service Unavailable",
+            "expected status 200, got 503",
+            "body check \"ready\" failed: response body was empty",
+            "retry 2 of 2 exhausted after 200ms"
+          ],
+          "details": [],
+          "components": [],
+          "duration": "0.204118773s",
+          "failFastTriggered": false
+        },
+        {
+          "type": "tls",
+          "name": "edge-cert",
+          "status": "HEALTHY",
+          "messages": [],
+          "details": [
+            {
+              "@type": "type.googleapis.com/platform_health.detail.v1.Detail_TLS",
+              "commonName": "edge.internal.test",
+              "subjectAltNames": [
+                "edge.internal.test",
+                "edge-alt.internal.test",
+                "*.edge.internal.test"
+              ],
+              "chain": [
+                "CN=edge.internal.test,O=Platform Health Sandbox,C=GB",
+                "CN=Platform Health Intermediate CA,O=Platform Health Sandbox,C=GB",
+                "CN=Platform Health Root CA,O=Platform Health Sandbox,C=GB"
+              ],
+              "validUntil": "2026-11-14T09:15:00Z",
+              "signatureAlgorithm": "SHA256-RSA",
+              "publicKeyAlgorithm": "RSA",
+              "version": "TLS 1.3",
+              "cipherSuite": "TLS_AES_128_GCM_SHA256",
+              "protocol": "h2"
+            }
+          ],
+          "components": [],
+          "duration": "0.061204833s",
+          "failFastTriggered": false
+        },
+        {
+          "type": "tls",
+          "name": "edge-cert-legacy",
+          "status": "HEALTHY",
+          "messages": [],
+          "details": [
+            {
+              "@type": "type.googleapis.com/platform_health.detail.v1.Detail_TLS",
+              "commonName": "legacy.internal.test",
+              "subjectAltNames": [
+                "legacy.internal.test"
+              ],
+              "chain": [
+                "CN=legacy.internal.test,O=Platform Health Sandbox,C=GB"
+              ],
+              "validUntil": "2026-09-05T00:00:00Z",
+              "signatureAlgorithm": "SHA256-RSA",
+              "publicKeyAlgorithm": "RSA",
+              "version": "TLS 1.2",
+              "cipherSuite": "TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256",
+              "protocol": "http/1.1"
+            }
+          ],
+          "components": [],
+          "duration": "0.058911204s",
+          "failFastTriggered": false
+        },
+        {
+          "type": "kubernetes",
+          "name": "edge-workload",
+          "status": "UNHEALTHY",
+          "messages": [
+            "deployment edge-workload is InProgress"
+          ],
+          "details": [
+            {
+              "@type": "type.googleapis.com/platform_health.detail.v1.Detail_KStatus",
+              "status": "InProgress",
+              "message": "Deployment is not progressing: 1/3 replicas updated",
+              "conditions": [
+                {
+                  "type": "Available",
+                  "status": "False",
+                  "reason": "MinimumReplicasUnavailable",
+                  "message": "Deployment does not have minimum availability."
+                },
+                {
+                  "type": "Progressing",
+                  "status": "True",
+                  "reason": "ReplicaSetUpdated",
+                  "message": "ReplicaSet \"edge-workload-7f9c\" is progressing."
+                },
+                {
+                  "type": "ReconciliationSucceeded",
+                  "status": "True"
+                }
+              ]
+            },
+            {
+              "@type": "type.googleapis.com/platform_health.detail.v1.Detail_KStatus",
+              "status": "Current",
+              "message": "PersistentVolumeClaim is Bound",
+              "conditions": [
+                {
+                  "type": "Bound",
+                  "status": "True",
+                  "reason": "Bound"
+                }
+              ]
+            }
+          ],
+          "components": [],
+          "duration": "0.112884051s",
+          "failFastTriggered": false
+        },
+        {
+          "type": "dns",
+          "name": "edge-dns",
+          "status": "HEALTHY",
+          "messages": [],
+          "details": [
+            {
+              "@type": "type.googleapis.com/platform_health.detail.v1.Detail_DNS",
+              "host": "edge.internal.test",
+              "server": "10.0.0.53:53",
+              "queryType": "A",
+              "records": [
+                {
+                  "type": "A",
+                  "value": "10.4.11.28",
+                  "ttl": 47
+                },
+                {
+                  "type": "A",
+                  "value": "10.4.11.29",
+                  "ttl": 47
+                },
+                {
+                  "type": "AAAA",
+                  "value": "2001:db8:4::11:28",
+                  "ttl": 47
+                },
+                {
+                  "type": "SRV",
+                  "value": "edge-1.internal.test",
+                  "ttl": 120,
+                  "priority": 10,
+                  "weight": 60,
+                  "port": 8443,
+                  "target": "edge-1.internal.test"
+                }
+              ],
+              "dnssec": {
+                "enabled": true,
+                "authenticated": false
+              }
+            }
+          ],
+          "components": [],
+          "duration": "0.013442119s",
+          "failFastTriggered": false
+        },
+        {
+          "type": "vault",
+          "name": "edge-unknown",
+          "status": "HEALTHY",
+          "messages": [],
+          "details": [
+            {
+              "@type": "type.googleapis.com/platform_health.detail.v1.Condition",
+              "type": "SandboxProbe",
+              "status": "True",
+              "reason": "NoRendererRegistered",
+              "message": "This detail type has no dock renderer and must still read cleanly."
+            }
+          ],
+          "components": [],
+          "duration": "0.009117442s",
+          "failFastTriggered": false
+        }
+      ],
+      "duration": "0.318442071s",
+      "failFastTriggered": false
+    },
+    {
+      "type": "tcp",
+      "name": "aux-probe",
+      "messages": [],
+      "details": [],
+      "components": [],
+      "duration": "0.000198441s",
+      "failFastTriggered": false
+    }
+  ],
+  "duration": "0.084213009s",
+  "failFastTriggered": false
+}

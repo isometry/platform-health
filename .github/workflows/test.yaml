@@ -26,3 +26,6 @@ jobs:
 
       - name: Run Tests
         run: go test -v ./...
+
+      - name: Run Tests (dashboard)
+        run: go test -v -tags ui ./...

@@ -128,6 +128,35 @@ func ParallelismFlags() provider.FlagValues {
 	}
 }
 
+// ClientFlags returns flags for connecting to a platform-health server.
+func ClientFlags() provider.FlagValues {
+	return provider.FlagValues{
+		"server": {
+			Shorthand:    "s",
+			Kind:         provider.FlagKindString,
+			DefaultValue: "localhost",
+			Usage:        "server host",
+		},
+		"port": {
+			Shorthand:    "p",
+			Kind:         provider.FlagKindInt,
+			DefaultValue: 8080,
+			Usage:        "server port",
+		},
+		"tls": {
+			Kind:         provider.FlagKindBool,
+			DefaultValue: false,
+			Usage:        "enable tls (implied by port 443 or 8443)",
+		},
+		"insecure": {
+			Shorthand:    "k",
+			Kind:         provider.FlagKindBool,
+			DefaultValue: false,
+			Usage:        "disable certificate verification",
+		},
+	}
+}
+
 // TimeoutFlags returns flags for timeout control.
 func TimeoutFlags() provider.FlagValues {
 	return provider.FlagValues{

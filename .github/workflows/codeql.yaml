@@ -21,7 +21,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        language: ["go"]
+        language: ["go", "javascript"]
 
     steps:
       - name: Checkout repository
@@ -39,7 +39,7 @@ jobs:
 
       - name: Build
         run: |
-          go build ./cmd/ph
+          go build -tags ui ./cmd/ph
           go build ./cmd/phc
           go build ./cmd/phs
 

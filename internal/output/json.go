@@ -4,6 +4,7 @@ import (
 	"google.golang.org/protobuf/encoding/protojson"
 
 	ph "github.com/isometry/platform-health/pkg/platform_health"
+	"github.com/isometry/platform-health/pkg/platform_health/details"
 )
 
 func init() {
@@ -20,5 +21,5 @@ func (f *JSONFormatter) Format(status *ph.HealthCheckResponse, cfg Config) ([]by
 		opts.Multiline = true
 		opts.Indent = "  "
 	}
-	return opts.Marshal(status)
+	return opts.Marshal(details.SanitiseResponse(status))
 }

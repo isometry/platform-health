@@ -14,6 +14,17 @@ import (
 	"k8s.io/client-go/tools/clientcmd"
 )
 
+// client-go defaults to 5 QPS with a burst of 10, and DefaultFactory caches
+// one client per context, so every component sharing a context shares that
+// one bucket. On an estate of any size the checks queue until they exceed
+// their deadline and report UNHEALTHY, which is indistinguishable from a real
+// outage. These are read-only calls and API Priority and Fairness protects
+// the server, so a controller-scale budget is the safer default.
+const (
+	kubeQPS   = 50
+	kubeBurst = 100
+)
+
 // GetKubeConfig returns a Kubernetes client configuration.
 // If context is non-empty, it overrides the current context from kubeconfig.
 func GetKubeConfig(context string) (config *rest.Config, err error) {
@@ -21,16 +32,23 @@ func GetKubeConfig(context string) (config *rest.Config, err error) {
 		if context != "" {
 			return nil, fmt.Errorf("context override not supported when running in-cluster")
 		}
-		return rest.InClusterConfig()
+		config, err = rest.InClusterConfig()
+	} else {
+		loadingRules := clientcmd.NewDefaultClientConfigLoadingRules()
+		configOverrides := &clientcmd.ConfigOverrides{}
+		if context != "" {
+			configOverrides.CurrentContext = context
+		}
+		kubeconfig := clientcmd.NewNonInteractiveDeferredLoadingClientConfig(loadingRules, configOverrides)
+		config, err = kubeconfig.ClientConfig()
 	}
-	// out-of-cluster config
-	loadingRules := clientcmd.NewDefaultClientConfigLoadingRules()
-	configOverrides := &clientcmd.ConfigOverrides{}
-	if context != "" {
-		configOverrides.CurrentContext = context
+	if err != nil {
+		return nil, err
 	}
-	kubeconfig := clientcmd.NewNonInteractiveDeferredLoadingClientConfig(loadingRules, configOverrides)
-	return kubeconfig.ClientConfig()
+
+	config.QPS = kubeQPS
+	config.Burst = kubeBurst
+	return config, nil
 }
 
 // KubeClients holds Kubernetes client implementations
