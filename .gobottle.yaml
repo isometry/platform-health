@@ -1,0 +1,29 @@
+formula:
+  name: platform-health
+  description: Platform health monitoring system
+  homepage: https://just.breathe.io/project/platform-health/
+  license: BSD-3-Clause
+  install:
+    completions: true
+  test:
+    command: [--version]
+
+binaries: [ph]
+
+source:
+  # bottle the binaries goreleaser has just built into dist/
+  type: local
+  owner: isometry
+  repo: platform-health
+  # recipe for `brew install --build-from-source` / `--HEAD`
+  build:
+    packages: [./cmd/ph]
+    tags: [ui]
+    ldflags: >-
+      -s -w
+      -X main.version={{.Version}}
+      -X main.commit={{.ShortCommit}}
+      -X main.date={{.Date}}
+
+tap:
+  owner: isometry

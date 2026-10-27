@@ -13,6 +13,7 @@ jobs:
       contents: write
       packages: write
       id-token: write
+      attestations: write
 
     steps:
       - name: Checkout
@@ -42,7 +43,27 @@ jobs:
           args: release --clean
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          HOMEBREW_TAP_GITHUB_TOKEN: ${{ secrets.HOMEBREW_TAP_GITHUB_TOKEN }}
+
+      - name: Setup gobottle
+        uses: isometry/gobottle-setup@v1
+
+      - name: Publish Homebrew bottles
+        run: gobottle release --source local
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GOBOTTLE_TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_GITHUB_TOKEN }}
+
+      - name: Attest build provenance
+        if: ${{ !cancelled() && hashFiles('bottles/*.tar.gz') != '' }}
+        uses: actions/attest-build-provenance@v4
+        with:
+          subject-path: |
+            dist/*.zip
+            dist/*_SHA256SUMS
+            dist/*/ph
+            dist/*/phc
+            dist/*/phs
+            bottles/*.tar.gz
 
       - name: Build and Push Helm Chart
         run: |

@@ -30,6 +30,7 @@ Each provider implements the `Instance` interface, with the health of each insta
 ### macOS/Linux
 
 ```bash
+brew trust isometry/tap   # once, required by Homebrew >= 6 for third-party taps
 brew install isometry/tap/platform-health
 ```
 
